@@ -423,7 +423,7 @@ TECNICOS_MEC = [
 def cargar_excel_mantenimiento():
     """Carga el archivo Excel con los datos de mantenimiento"""
     try:
-        df = pd.read_excel("Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
+        df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
         df = df[df['UN'] != 'UN'].reset_index(drop=True)
         # Asegurar que tenemos las columnas necesarias
         if 'Estado' not in df.columns:
@@ -449,7 +449,7 @@ def cargar_excel_mantenimiento():
 def cargar_excel_tecnicos():
     """Carga el archivo Excel con los técnicos por actividad"""
     try:
-        df = pd.read_excel("tecnico.xlsx", sheet_name="query")
+        df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
         df = df[df['ACTIVIDAD'] != 'ACTIVIDAD'].reset_index(drop=True)
         df['TECNICOS'] = df['TECNICOS'].str.strip()
         df['ESPE'] = df['ESPE'].str.strip()
