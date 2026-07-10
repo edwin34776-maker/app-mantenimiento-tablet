@@ -294,8 +294,23 @@ TECNICOS_MEC = [
 def cargar_excel_mantenimiento():
     try:
         df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
+        # Eliminar fila de encabezados duplicados si existe
         if "UN" in df.columns:
             df = df[df["UN"] != "UN"].reset_index(drop=True)
+
+        # Normalizar nombres de columnas: quitar tildes y espacios extra
+        df.columns = df.columns.str.strip()
+
+        # Mapeo de columnas con tildes a nombres sin tildes para facilitar el código
+        columnas_mapeo = {
+            "Ubicación": "Ubicacion",
+            "Descripción de procedimiento": "Descripcion de procedimiento",
+            "Especialidad": "Especialidad",
+        }
+        for original, nuevo in columnas_mapeo.items():
+            if original in df.columns and nuevo not in df.columns:
+                df = df.rename(columns={original: nuevo})
+
         columnas_default = {
             "Estado": "Pendiente",
             "Comentarios": "",
@@ -409,6 +424,17 @@ def boton_volver_inicio(key_suffix=""):
             st.session_state.busqueda = ""
             st.rerun()
 
+def obtener_maquinas_disponibles(df):
+    """Obtiene la lista de maquinas/ubicaciones disponibles de forma segura."""
+    if df.empty or "Ubicacion" not in df.columns:
+        return ["Todas"]
+    try:
+        maquinas = df["Ubicacion"].dropna().unique().tolist()
+        maquinas = [m for m in maquinas if str(m).strip()]
+        return ["Todas"] + sorted(maquinas)
+    except Exception:
+        return ["Todas"]
+
 # ==================== INICIALIZAR ESTADO ====================
 
 if "pagina" not in st.session_state:
@@ -473,9 +499,15 @@ def pantalla_home():
             st.session_state.busqueda = ""
             st.rerun()
 
-    maquinas = ["Todas"] + sorted(df["Ubicacion"].dropna().unique().tolist()) if not df.empty else ["Todas"]
-    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas,
-                               index=maquinas.index(st.session_state.filtro_maquina) if st.session_state.filtro_maquina in maquinas else 0)
+    # USAR FUNCION SEGURA PARA OBTENER MAQUINAS
+    maquinas = obtener_maquinas_disponibles(df)
+
+    # Asegurar que el valor seleccionado esté en la lista
+    index_sel = 0
+    if st.session_state.filtro_maquina in maquinas:
+        index_sel = maquinas.index(st.session_state.filtro_maquina)
+
+    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel)
     st.session_state.filtro_maquina = maquina_sel
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -489,7 +521,7 @@ def pantalla_home():
             st.session_state.pagina = "asignacion"
             st.rerun()
 
-    if not df.empty:
+    if not df.empty and "Especialidad" in df.columns:
         st.divider()
         col_a, col_b, col_c = st.columns(3)
         with col_a:
@@ -527,18 +559,22 @@ def pantalla_ordenes():
     """, unsafe_allow_html=True)
 
     df_filtrado = df.copy()
-    if st.session_state.filtro_especialidad != "Todas":
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado["Especialidad"] == st.session_state.filtro_especialidad]
-    if st.session_state.filtro_maquina != "Todas":
+    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado["Ubicacion"] == st.session_state.filtro_maquina]
     if busqueda:
         busqueda_lower = busqueda.lower()
-        df_filtrado = df_filtrado[
-            df_filtrado["Equipo"].str.lower().str.contains(busqueda_lower, na=False) |
-            df_filtrado["Ubicacion"].str.lower().str.contains(busqueda_lower, na=False) |
-            df_filtrado["ID OT"].astype(str).str.contains(busqueda_lower, na=False) |
-            df_filtrado["Descripcion de procedimiento"].str.lower().str.contains(busqueda_lower, na=False)
-        ]
+        mask = pd.Series([False] * len(df_filtrado), index=df_filtrado.index)
+        if "Equipo" in df_filtrado.columns:
+            mask |= df_filtrado["Equipo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        if "Ubicacion" in df_filtrado.columns:
+            mask |= df_filtrado["Ubicacion"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        if "ID OT" in df_filtrado.columns:
+            mask |= df_filtrado["ID OT"].astype(str).str.contains(busqueda_lower, na=False)
+        if "Descripcion de procedimiento" in df_filtrado.columns:
+            mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        df_filtrado = df_filtrado[mask]
 
     st.subheader(f"Ordenes ({len(df_filtrado)})")
     for idx, row in df_filtrado.iterrows():
@@ -637,9 +673,11 @@ def pantalla_asignacion():
                                index=["Todas", "ELE", "MEC"].index(st.session_state.filtro_esp_asig))
         st.session_state.filtro_esp_asig = esp_sel
     with col2:
-        maquinas = ["Todas"] + sorted(df["Ubicacion"].dropna().unique().tolist()) if not df.empty else ["Todas"]
-        maq_sel = st.selectbox("Maquina", maquinas,
-                               index=maquinas.index(st.session_state.filtro_maq_asig) if st.session_state.filtro_maq_asig in maquinas else 0)
+        maquinas = obtener_maquinas_disponibles(df)
+        index_sel = 0
+        if st.session_state.filtro_maq_asig in maquinas:
+            index_sel = maquinas.index(st.session_state.filtro_maq_asig)
+        maq_sel = st.selectbox("Maquina", maquinas, index=index_sel)
         st.session_state.filtro_maq_asig = maq_sel
     with col3:
         estados = ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"]
@@ -649,11 +687,11 @@ def pantalla_asignacion():
 
     # Filtrar ordenes
     df_asig = df.copy()
-    if st.session_state.filtro_esp_asig != "Todas":
+    if st.session_state.filtro_esp_asig != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_esp_asig]
-    if st.session_state.filtro_maq_asig != "Todas":
+    if st.session_state.filtro_maq_asig != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maq_asig]
-    if st.session_state.filtro_estado_asig != "Todos":
+    if st.session_state.filtro_estado_asig != "Todos" and "Estado" in df_asig.columns:
         df_asig = df_asig[df_asig["Estado"] == st.session_state.filtro_estado_asig]
 
     st.subheader(f"Ordenes para asignar ({len(df_asig)})")
