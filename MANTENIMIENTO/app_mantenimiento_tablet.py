@@ -346,7 +346,8 @@ TECNICOS_MEC = [
 @st.cache_data
 def cargar_excel_mantenimiento():
     try:
-        df = pd.read_excel("Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
+        df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
+        df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
         df = df[df['UN'] != 'UN'].reset_index(drop=True)
         if 'Estado' not in df.columns:
             df['Estado'] = 'Pendiente'
@@ -372,7 +373,7 @@ def cargar_excel_mantenimiento():
 @st.cache_data
 def cargar_excel_tecnicos():
     try:
-        df = pd.read_excel("tecnico.xlsx", sheet_name="query")
+        df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
         df = df[df['ACTIVIDAD'] != 'ACTIVIDAD'].reset_index(drop=True)
         df['TECNICOS'] = df['TECNICOS'].str.strip()
         df['ESPE'] = df['ESPE'].str.strip()
