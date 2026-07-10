@@ -16,39 +16,59 @@ st.markdown("""
 <style>
     .stApp {
         background-color: #f0f2f5;
+        max-width: 100vw;
+        overflow-x: hidden;
+    }
+
+    /* Fix para tablet - evitar scroll horizontal */
+    .main .block-container {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        max-width: 100% !important;
+    }
+
+    /* Asegurar que el contenido no se desborde */
+    div[data-testid="stVerticalBlock"] {
+        gap: 0.5rem !important;
     }
 
     .tablet-header {
         background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
         color: white;
-        padding: 12px 20px;
+        padding: 12px 16px;
         border-radius: 0 0 16px 16px;
         text-align: center;
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 700;
         margin: -1rem -1rem 1rem -1rem;
         box-shadow: 0 4px 15px rgba(26,35,158,0.3);
         position: sticky;
         top: 0;
         z-index: 100;
+        width: 100%;
+        box-sizing: border-box;
+        word-wrap: break-word;
     }
 
     .home-screen {
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        min-height: 60vh;
+        justify-content: flex-start;
+        min-height: auto;
         text-align: center;
-        padding: 20px;
+        padding: 10px;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .big-counter {
-        font-size: 80px;
+        font-size: 60px;
         font-weight: 900;
         color: #1a237e;
         line-height: 1;
-        margin: 20px 0;
+        margin: 10px 0;
+        word-wrap: break-word;
     }
 
     .counter-label {
@@ -244,7 +264,14 @@ st.markdown("""
     @media (max-width: 768px) {
         .actividad-header { flex-direction: column; align-items: flex-start; gap: 8px; }
         .leyenda-prioridad { gap: 10px; }
+        .big-counter { font-size: 48px; }
+        .tablet-header { font-size: 16px; padding: 10px 12px; }
+        .home-screen { padding: 5px; }
     }
+
+    /* Fix para evitar que el contenido se oculte */
+    iframe { max-width: 100%; }
+    .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
 </style>
 """, unsafe_allow_html=True)
 
