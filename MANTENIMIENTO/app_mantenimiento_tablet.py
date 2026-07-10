@@ -294,22 +294,32 @@ TECNICOS_MEC = [
 def cargar_excel_mantenimiento():
     try:
         df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
+        
         # Eliminar fila de encabezados duplicados si existe
         if "UN" in df.columns:
             df = df[df["UN"] != "UN"].reset_index(drop=True)
 
-        # Normalizar nombres de columnas: quitar tildes y espacios extra
+        # Normalizar nombres de columnas
         df.columns = df.columns.str.strip()
-
-        # Mapeo de columnas con tildes a nombres sin tildes para facilitar el código
-        columnas_mapeo = {
-            "Ubicación": "Ubicacion",
-            "Descripción de procedimiento": "Descripcion de procedimiento",
-            "Especialidad": "Especialidad",
-        }
-        for original, nuevo in columnas_mapeo.items():
-            if original in df.columns and nuevo not in df.columns:
-                df = df.rename(columns={original: nuevo})
+        
+        # Mapeo robusto: buscar columnas por coincidencia de texto
+        columnas_originales = list(df.columns)
+        columnas_mapeo = {}
+        
+        for col in columnas_originales:
+            col_norm = col.lower().replace(" ", "").replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").replace("ñ", "n")
+            if "ubicacion" in col_norm:
+                columnas_mapeo[col] = "Ubicacion"
+            elif "descripcion" in col_norm and "procedimiento" in col_norm:
+                columnas_mapeo[col] = "Descripcion de procedimiento"
+            elif "especialidad" in col_norm:
+                columnas_mapeo[col] = "Especialidad"
+            elif "equipo" in col_norm:
+                columnas_mapeo[col] = "Equipo"
+            elif "id" in col_norm and ("ot" in col_norm or "orden" in col_norm):
+                columnas_mapeo[col] = "ID OT"
+        
+        df = df.rename(columns=columnas_mapeo)
 
         columnas_default = {
             "Estado": "Pendiente",
@@ -331,14 +341,33 @@ def cargar_excel_mantenimiento():
     except Exception as e:
         st.error(f"Error al cargar el archivo de mantenimiento: {e}")
         return pd.DataFrame()
-
 @st.cache_data
 def cargar_excel_tecnicos():
     try:
         df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
-        df = df[df["ACTIVIDAD"] != "ACTIVIDAD"].reset_index(drop=True)
-        df["TECNICOS"] = df["TECNICOS"].str.strip()
-        df["ESPE"] = df["ESPE"].str.strip()
+        
+        # Normalizar nombres de columnas
+        df.columns = df.columns.str.strip()
+        
+        columnas_originales = list(df.columns)
+        columnas_mapeo = {}
+        for col in columnas_originales:
+            col_upper = col.upper().strip()
+            if col_upper == "ACTIVIDAD":
+                columnas_mapeo[col] = "ACTIVIDAD"
+            elif col_upper == "TECNICOS" or col_upper == "TECNICO":
+                columnas_mapeo[col] = "TECNICOS"
+            elif col_upper == "ESPE" or col_upper == "ESPECIALIDAD":
+                columnas_mapeo[col] = "ESPE"
+        
+        df = df.rename(columns=columnas_mapeo)
+        
+        if "ACTIVIDAD" in df.columns:
+            df = df[df["ACTIVIDAD"] != "ACTIVIDAD"].reset_index(drop=True)
+        if "TECNICOS" in df.columns:
+            df["TECNICOS"] = df["TECNICOS"].astype(str).str.strip()
+        if "ESPE" in df.columns:
+            df["ESPE"] = df["ESPE"].astype(str).str.strip()
         return df
     except FileNotFoundError:
         st.error("No se encontro el archivo: MANTENIMIENTO/tecnico.xlsx")
@@ -346,7 +375,6 @@ def cargar_excel_tecnicos():
     except Exception as e:
         st.error(f"Error al cargar el archivo de tecnicos: {e}")
         return pd.DataFrame()
-
 def obtener_tecnicos_por_nodo(nodo, especialidad):
     df_tec = st.session_state.df_tecnicos
     if df_tec.empty:
@@ -715,10 +743,7 @@ def pantalla_asignacion():
                 prioridad_actual = row.get("Prioridad_Actividad", "")
 
                 # === ASIGNAR TECNICO ===
-                # Obtener tecnicos disponibles
                 tecnicos_disponibles = obtener_tecnicos_por_especialidad(especialidad)
-
-                # Agregar opcion de quitar asignacion
                 opciones = ["-- Sin asignar --"] + tecnicos_disponibles
                 indice_actual = 0
                 if tecnico_actual and tecnico_actual in tecnicos_disponibles:
