@@ -712,7 +712,9 @@ def pantalla_asignacion():
             with cols[3]:
                 tecnico_actual = row.get("Tecnico_Asignado", "")
                 especialidad = row.get("Especialidad", "")
+                prioridad_actual = row.get("Prioridad_Actividad", "")
 
+                # === ASIGNAR TECNICO ===
                 # Obtener tecnicos disponibles
                 tecnicos_disponibles = obtener_tecnicos_por_especialidad(especialidad)
 
@@ -737,6 +739,29 @@ def pantalla_asignacion():
                     if tecnico_actual:
                         df.at[idx, "Tecnico_Asignado"] = ""
                         st.info("Tecnico removido")
+
+                # === ASIGNAR PRIORIDAD ===
+                prioridades = ["-- Sin prioridad --", "Rojo", "Amarillo", "Verde"]
+                indice_prioridad = 0
+                if prioridad_actual and prioridad_actual in prioridades:
+                    indice_prioridad = prioridades.index(prioridad_actual)
+
+                prioridad_seleccionada = st.selectbox(
+                    "Prioridad",
+                    prioridades,
+                    index=indice_prioridad,
+                    key=f"prio_asig_{idx}"
+                )
+
+                if prioridad_seleccionada != "-- Sin prioridad --":
+                    if prioridad_seleccionada != prioridad_actual:
+                        df.at[idx, "Prioridad_Actividad"] = prioridad_seleccionada
+                        info_prioridad = obtener_color_prioridad(prioridad_seleccionada)
+                        st.info(f"Prioridad: {info_prioridad['label']} - {info_prioridad['desc']}")
+                else:
+                    if prioridad_actual:
+                        df.at[idx, "Prioridad_Actividad"] = ""
+                        st.info("Prioridad removida")
         st.divider()
 
     if st.button("Guardar todas las asignaciones", use_container_width=True, type="primary"):
