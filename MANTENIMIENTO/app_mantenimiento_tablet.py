@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -11,7 +12,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== ESTILOS CSS - DISENO TABLET ====================
+# ==================== ESTILOS CSS - DISENO TABLET COMPACTO ====================
 st.markdown("""
 <style>
     .stApp {
@@ -22,14 +23,14 @@ st.markdown("""
 
     /* Fix para tablet - evitar scroll horizontal */
     .main .block-container {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
         max-width: 100% !important;
     }
 
     /* Asegurar que el contenido no se desborde */
     div[data-testid="stVerticalBlock"] {
-        gap: 0.5rem !important;
+        gap: 0.3rem !important;
     }
 
     .tablet-header {
@@ -79,11 +80,12 @@ st.markdown("""
 
     .estado-badge {
         display: inline-block;
-        padding: 4px 12px;
+        padding: 3px 10px;
         border-radius: 12px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         text-align: center;
+        white-space: nowrap;
     }
 
     .estado-ejecutado { background-color: #d4edda; color: #155724; }
@@ -95,8 +97,8 @@ st.markdown("""
         display: flex;
         gap: 15px;
         justify-content: center;
-        margin: 20px 0;
-        padding: 15px;
+        margin: 15px 0;
+        padding: 12px;
         background: white;
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -107,12 +109,12 @@ st.markdown("""
     }
 
     .progress-value {
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 800;
     }
 
     .progress-label {
-        font-size: 12px;
+        font-size: 11px;
         color: #666;
     }
 
@@ -137,141 +139,181 @@ st.markdown("""
     }
 
     .stButton>button {
-        border-radius: 8px;
+        border-radius: 6px;
         font-weight: 600;
+        font-size: 12px !important;
+        padding: 4px 12px !important;
     }
 
     .prioridad-critico {
-        border-left: 5px solid #dc3545 !important;
+        border-left: 4px solid #dc3545 !important;
         background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%) !important;
     }
     .prioridad-secundario {
-        border-left: 5px solid #ffc107 !important;
+        border-left: 4px solid #ffc107 !important;
         background: linear-gradient(90deg, #fffbea 0%, #ffffff 100%) !important;
     }
     .prioridad-estandar {
-        border-left: 5px solid #28a745 !important;
+        border-left: 4px solid #28a745 !important;
         background: linear-gradient(90deg, #f0fff4 0%, #ffffff 100%) !important;
     }
 
-    .leyenda-prioridad {
-        display: flex;
-        gap: 20px;
-        justify-content: center;
-        margin: 15px 0;
-        padding: 12px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        flex-wrap: wrap;
-    }
-
-    .leyenda-item {
-        display: flex;
+    /* ==================== TABLA COMPACTA ORDENES ==================== */
+    .tabla-header {
+        display: grid;
+        grid-template-columns: 70px 45px 1fr 90px 110px;
+        gap: 6px;
+        padding: 8px 10px;
+        background: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        font-weight: 700;
+        font-size: 10px;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         align-items: center;
-        gap: 8px;
-        font-size: 13px;
-        font-weight: 600;
+        margin-bottom: 6px;
     }
 
-    .leyenda-dot {
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        display: inline-block;
-    }
-
-    .actividad-card {
+    .tabla-fila {
+        display: grid;
+        grid-template-columns: 70px 45px 1fr 90px 110px;
+        gap: 6px;
+        padding: 8px 10px;
         background: white;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 12px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        align-items: center;
+        font-size: 12px;
+        margin-bottom: 6px;
         transition: all 0.2s;
     }
 
-    .actividad-card:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-        transform: translateY(-1px);
+    .tabla-fila:hover {
+        background: #f8f9fa;
+        border-color: #adb5bd;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    .actividad-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
-    }
-
-    .actividad-titulo {
-        font-size: 15px;
-        font-weight: 700;
-        color: #1f2937;
-        flex: 1;
-    }
-
-    .actividad-prioridad-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 12px;
-        border-radius: 20px;
+    .tabla-fila .col-id {
+        font-family: monospace;
         font-size: 11px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        color: #495057;
     }
 
-    .badge-critico {
-        background: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fecaca;
+    .tabla-fila .col-esp {
+        font-weight: 600;
+        font-size: 11px;
+        color: #1a237e;
     }
 
-    .badge-secundario {
-        background: #fef3c7;
-        color: #92400e;
-        border: 1px solid #fde68a;
+    .tabla-fila .col-desc {
+        font-size: 11px;
+        color: #212529;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .badge-estandar {
-        background: #d1fae5;
-        color: #065f46;
-        border: 1px solid #a7f3d0;
+    .tabla-fila .col-estado {
+        text-align: center;
     }
 
-    .actividad-descripcion {
-        font-size: 13px;
-        color: #6b7280;
-        margin-bottom: 12px;
-        line-height: 1.5;
+    .tabla-fila .col-tec {
+        font-size: 10px;
+        color: #6c757d;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
-    .actividad-footer {
-        display: flex;
-        justify-content: space-between;
+    /* ==================== TABLA ASIGNACION ==================== */
+    .tabla-fila-asig {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        padding: 8px 10px;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
         align-items: center;
-        padding-top: 10px;
-        border-top: 1px solid #f3f4f6;
+        margin-bottom: 4px;
     }
 
-    .actividad-meta {
-        display: flex;
-        gap: 12px;
+    .asig-info {
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .asig-ot {
         font-size: 12px;
-        color: #9ca3af;
+        color: #212529;
+        margin-bottom: 2px;
     }
 
+    .asig-esp {
+        color: #1a237e;
+        font-weight: 600;
+        font-size: 11px;
+    }
+
+    .asig-equipo {
+        font-size: 10px;
+        color: #6c757d;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .asig-estado {
+        text-align: right;
+        flex-shrink: 0;
+    }
+
+    /* ==================== RESPONSIVE ==================== */
     @media (max-width: 768px) {
-        .actividad-header { flex-direction: column; align-items: flex-start; gap: 8px; }
-        .leyenda-prioridad { gap: 10px; }
         .big-counter { font-size: 48px; }
         .tablet-header { font-size: 16px; padding: 10px 12px; }
         .home-screen { padding: 5px; }
+       
+        .tabla-header {
+            font-size: 9px;
+            grid-template-columns: 60px 40px 1fr 80px 90px;
+            padding: 6px 8px;
+        }
+       
+        .tabla-fila {
+            font-size: 11px;
+            grid-template-columns: 60px 40px 1fr 80px 90px;
+            padding: 6px 8px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .tabla-header {
+            display: none;
+        }
+       
+        .tabla-fila {
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            padding: 8px;
+        }
+       
+        .tabla-fila .col-id { grid-column: 1; }
+        .tabla-fila .col-esp { grid-column: 2; text-align: right; font-size: 12px; }
+        .tabla-fila .col-desc { grid-column: 1 / -1; font-size: 12px; padding: 2px 0; }
+        .tabla-fila .col-estado { grid-column: 1; }
+        .tabla-fila .col-tec { grid-column: 2; text-align: right; font-size: 11px; }
     }
 
     /* Fix para evitar que el contenido se oculte */
     iframe { max-width: 100%; }
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
+   
+    /* Reducir espacio entre elementos de Streamlit */
+    .stMarkdown { margin-bottom: 0 !important; }
+    div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -321,18 +363,18 @@ TECNICOS_MEC = [
 def cargar_excel_mantenimiento():
     try:
         df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
-        
+       
         # Eliminar fila de encabezados duplicados si existe
         if "UN" in df.columns:
             df = df[df["UN"] != "UN"].reset_index(drop=True)
 
         # Normalizar nombres de columnas
         df.columns = df.columns.str.strip()
-        
+       
         # Mapeo robusto: buscar columnas por coincidencia de texto
         columnas_originales = list(df.columns)
         columnas_mapeo = {}
-        
+       
         for col in columnas_originales:
             col_norm = col.lower().replace(" ", "").replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u").replace("ñ", "n")
             if "ubicacion" in col_norm:
@@ -345,7 +387,7 @@ def cargar_excel_mantenimiento():
                 columnas_mapeo[col] = "Equipo"
             elif "id" in col_norm and ("ot" in col_norm or "orden" in col_norm):
                 columnas_mapeo[col] = "ID OT"
-        
+       
         df = df.rename(columns=columnas_mapeo)
 
         columnas_default = {
@@ -368,14 +410,15 @@ def cargar_excel_mantenimiento():
     except Exception as e:
         st.error(f"Error al cargar el archivo de mantenimiento: {e}")
         return pd.DataFrame()
+
 @st.cache_data
 def cargar_excel_tecnicos():
     try:
         df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
-        
+       
         # Normalizar nombres de columnas
         df.columns = df.columns.str.strip()
-        
+       
         columnas_originales = list(df.columns)
         columnas_mapeo = {}
         for col in columnas_originales:
@@ -386,9 +429,9 @@ def cargar_excel_tecnicos():
                 columnas_mapeo[col] = "TECNICOS"
             elif col_upper == "ESPE" or col_upper == "ESPECIALIDAD":
                 columnas_mapeo[col] = "ESPE"
-        
+       
         df = df.rename(columns=columnas_mapeo)
-        
+       
         if "ACTIVIDAD" in df.columns:
             df = df[df["ACTIVIDAD"] != "ACTIVIDAD"].reset_index(drop=True)
         if "TECNICOS" in df.columns:
@@ -402,6 +445,7 @@ def cargar_excel_tecnicos():
     except Exception as e:
         st.error(f"Error al cargar el archivo de tecnicos: {e}")
         return pd.DataFrame()
+
 def obtener_tecnicos_por_nodo(nodo, especialidad):
     df_tec = st.session_state.df_tecnicos
     if df_tec.empty:
@@ -584,250 +628,4 @@ def pantalla_home():
         with col_b:
             st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
         with col_c:
-            st.metric("Cerradas", len(df[df["Estado"].isin(["Cerrada", "Verificado"])]))
-
-# ==================== PANTALLA DE ORDENES (LISTA) ====================
-
-def pantalla_ordenes():
-    df = st.session_state.df_mantenimientos
-    st.markdown(f"""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Ordenes Preventivas</span>
-        <span style="font-size: 14px; opacity: 0.8;">{st.session_state.filtro_especialidad}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    boton_volver_inicio("ordenes_top")
-
-    busqueda = st.text_input("Buscar ID OT, equipo o descripcion...",
-                            value=st.session_state.busqueda,
-                            placeholder="Escribe para buscar...")
-    st.session_state.busqueda = busqueda
-
-    pct_ejec, pct_pdte, pct_verif = calcular_progreso(df)
-    st.markdown(f"""
-    <div class="progress-bar-container">
-        <div class="progress-item"><div class="progress-value" style="color:#28a745">{pct_ejec}%</div><div class="progress-label">Ejecutado</div></div>
-        <div class="progress-item"><div class="progress-value" style="color:#dc3545">{pct_pdte}%</div><div class="progress-label">Pendiente</div></div>
-        <div class="progress-item"><div class="progress-value" style="color:#007bff">{pct_verif}%</div><div class="progress-label">Verificado</div></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    df_filtrado = df.copy()
-    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_filtrado.columns:
-        df_filtrado = df_filtrado[df_filtrado["Especialidad"] == st.session_state.filtro_especialidad]
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_filtrado.columns:
-        df_filtrado = df_filtrado[df_filtrado["Ubicacion"] == st.session_state.filtro_maquina]
-    if busqueda:
-        busqueda_lower = busqueda.lower()
-        mask = pd.Series([False] * len(df_filtrado), index=df_filtrado.index)
-        if "Equipo" in df_filtrado.columns:
-            mask |= df_filtrado["Equipo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
-        if "Ubicacion" in df_filtrado.columns:
-            mask |= df_filtrado["Ubicacion"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
-        if "ID OT" in df_filtrado.columns:
-            mask |= df_filtrado["ID OT"].astype(str).str.contains(busqueda_lower, na=False)
-        if "Descripcion de procedimiento" in df_filtrado.columns:
-            mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
-        df_filtrado = df_filtrado[mask]
-
-    st.subheader(f"Ordenes ({len(df_filtrado)})")
-    for idx, row in df_filtrado.iterrows():
-        id_ot = str(row.get("ID OT", ""))
-        tipo = str(row.get("Especialidad", ""))
-        descripcion = str(row.get("Descripcion de procedimiento", ""))[:50] + "..." if len(str(row.get("Descripcion de procedimiento", ""))) > 50 else str(row.get("Descripcion de procedimiento", ""))
-        estado = str(row.get("Estado", "Pendiente"))
-        tecnico = str(row.get("Tecnico_Asignado", ""))[:15] + "..." if len(str(row.get("Tecnico_Asignado", ""))) > 15 else str(row.get("Tecnico_Asignado", ""))
-        if not tecnico:
-            tecnico = "Sin asignar"
-        estado_clase = obtener_estado_visual(estado)
-
-        cols = st.columns([1, 1, 4, 1, 1])
-        with cols[0]:
-            st.write(f"**{id_ot}**")
-        with cols[1]:
-            st.write(f"{tipo}")
-        with cols[2]:
-            st.write(descripcion)
-        with cols[3]:
-            st.markdown(f'<span class="estado-badge {estado_clase}">{estado}</span>', unsafe_allow_html=True)
-        with cols[4]:
-            st.write(tecnico)
-        if st.button(f"Ver", key=f"btn_ver_{idx}"):
-            st.session_state.orden_seleccionada = idx
-            st.session_state.pagina = "detalle"
-            st.rerun()
-        st.divider()
-
-# ==================== PANTALLA DE DETALLE DE ORDEN ====================
-
-def pantalla_detalle():
-    df = st.session_state.df_mantenimientos
-    idx = st.session_state.orden_seleccionada
-    if idx is None or idx not in df.index:
-        st.session_state.pagina = "ordenes"
-        st.rerun()
-        return
-
-    row = df.loc[idx]
-    st.markdown(f"""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Detalle OT {row.get('ID OT', '')}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    boton_volver_inicio("detalle_top")
-
-    st.markdown(f"""
-    <div class="detail-panel">
-        <div class="equipo-info">
-            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
-            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
-            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
-            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.subheader("Descripcion del Procedimiento")
-    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
-
-    st.subheader("Tecnico Asignado")
-    tecnico_actual = row.get("Tecnico_Asignado", "")
-    if tecnico_actual:
-        st.success(f"{tecnico_actual}")
-    else:
-        st.warning("Sin tecnico asignado")
-
-    st.subheader("Comentarios")
-    comentarios = row.get("Comentarios", "")
-    nuevo_comentario = st.text_area("Agregar comentario", value=comentarios, key="comentario_detalle")
-    if st.button("Guardar Comentario", key="guardar_comentario"):
-        df.at[idx, "Comentarios"] = nuevo_comentario
-        st.success("Comentario guardado")
-        st.rerun()
-
-    boton_volver_inicio("detalle_bottom")
-
-# ==================== PANTALLA DE ASIGNACION DE TECNICOS ====================
-
-def pantalla_asignacion():
-    df = st.session_state.df_mantenimientos
-    st.markdown(f"""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Asignacion de Tecnicos</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    boton_volver_inicio("asignacion_top")
-
-    # Filtros de asignacion
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        esp_sel = st.selectbox("Especialidad", ["Todas", "ELE", "MEC"],
-                               index=["Todas", "ELE", "MEC"].index(st.session_state.filtro_esp_asig))
-        st.session_state.filtro_esp_asig = esp_sel
-    with col2:
-        maquinas = obtener_maquinas_disponibles(df)
-        index_sel = 0
-        if st.session_state.filtro_maq_asig in maquinas:
-            index_sel = maquinas.index(st.session_state.filtro_maq_asig)
-        maq_sel = st.selectbox("Maquina", maquinas, index=index_sel)
-        st.session_state.filtro_maq_asig = maq_sel
-    with col3:
-        estados = ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"]
-        est_sel = st.selectbox("Estado", estados,
-                               index=estados.index(st.session_state.filtro_estado_asig))
-        st.session_state.filtro_estado_asig = est_sel
-
-    # Filtrar ordenes
-    df_asig = df.copy()
-    if st.session_state.filtro_esp_asig != "Todas" and "Especialidad" in df_asig.columns:
-        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_esp_asig]
-    if st.session_state.filtro_maq_asig != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maq_asig]
-    if st.session_state.filtro_estado_asig != "Todos" and "Estado" in df_asig.columns:
-        df_asig = df_asig[df_asig["Estado"] == st.session_state.filtro_estado_asig]
-
-    st.subheader(f"Ordenes para asignar ({len(df_asig)})")
-
-    for idx, row in df_asig.iterrows():
-        with st.container():
-            cols = st.columns([2, 3, 2, 2])
-            with cols[0]:
-                st.write(f"**OT {row.get('ID OT', '')}**")
-                st.write(f"{row.get('Equipo', '')}")
-            with cols[1]:
-                st.write(f"{row.get('Ubicacion', '')}")
-                st.write(f"{row.get('Especialidad', '')}")
-            with cols[2]:
-                estado = row.get("Estado", "Pendiente")
-                estado_clase = obtener_estado_visual(estado)
-                st.markdown(f'<span class="estado-badge {estado_clase}">{estado}</span>', unsafe_allow_html=True)
-            with cols[3]:
-                tecnico_actual = row.get("Tecnico_Asignado", "")
-                especialidad = row.get("Especialidad", "")
-                prioridad_actual = row.get("Prioridad_Actividad", "")
-
-                # === ASIGNAR TECNICO ===
-                tecnicos_disponibles = obtener_tecnicos_por_especialidad(especialidad)
-                opciones = ["-- Sin asignar --"] + tecnicos_disponibles
-                indice_actual = 0
-                if tecnico_actual and tecnico_actual in tecnicos_disponibles:
-                    indice_actual = tecnicos_disponibles.index(tecnico_actual) + 1
-
-                tecnico_seleccionado = st.selectbox(
-                    "Asignar tecnico",
-                    opciones,
-                    index=indice_actual,
-                    key=f"tec_asig_{idx}"
-                )
-
-                if tecnico_seleccionado != "-- Sin asignar --":
-                    if tecnico_seleccionado != tecnico_actual:
-                        df.at[idx, "Tecnico_Asignado"] = tecnico_seleccionado
-                        st.success(f"Asignado: {tecnico_seleccionado}")
-                else:
-                    if tecnico_actual:
-                        df.at[idx, "Tecnico_Asignado"] = ""
-                        st.info("Tecnico removido")
-
-                # === ASIGNAR PRIORIDAD ===
-                prioridades = ["-- Sin prioridad --", "Rojo", "Amarillo", "Verde"]
-                indice_prioridad = 0
-                if prioridad_actual and prioridad_actual in prioridades:
-                    indice_prioridad = prioridades.index(prioridad_actual)
-
-                prioridad_seleccionada = st.selectbox(
-                    "Prioridad",
-                    prioridades,
-                    index=indice_prioridad,
-                    key=f"prio_asig_{idx}"
-                )
-
-                if prioridad_seleccionada != "-- Sin prioridad --":
-                    if prioridad_seleccionada != prioridad_actual:
-                        df.at[idx, "Prioridad_Actividad"] = prioridad_seleccionada
-                        info_prioridad = obtener_color_prioridad(prioridad_seleccionada)
-                        st.info(f"Prioridad: {info_prioridad['label']} - {info_prioridad['desc']}")
-                else:
-                    if prioridad_actual:
-                        df.at[idx, "Prioridad_Actividad"] = ""
-                        st.info("Prioridad removida")
-        st.divider()
-
-    if st.button("Guardar todas las asignaciones", use_container_width=True, type="primary"):
-        st.success("Asignaciones guardadas correctamente")
-
-    boton_volver_inicio("asignacion_bottom")
-
-# ==================== MAIN ====================
-
-if st.session_state.pagina == "home":
-    pantalla_home()
-elif st.session_state.pagina == "ordenes":
-    pantalla_ordenes()
-elif st.session_state.pagina == "detalle":
-    pantalla_detalle()
-elif st.session_state.pagina == "asignacion":
-    pantalla_asignacion()
+            st.metric("Ce
