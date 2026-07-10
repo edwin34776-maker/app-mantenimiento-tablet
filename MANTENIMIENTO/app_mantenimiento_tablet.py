@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -298,13 +299,13 @@ def cargar_excel_mantenimiento():
         if "UN" in df.columns:
             df = df[df["UN"] != "UN"].reset_index(drop=True)
 
-        # Normalizar nombres de columnas: quitar tildes y espacios extra
+        # Normalizar nombres de columnas: quitar espacios extra
         df.columns = df.columns.str.strip()
 
-        # Mapeo de columnas con tildes a nombres sin tildes para facilitar el código
+        # Mapeo de columnas con tildes a nombres sin tildes para facilitar el codigo
         columnas_mapeo = {
-            "Ubicación": "Ubicacion",
-            "Descripción de procedimiento": "Descripcion de procedimiento",
+            "Ubicacion": "Ubicacion",
+            "Descripcion de procedimiento": "Descripcion de procedimiento",
             "Especialidad": "Especialidad",
         }
         for original, nuevo in columnas_mapeo.items():
@@ -502,7 +503,7 @@ def pantalla_home():
     # USAR FUNCION SEGURA PARA OBTENER MAQUINAS
     maquinas = obtener_maquinas_disponibles(df)
 
-    # Asegurar que el valor seleccionado esté en la lista
+    # Asegurar que el valor seleccionado este en la lista
     index_sel = 0
     if st.session_state.filtro_maquina in maquinas:
         index_sel = maquinas.index(st.session_state.filtro_maquina)
@@ -592,165 +593,4 @@ def pantalla_ordenes():
             st.write(f"**{id_ot}**")
         with cols[1]:
             st.write(f"{tipo}")
-        with cols[2]:
-            st.write(descripcion)
-        with cols[3]:
-            st.markdown(f'<span class="estado-badge {estado_clase}">{estado}</span>', unsafe_allow_html=True)
-        with cols[4]:
-            st.write(tecnico)
-        if st.button(f"Ver", key=f"btn_ver_{idx}"):
-            st.session_state.orden_seleccionada = idx
-            st.session_state.pagina = "detalle"
-            st.rerun()
-        st.divider()
-
-# ==================== PANTALLA DE DETALLE DE ORDEN ====================
-
-def pantalla_detalle():
-    df = st.session_state.df_mantenimientos
-    idx = st.session_state.orden_seleccionada
-    if idx is None or idx not in df.index:
-        st.session_state.pagina = "ordenes"
-        st.rerun()
-        return
-
-    row = df.loc[idx]
-    st.markdown(f"""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Detalle OT {row.get('ID OT', '')}</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    boton_volver_inicio("detalle_top")
-
-    st.markdown(f"""
-    <div class="detail-panel">
-        <div class="equipo-info">
-            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
-            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
-            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
-            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.subheader("Descripcion del Procedimiento")
-    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
-
-    st.subheader("Tecnico Asignado")
-    tecnico_actual = row.get("Tecnico_Asignado", "")
-    if tecnico_actual:
-        st.success(f"{tecnico_actual}")
-    else:
-        st.warning("Sin tecnico asignado")
-
-    st.subheader("Comentarios")
-    comentarios = row.get("Comentarios", "")
-    nuevo_comentario = st.text_area("Agregar comentario", value=comentarios, key="comentario_detalle")
-    if st.button("Guardar Comentario", key="guardar_comentario"):
-        df.at[idx, "Comentarios"] = nuevo_comentario
-        st.success("Comentario guardado")
-        st.rerun()
-
-    boton_volver_inicio("detalle_bottom")
-
-# ==================== PANTALLA DE ASIGNACION DE TECNICOS ====================
-
-def pantalla_asignacion():
-    df = st.session_state.df_mantenimientos
-    st.markdown(f"""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Asignacion de Tecnicos</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    boton_volver_inicio("asignacion_top")
-
-    # Filtros de asignacion
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        esp_sel = st.selectbox("Especialidad", ["Todas", "ELE", "MEC"],
-                               index=["Todas", "ELE", "MEC"].index(st.session_state.filtro_esp_asig))
-        st.session_state.filtro_esp_asig = esp_sel
-    with col2:
-        maquinas = obtener_maquinas_disponibles(df)
-        index_sel = 0
-        if st.session_state.filtro_maq_asig in maquinas:
-            index_sel = maquinas.index(st.session_state.filtro_maq_asig)
-        maq_sel = st.selectbox("Maquina", maquinas, index=index_sel)
-        st.session_state.filtro_maq_asig = maq_sel
-    with col3:
-        estados = ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"]
-        est_sel = st.selectbox("Estado", estados,
-                               index=estados.index(st.session_state.filtro_estado_asig))
-        st.session_state.filtro_estado_asig = est_sel
-
-    # Filtrar ordenes
-    df_asig = df.copy()
-    if st.session_state.filtro_esp_asig != "Todas" and "Especialidad" in df_asig.columns:
-        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_esp_asig]
-    if st.session_state.filtro_maq_asig != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maq_asig]
-    if st.session_state.filtro_estado_asig != "Todos" and "Estado" in df_asig.columns:
-        df_asig = df_asig[df_asig["Estado"] == st.session_state.filtro_estado_asig]
-
-    st.subheader(f"Ordenes para asignar ({len(df_asig)})")
-
-    for idx, row in df_asig.iterrows():
-        with st.container():
-            cols = st.columns([2, 3, 2, 2])
-            with cols[0]:
-                st.write(f"**OT {row.get('ID OT', '')}**")
-                st.write(f"{row.get('Equipo', '')}")
-            with cols[1]:
-                st.write(f"{row.get('Ubicacion', '')}")
-                st.write(f"{row.get('Especialidad', '')}")
-            with cols[2]:
-                estado = row.get("Estado", "Pendiente")
-                estado_clase = obtener_estado_visual(estado)
-                st.markdown(f'<span class="estado-badge {estado_clase}">{estado}</span>', unsafe_allow_html=True)
-            with cols[3]:
-                tecnico_actual = row.get("Tecnico_Asignado", "")
-                especialidad = row.get("Especialidad", "")
-
-                # Obtener tecnicos disponibles
-                tecnicos_disponibles = obtener_tecnicos_por_especialidad(especialidad)
-
-                # Agregar opcion de quitar asignacion
-                opciones = ["-- Sin asignar --"] + tecnicos_disponibles
-                indice_actual = 0
-                if tecnico_actual and tecnico_actual in tecnicos_disponibles:
-                    indice_actual = tecnicos_disponibles.index(tecnico_actual) + 1
-
-                tecnico_seleccionado = st.selectbox(
-                    "Asignar tecnico",
-                    opciones,
-                    index=indice_actual,
-                    key=f"tec_asig_{idx}"
-                )
-
-                if tecnico_seleccionado != "-- Sin asignar --":
-                    if tecnico_seleccionado != tecnico_actual:
-                        df.at[idx, "Tecnico_Asignado"] = tecnico_seleccionado
-                        st.success(f"Asignado: {tecnico_seleccionado}")
-                else:
-                    if tecnico_actual:
-                        df.at[idx, "Tecnico_Asignado"] = ""
-                        st.info("Tecnico removido")
-        st.divider()
-
-    if st.button("Guardar todas las asignaciones", use_container_width=True, type="primary"):
-        st.success("Asignaciones guardadas correctamente")
-
-    boton_volver_inicio("asignacion_bottom")
-
-# ==================== MAIN ====================
-
-if st.session_state.pagina == "home":
-    pantalla_home()
-elif st.session_state.pagina == "ordenes":
-    pantalla_ordenes()
-elif st.session_state.pagina == "detalle":
-    pantalla_detalle()
-elif st.session_state.pagina == "asignacion":
-    pantalla_asignacion()
+     
