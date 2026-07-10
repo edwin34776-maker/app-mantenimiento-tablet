@@ -1,10 +1,9 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
 
-# Configuración de la página - MODO TABLET
+# Configuracion de la pagina - MODO TABLET
 st.set_page_config(
     page_title="App Tablet Mtto Preventivo",
     page_icon="🔧",
@@ -12,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# ==================== ESTILOS CSS - DISEÑO TABLET ====================
+# ==================== ESTILOS CSS - DISENO TABLET ====================
 st.markdown("""
 <style>
     .stApp {
@@ -56,58 +55,6 @@ st.markdown("""
         font-size: 18px;
         color: #666;
         margin-bottom: 30px;
-    }
-
-    .filter-chip {
-        background: white;
-        border: 2px solid #1a237e;
-        color: #1a237e;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 14px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .filter-chip:hover, .filter-chip.active {
-        background: #1a237e;
-        color: white;
-    }
-
-    .orders-table {
-        background: white;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-
-    .table-header {
-        background: #1a237e;
-        color: white;
-        padding: 12px 16px;
-        font-size: 14px;
-        font-weight: 600;
-        display: grid;
-        grid-template-columns: 80px 60px 1fr 100px 100px;
-        gap: 8px;
-        align-items: center;
-    }
-
-    .table-row {
-        padding: 12px 16px;
-        border-bottom: 1px solid #eee;
-        display: grid;
-        grid-template-columns: 80px 60px 1fr 100px 100px;
-        gap: 8px;
-        align-items: center;
-        cursor: pointer;
-        transition: all 0.2s;
-    }
-
-    .table-row:hover {
-        background: #e8eaf6;
     }
 
     .estado-badge {
@@ -174,7 +121,6 @@ st.markdown("""
         font-weight: 600;
     }
 
-    /* ==================== PRIORIDAD DE ACTIVIDADES - COLORES ==================== */
     .prioridad-critico {
         border-left: 5px solid #dc3545 !important;
         background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%) !important;
@@ -302,7 +248,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== BASE DE DATOS DE TÉCNICOS ====================
+# ==================== BASE DE DATOS DE TECNICOS ====================
 
 TECNICOS_ELE = [
     "RIVERA SANTOS LUIS ALVARO",
@@ -314,7 +260,7 @@ TECNICOS_ELE = [
     "QUECANO ANGARITA CARLOS",
     "PULIDO RIOS JAHIR",
     "GARCIA CASAS JEFFERSSON DAVID",
-    "CASTAÑEDA ORTIZ EDISON ORACIO",
+    "CASTANEDA ORTIZ EDISON ORACIO",
     "DIAZ SEGURA DANIEL STEVEN",
     "FRANCO SIERRA JOSE ALEJANDRO",
     "MOJICA GARCES JEAN CARLOS",
@@ -334,7 +280,7 @@ TECNICOS_MEC = [
     "MOLANO ALFONSO LUIS",
     "MARTINEZ TORRES FREDY ALEXANDER",
     "VARGAS VARGAS JHON ALEJANDER",
-    "MERIÑO GIL JOSE MANUEL",
+    "MERINO GIL JOSE MANUEL",
     "DILAN MEDINA",
     "RODRIGUEZ CAMACHO LUIS ALVEIRO",
     "MENDIVIELSO CANTOR JUAN CARLOS",
@@ -347,50 +293,43 @@ TECNICOS_MEC = [
 @st.cache_data
 def cargar_excel_mantenimiento():
     try:
-        # SOLO cargar el archivo de mantenimiento preventivo
         df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
-
-        # Limpiar filas con encabezados repetidos (si existen)
-        if 'UN' in df.columns:
-            df = df[df['UN'] != 'UN'].reset_index(drop=True)
-
-        # Asegurar columnas necesarias
+        if "UN" in df.columns:
+            df = df[df["UN"] != "UN"].reset_index(drop=True)
         columnas_default = {
-            'Estado': 'Pendiente',
-            'Comentarios': '',
-            'Tecnico_Asignado': '',
-            'Actividades_Hechas': '',
-            'Fecha_Ejecucion': '',
-            'Hora_Inicio': '',
-            'Hora_Fin': '',
-            'Prioridad_Actividad': ''
+            "Estado": "Pendiente",
+            "Comentarios": "",
+            "Tecnico_Asignado": "",
+            "Actividades_Hechas": "",
+            "Fecha_Ejecucion": "",
+            "Hora_Inicio": "",
+            "Hora_Fin": "",
+            "Prioridad_Actividad": ""
         }
         for col, default in columnas_default.items():
             if col not in df.columns:
                 df[col] = default
-
         return df
-
     except FileNotFoundError:
-        st.error("⚠️ No se encontró el archivo: MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx")
+        st.error("No se encontro el archivo: MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx")
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"⚠️ Error al cargar el archivo de mantenimiento: {e}")
+        st.error(f"Error al cargar el archivo de mantenimiento: {e}")
         return pd.DataFrame()
 
 @st.cache_data
 def cargar_excel_tecnicos():
     try:
         df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
-        df = df[df['ACTIVIDAD'] != 'ACTIVIDAD'].reset_index(drop=True)
-        df['TECNICOS'] = df['TECNICOS'].str.strip()
-        df['ESPE'] = df['ESPE'].str.strip()
+        df = df[df["ACTIVIDAD"] != "ACTIVIDAD"].reset_index(drop=True)
+        df["TECNICOS"] = df["TECNICOS"].str.strip()
+        df["ESPE"] = df["ESPE"].str.strip()
         return df
     except FileNotFoundError:
-        st.error("⚠️ No se encontró el archivo: MANTENIMIENTO/tecnico.xlsx")
+        st.error("No se encontro el archivo: MANTENIMIENTO/tecnico.xlsx")
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"⚠️ Error al cargar el archivo de técnicos: {e}")
+        st.error(f"Error al cargar el archivo de tecnicos: {e}")
         return pd.DataFrame()
 
 def obtener_tecnicos_por_nodo(nodo, especialidad):
@@ -398,25 +337,25 @@ def obtener_tecnicos_por_nodo(nodo, especialidad):
     if df_tec.empty:
         return []
     tecnicos = df_tec[
-        (df_tec['ACTIVIDAD'] == nodo) &
-        (df_tec['ESPE'] == especialidad) &
-        (df_tec['TECNICOS'].notna()) &
-        (df_tec['TECNICOS'] != '')
-    ]['TECNICOS'].unique().tolist()
+        (df_tec["ACTIVIDAD"] == nodo) &
+        (df_tec["ESPE"] == especialidad) &
+        (df_tec["TECNICOS"].notna()) &
+        (df_tec["TECNICOS"] != "")
+    ]["TECNICOS"].unique().tolist()
     return tecnicos
 
 def obtener_tecnicos_por_especialidad(especialidad):
-    if especialidad == 'ELE':
+    if especialidad == "ELE":
         return TECNICOS_ELE
-    elif especialidad == 'MEC':
+    elif especialidad == "MEC":
         return TECNICOS_MEC
     return TECNICOS_ELE + TECNICOS_MEC
 
 def limpiar_nombre_equipo(nombre):
     nombre = str(nombre).strip().upper()
-    prefijos = ['MOTOR ', 'REDUCTOR ', 'MOTOREDUCTOR ', 'SERVOMOTOR ', 'CAJA DE ',
-                'TABLERO ', 'BORNEA ', 'AIRE ACONDICIONADO ', 'AIRE ACOND  ',
-                'SISTEMA DE ', 'ESTACION DE ', 'SISTEMA ']
+    prefijos = ["MOTOR ", "REDUCTOR ", "MOTOREDUCTOR ", "SERVOMOTOR ", "CAJA DE ",
+                "TABLERO ", "BORNEA ", "AIRE ACONDICIONADO ", "AIRE ACOND  ",
+                "SISTEMA DE ", "ESTACION DE ", "SISTEMA "]
     for prefijo in prefijos:
         if nombre.startswith(prefijo):
             return nombre.replace(prefijo, "")
@@ -426,9 +365,9 @@ def calcular_progreso(df):
     total = len(df)
     if total == 0:
         return 0, 0, 0
-    ejecutado = len(df[df['Estado'] == 'Ejecutado'])
-    verificado = len(df[df['Estado'] == 'Verificado'])
-    cerrada = len(df[df['Estado'] == 'Cerrada'])
+    ejecutado = len(df[df["Estado"] == "Ejecutado"])
+    verificado = len(df[df["Estado"] == "Verificado"])
+    cerrada = len(df[df["Estado"] == "Cerrada"])
     pct_ejec = round((ejecutado / total) * 100, 1)
     pct_verif = round((verificado / total) * 100, 1)
     pct_pdte = round(100 - pct_ejec - pct_verif, 1)
@@ -436,144 +375,144 @@ def calcular_progreso(df):
 
 def obtener_estado_visual(estado):
     estados = {
-        'Ejecutado': 'estado-ejecutado',
-        'Verificado': 'estado-verificado',
-        'Cerrada': 'estado-cerrada',
-        'Pendiente': 'estado-pendiente'
+        "Ejecutado": "estado-ejecutado",
+        "Verificado": "estado-verificado",
+        "Cerrada": "estado-cerrada",
+        "Pendiente": "estado-pendiente"
     }
-    return estados.get(estado, 'estado-pendiente')
+    return estados.get(estado, "estado-pendiente")
 
 def obtener_color_prioridad(prioridad):
     colores = {
-        'Rojo': {'label': '🔴 CRÍTICO', 'desc': 'Sí o sí se debe realizar'},
-        'Amarillo': {'label': '🟡 SECUNDARIO', 'desc': 'Realizar después de las obligatorias'},
-        'Verde': {'label': '🟢 ESTÁNDAR', 'desc': 'Actividad simple, poco requisito'},
-        '': {'label': '⚪ SIN CLASIFICAR', 'desc': 'No definida'}
+        "Rojo": {"label": "CRITICO", "desc": "Si o si se debe realizar"},
+        "Amarillo": {"label": "SECUNDARIO", "desc": "Realizar despues de las obligatorias"},
+        "Verde": {"label": "ESTANDAR", "desc": "Actividad simple, poco requisito"},
+        "": {"label": "SIN CLASIFICAR", "desc": "No definida"}
     }
-    return colores.get(prioridad, colores[''])
+    return colores.get(prioridad, colores[""])
 
 def obtener_clase_css_prioridad(prioridad):
     clases = {
-        'Rojo': 'prioridad-critico',
-        'Amarillo': 'prioridad-secundario',
-        'Verde': 'prioridad-estandar',
-        '': ''
+        "Rojo": "prioridad-critico",
+        "Amarillo": "prioridad-secundario",
+        "Verde": "prioridad-estandar",
+        "": ""
     }
-    return clases.get(prioridad, '')
+    return clases.get(prioridad, "")
 
 def boton_volver_inicio(key_suffix=""):
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("🏠 VOLVER AL INICIO", use_container_width=True, type="secondary", key=f"volver_inicio_{key_suffix}"):
-            st.session_state.pagina = 'home'
+        if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary", key=f"volver_inicio_{key_suffix}"):
+            st.session_state.pagina = "home"
             st.session_state.orden_seleccionada = None
-            st.session_state.busqueda = ''
+            st.session_state.busqueda = ""
             st.rerun()
 
 # ==================== INICIALIZAR ESTADO ====================
 
-if 'pagina' not in st.session_state:
-    st.session_state.pagina = 'home'
-if 'orden_seleccionada' not in st.session_state:
+if "pagina" not in st.session_state:
+    st.session_state.pagina = "home"
+if "orden_seleccionada" not in st.session_state:
     st.session_state.orden_seleccionada = None
-if 'df_mantenimientos' not in st.session_state:
+if "df_mantenimientos" not in st.session_state:
     st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-if 'df_tecnicos' not in st.session_state:
+if "df_tecnicos" not in st.session_state:
     st.session_state.df_tecnicos = cargar_excel_tecnicos()
-if 'filtro_especialidad' not in st.session_state:
-    st.session_state.filtro_especialidad = 'Todas'
-if 'filtro_maquina' not in st.session_state:
-    st.session_state.filtro_maquina = 'Todas'
-if 'filtro_esp_asig' not in st.session_state:
-    st.session_state.filtro_esp_asig = 'Todas'
-if 'filtro_maq_asig' not in st.session_state:
-    st.session_state.filtro_maq_asig = 'Todas'
-if 'filtro_estado_asig' not in st.session_state:
-    st.session_state.filtro_estado_asig = 'Todos'
-if 'busqueda' not in st.session_state:
-    st.session_state.busqueda = ''
-if 'actividades_check' not in st.session_state:
+if "filtro_especialidad" not in st.session_state:
+    st.session_state.filtro_especialidad = "Todas"
+if "filtro_maquina" not in st.session_state:
+    st.session_state.filtro_maquina = "Todas"
+if "filtro_esp_asig" not in st.session_state:
+    st.session_state.filtro_esp_asig = "Todas"
+if "filtro_maq_asig" not in st.session_state:
+    st.session_state.filtro_maq_asig = "Todas"
+if "filtro_estado_asig" not in st.session_state:
+    st.session_state.filtro_estado_asig = "Todos"
+if "busqueda" not in st.session_state:
+    st.session_state.busqueda = ""
+if "actividades_check" not in st.session_state:
     st.session_state.actividades_check = {}
-if 'prioridades_actividades' not in st.session_state:
+if "prioridades_actividades" not in st.session_state:
     st.session_state.prioridades_actividades = {}
 
 # ==================== PANTALLA DE INICIO (HOME) ====================
 
 def pantalla_home():
     df = st.session_state.df_mantenimientos
-    st.markdown('<div class="tablet-header">🔧 App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
+    st.markdown('<div class="tablet-header">App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
     total_ordenes = len(df)
     st.markdown(f"""
     <div class="home-screen">
-        <div class="counter-label">ÓRDENES PREVENTIVAS</div>
+        <div class="counter-label">ORDENES PREVENTIVAS</div>
         <div class="big-counter">{total_ordenes}</div>
-        <div class="counter-label">Total de órdenes activas</div>
+        <div class="counter-label">Total de ordenes activas</div>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='text-align: center; margin-bottom: 10px; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns([1,1,1,1])
     with col1:
-        if st.button("🔵 TODAS", use_container_width=True,
-                    type="primary" if st.session_state.filtro_especialidad == 'Todas' else "secondary"):
-            st.session_state.filtro_especialidad = 'Todas'
+        if st.button("TODAS", use_container_width=True,
+                    type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary"):
+            st.session_state.filtro_especialidad = "Todas"
             st.rerun()
     with col2:
-        if st.button("⚡ ELE", use_container_width=True,
-                    type="primary" if st.session_state.filtro_especialidad == 'ELE' else "secondary"):
-            st.session_state.filtro_especialidad = 'ELE'
+        if st.button("ELE", use_container_width=True,
+                    type="primary" if st.session_state.filtro_especialidad == "ELE" else "secondary"):
+            st.session_state.filtro_especialidad = "ELE"
             st.rerun()
     with col3:
-        if st.button("🔧 MEC", use_container_width=True,
-                    type="primary" if st.session_state.filtro_especialidad == 'MEC' else "secondary"):
-            st.session_state.filtro_especialidad = 'MEC'
+        if st.button("MEC", use_container_width=True,
+                    type="primary" if st.session_state.filtro_especialidad == "MEC" else "secondary"):
+            st.session_state.filtro_especialidad = "MEC"
             st.rerun()
     with col4:
-        if st.button("🔄 LIMPIAR", use_container_width=True):
-            st.session_state.filtro_especialidad = 'Todas'
-            st.session_state.busqueda = ''
+        if st.button("LIMPIAR", use_container_width=True):
+            st.session_state.filtro_especialidad = "Todas"
+            st.session_state.busqueda = ""
             st.rerun()
 
-    maquinas = ['Todas'] + sorted(df['Ubicación'].dropna().unique().tolist()) if not df.empty else ['Todas']
-    maquina_sel = st.selectbox("🏭 Máquina / Ubicación", maquinas,
+    maquinas = ["Todas"] + sorted(df["Ubicacion"].dropna().unique().tolist()) if not df.empty else ["Todas"]
+    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas,
                                index=maquinas.index(st.session_state.filtro_maquina) if st.session_state.filtro_maquina in maquinas else 0)
     st.session_state.filtro_maquina = maquina_sel
 
     st.markdown("<br>", unsafe_allow_html=True)
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        if st.button("📋 VER ÓRDENES PREVENTIVAS", use_container_width=True, type="primary"):
-            st.session_state.pagina = 'ordenes'
+        if st.button("VER ORDENES PREVENTIVAS", use_container_width=True, type="primary"):
+            st.session_state.pagina = "ordenes"
             st.rerun()
     with col_btn2:
-        if st.button("📝 ASIGNACIÓN DE TÉCNICOS", use_container_width=True, type="primary"):
-            st.session_state.pagina = 'asignacion'
+        if st.button("ASIGNACION DE TECNICOS", use_container_width=True, type="primary"):
+            st.session_state.pagina = "asignacion"
             st.rerun()
 
     if not df.empty:
         st.divider()
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            st.metric("⚡ ELE", len(df[df['Especialidad'] == 'ELE']))
+            st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
         with col_b:
-            st.metric("🔧 MEC", len(df[df['Especialidad'] == 'MEC']))
+            st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
         with col_c:
-            st.metric("✅ Cerradas", len(df[df['Estado'].isin(['Cerrada', 'Verificado'])]))
+            st.metric("Cerradas", len(df[df["Estado"].isin(["Cerrada", "Verificado"])]))
 
-# ==================== PANTALLA DE ÓRDENES (LISTA) ====================
+# ==================== PANTALLA DE ORDENES (LISTA) ====================
 
 def pantalla_ordenes():
     df = st.session_state.df_mantenimientos
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>← Órdenes Preventivas</span>
+        <span>Ordenes Preventivas</span>
         <span style="font-size: 14px; opacity: 0.8;">{st.session_state.filtro_especialidad}</span>
     </div>
     """, unsafe_allow_html=True)
 
     boton_volver_inicio("ordenes_top")
 
-    busqueda = st.text_input("🔍 Buscar ID OT, equipo o descripción...",
+    busqueda = st.text_input("Buscar ID OT, equipo o descripcion...",
                             value=st.session_state.busqueda,
                             placeholder="Escribe para buscar...")
     st.session_state.busqueda = busqueda
@@ -581,37 +520,199 @@ def pantalla_ordenes():
     pct_ejec, pct_pdte, pct_verif = calcular_progreso(df)
     st.markdown(f"""
     <div class="progress-bar-container">
-        <div class="progress-item"><div class="progress-value" style="color:#28a745">{pct_ejec}%</div><div class="progress-label">✅ Ejecutado</div></div>
-        <div class="progress-item"><div class="progress-value" style="color:#dc3545">{pct_pdte}%</div><div class="progress-label">⏳ Pendiente</div></div>
-        <div class="progress-item"><div class="progress-value" style="color:#007bff">{pct_verif}%</div><div class="progress-label">🔍 Verificado</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#28a745">{pct_ejec}%</div><div class="progress-label">Ejecutado</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#dc3545">{pct_pdte}%</div><div class="progress-label">Pendiente</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#007bff">{pct_verif}%</div><div class="progress-label">Verificado</div></div>
     </div>
     """, unsafe_allow_html=True)
 
     df_filtrado = df.copy()
     if st.session_state.filtro_especialidad != "Todas":
-        df_filtrado = df_filtrado[df_filtrado['Especialidad'] == st.session_state.filtro_especialidad]
+        df_filtrado = df_filtrado[df_filtrado["Especialidad"] == st.session_state.filtro_especialidad]
     if st.session_state.filtro_maquina != "Todas":
-        df_filtrado = df_filtrado[df_filtrado['Ubicación'] == st.session_state.filtro_maquina]
+        df_filtrado = df_filtrado[df_filtrado["Ubicacion"] == st.session_state.filtro_maquina]
     if busqueda:
         busqueda_lower = busqueda.lower()
         df_filtrado = df_filtrado[
-            df_filtrado['Equipo'].str.lower().str.contains(busqueda_lower, na=False) |
-            df_filtrado['Ubicación'].str.lower().str.contains(busqueda_lower, na=False) |
-            df_filtrado['ID OT'].astype(str).str.contains(busqueda_lower, na=False) |
-            df_filtrado['Descripción de procedimiento'].str.lower().str.contains(busqueda_lower, na=False)
+            df_filtrado["Equipo"].str.lower().str.contains(busqueda_lower, na=False) |
+            df_filtrado["Ubicacion"].str.lower().str.contains(busqueda_lower, na=False) |
+            df_filtrado["ID OT"].astype(str).str.contains(busqueda_lower, na=False) |
+            df_filtrado["Descripcion de procedimiento"].str.lower().str.contains(busqueda_lower, na=False)
         ]
 
-    st.subheader(f"📋 Órdenes ({len(df_filtrado)})")
+    st.subheader(f"Ordenes ({len(df_filtrado)})")
     for idx, row in df_filtrado.iterrows():
-        id_ot = str(row.get('ID OT', ''))
-        tipo = str(row.get('Especialidad', ''))
-        descripcion = str(row.get('Descripción de procedimiento', ''))[:50] + "..." if len(str(row.get('Descripción de procedimiento', ''))) > 50 else str(row.get('Descripción de procedimiento', ''))
-        estado = str(row.get('Estado', 'Pendiente'))
-        tecnico = str(row.get('Tecnico_Asignado', ''))[:15] + "..." if len(str(row.get('Tecnico_Asignado', ''))) > 15 else str(row.get('Tecnico_Asignado', ''))
-        if not tecnico: tecnico = "Sin asignar"
+        id_ot = str(row.get("ID OT", ""))
+        tipo = str(row.get("Especialidad", ""))
+        descripcion = str(row.get("Descripcion de procedimiento", ""))[:50] + "..." if len(str(row.get("Descripcion de procedimiento", ""))) > 50 else str(row.get("Descripcion de procedimiento", ""))
+        estado = str(row.get("Estado", "Pendiente"))
+        tecnico = str(row.get("Tecnico_Asignado", ""))[:15] + "..." if len(str(row.get("Tecnico_Asignado", ""))) > 15 else str(row.get("Tecnico_Asignado", ""))
+        if not tecnico:
+            tecnico = "Sin asignar"
         estado_clase = obtener_estado_visual(estado)
+
         cols = st.columns([1, 1, 4, 1, 1])
-        with cols[0]: st.write(f"**{id_ot}**")
-        with cols[1]: st.write(f"🔹 {tipo}")
-        with cols[2]: st.write(descripcion)
-        with cols[3]: st.markdown(f'<span
+        with cols[0]:
+            st.write(f"**{id_ot}**")
+        with cols[1]:
+            st.write(f"{tipo}")
+        with cols[2]:
+            st.write(descripcion)
+        with cols[3]:
+            st.markdown(f'<span class="estado-badge {estado_clase}">{estado}</span>', unsafe_allow_html=True)
+        with cols[4]:
+            st.write(tecnico)
+        if st.button(f"Ver", key=f"btn_ver_{idx}"):
+            st.session_state.orden_seleccionada = idx
+            st.session_state.pagina = "detalle"
+            st.rerun()
+        st.divider()
+
+# ==================== PANTALLA DE DETALLE DE ORDEN ====================
+
+def pantalla_detalle():
+    df = st.session_state.df_mantenimientos
+    idx = st.session_state.orden_seleccionada
+    if idx is None or idx not in df.index:
+        st.session_state.pagina = "ordenes"
+        st.rerun()
+        return
+
+    row = df.loc[idx]
+    st.markdown(f"""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Detalle OT {row.get('ID OT', '')}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    boton_volver_inicio("detalle_top")
+
+    st.markdown(f"""
+    <div class="detail-panel">
+        <div class="equipo-info">
+            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
+            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
+            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
+            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("Descripcion del Procedimiento")
+    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
+
+    st.subheader("Tecnico Asignado")
+    tecnico_actual = row.get("Tecnico_Asignado", "")
+    if tecnico_actual:
+        st.success(f"{tecnico_actual}")
+    else:
+        st.warning("Sin tecnico asignado")
+
+    st.subheader("Comentarios")
+    comentarios = row.get("Comentarios", "")
+    nuevo_comentario = st.text_area("Agregar comentario", value=comentarios, key="comentario_detalle")
+    if st.button("Guardar Comentario", key="guardar_comentario"):
+        df.at[idx, "Comentarios"] = nuevo_comentario
+        st.success("Comentario guardado")
+        st.rerun()
+
+    boton_volver_inicio("detalle_bottom")
+
+# ==================== PANTALLA DE ASIGNACION DE TECNICOS ====================
+
+def pantalla_asignacion():
+    df = st.session_state.df_mantenimientos
+    st.markdown(f"""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Asignacion de Tecnicos</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    boton_volver_inicio("asignacion_top")
+
+    # Filtros de asignacion
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        esp_sel = st.selectbox("Especialidad", ["Todas", "ELE", "MEC"],
+                               index=["Todas", "ELE", "MEC"].index(st.session_state.filtro_esp_asig))
+        st.session_state.filtro_esp_asig = esp_sel
+    with col2:
+        maquinas = ["Todas"] + sorted(df["Ubicacion"].dropna().unique().tolist()) if not df.empty else ["Todas"]
+        maq_sel = st.selectbox("Maquina", maquinas,
+                               index=maquinas.index(st.session_state.filtro_maq_asig) if st.session_state.filtro_maq_asig in maquinas else 0)
+        st.session_state.filtro_maq_asig = maq_sel
+    with col3:
+        estados = ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"]
+        est_sel = st.selectbox("Estado", estados,
+                               index=estados.index(st.session_state.filtro_estado_asig))
+        st.session_state.filtro_estado_asig = est_sel
+
+    # Filtrar ordenes
+    df_asig = df.copy()
+    if st.session_state.filtro_esp_asig != "Todas":
+        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_esp_asig]
+    if st.session_state.filtro_maq_asig != "Todas":
+        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maq_asig]
+    if st.session_state.filtro_estado_asig != "Todos":
+        df_asig = df_asig[df_asig["Estado"] == st.session_state.filtro_estado_asig]
+
+    st.subheader(f"Ordenes para asignar ({len(df_asig)})")
+
+    for idx, row in df_asig.iterrows():
+        with st.container():
+            cols = st.columns([2, 3, 2, 2])
+            with cols[0]:
+                st.write(f"**OT {row.get('ID OT', '')}**")
+                st.write(f"{row.get('Equipo', '')}")
+            with cols[1]:
+                st.write(f"{row.get('Ubicacion', '')}")
+                st.write(f"{row.get('Especialidad', '')}")
+            with cols[2]:
+                estado = row.get("Estado", "Pendiente")
+                estado_clase = obtener_estado_visual(estado)
+                st.markdown(f'<span class="estado-badge {estado_clase}">{estado}</span>', unsafe_allow_html=True)
+            with cols[3]:
+                tecnico_actual = row.get("Tecnico_Asignado", "")
+                especialidad = row.get("Especialidad", "")
+
+                # Obtener tecnicos disponibles
+                tecnicos_disponibles = obtener_tecnicos_por_especialidad(especialidad)
+
+                # Agregar opcion de quitar asignacion
+                opciones = ["-- Sin asignar --"] + tecnicos_disponibles
+                indice_actual = 0
+                if tecnico_actual and tecnico_actual in tecnicos_disponibles:
+                    indice_actual = tecnicos_disponibles.index(tecnico_actual) + 1
+
+                tecnico_seleccionado = st.selectbox(
+                    "Asignar tecnico",
+                    opciones,
+                    index=indice_actual,
+                    key=f"tec_asig_{idx}"
+                )
+
+                if tecnico_seleccionado != "-- Sin asignar --":
+                    if tecnico_seleccionado != tecnico_actual:
+                        df.at[idx, "Tecnico_Asignado"] = tecnico_seleccionado
+                        st.success(f"Asignado: {tecnico_seleccionado}")
+                else:
+                    if tecnico_actual:
+                        df.at[idx, "Tecnico_Asignado"] = ""
+                        st.info("Tecnico removido")
+        st.divider()
+
+    if st.button("Guardar todas las asignaciones", use_container_width=True, type="primary"):
+        st.success("Asignaciones guardadas correctamente")
+
+    boton_volver_inicio("asignacion_bottom")
+
+# ==================== MAIN ====================
+
+if st.session_state.pagina == "home":
+    pantalla_home()
+elif st.session_state.pagina == "ordenes":
+    pantalla_ordenes()
+elif st.session_state.pagina == "detalle":
+    pantalla_detalle()
+elif st.session_state.pagina == "asignacion":
+    pantalla_asignacion()
