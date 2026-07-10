@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -568,10 +567,10 @@ def pantalla_home():
     st.markdown('<div class="tablet-header">App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
     total_ordenes = len(df)
     st.markdown(f"""
-    <div class='home-screen'>
-        <div class='counter-label'>ORDENES PREVENTIVAS</div>
-        <div class='big-counter'>{total_ordenes}</div>
-        <div class='counter-label'>Total de ordenes activas</div>
+    <div class="home-screen">
+        <div class="counter-label">ORDENES PREVENTIVAS</div>
+        <div class="big-counter">{total_ordenes}</div>
+        <div class="counter-label">Total de ordenes activas</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -630,4 +629,271 @@ def pantalla_home():
         with col_c:
             st.metric("Cerradas", len(df[df["Estado"].isin(["Cerrada", "Verificado"])]))
 
-# ==================== PANTALLA DE
+# ==================== PANTALLA DE ORDENES (LISTA) - TABLA COMPACTA ====================
+
+def pantalla_ordenes():
+    df = st.session_state.df_mantenimientos
+    st.markdown(f"""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Ordenes Preventivas</span>
+        <span style="font-size: 14px; opacity: 0.8;">{st.session_state.filtro_especialidad}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    boton_volver_inicio("ordenes_top")
+
+    busqueda = st.text_input("Buscar ID OT, equipo o descripcion...",
+                            value=st.session_state.busqueda,
+                            placeholder="Escribe para buscar...")
+    st.session_state.busqueda = busqueda
+
+    pct_ejec, pct_pdte, pct_verif = calcular_progreso(df)
+    st.markdown(f"""
+    <div class="progress-bar-container">
+        <div class="progress-item"><div class="progress-value" style="color:#28a745">{pct_ejec}%</div><div class="progress-label">Ejecutado</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#dc3545">{pct_pdte}%</div><div class="progress-label">Pendiente</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#007bff">{pct_verif}%</div><div class="progress-label">Verificado</div></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Aplicar filtros
+    df_filtrado = df.copy()
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["Especialidad"] == st.session_state.filtro_especialidad]
+    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["Ubicacion"] == st.session_state.filtro_maquina]
+    if busqueda:
+        busqueda_lower = busqueda.lower()
+        mask = pd.Series([False] * len(df_filtrado), index=df_filtrado.index)
+        if "Equipo" in df_filtrado.columns:
+            mask |= df_filtrado["Equipo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        if "Ubicacion" in df_filtrado.columns:
+            mask |= df_filtrado["Ubicacion"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        if "ID OT" in df_filtrado.columns:
+            mask |= df_filtrado["ID OT"].astype(str).str.contains(busqueda_lower, na=False)
+        if "Descripcion de procedimiento" in df_filtrado.columns:
+            mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        df_filtrado = df_filtrado[mask]
+
+    st.subheader(f"Ordenes ({len(df_filtrado)})")
+
+    # ==================== TABLA COMPACTA TIPO PC ====================
+
+    # Header de la tabla
+    st.markdown("""
+    <div class="tabla-header">
+        <div class="col-id">ID OT</div>
+        <div class="col-esp">ESP</div>
+        <div class="col-desc">DESCRIPCION</div>
+        <div class="col-estado">ESTADO</div>
+        <div class="col-tec">TECNICO</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Filas de datos
+    for idx, row in df_filtrado.iterrows():
+        id_ot = str(row.get("ID OT", ""))
+        tipo = str(row.get("Especialidad", ""))
+        descripcion = str(row.get("Descripcion de procedimiento", ""))
+        estado = str(row.get("Estado", "Pendiente"))
+        tecnico = str(row.get("Tecnico_Asignado", ""))
+        if not tecnico or tecnico == "nan":
+            tecnico = "Sin asignar"
+
+        estado_clase = obtener_estado_visual(estado)
+        desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
+
+        st.markdown(f"""
+        <div class="tabla-fila">
+            <div class="col-id"><strong>{id_ot}</strong></div>
+            <div class="col-esp">{tipo}</div>
+            <div class="col-desc" title="{descripcion}">{desc_corta}</div>
+            <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
+            <div class="col-tec">{tecnico}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Boton Ver compacto debajo de cada fila
+        if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
+            st.session_state.orden_seleccionada = idx
+            st.session_state.pagina = "detalle"
+            st.rerun()
+
+# ==================== PANTALLA DE DETALLE DE ORDEN ====================
+
+def pantalla_detalle():
+    df = st.session_state.df_mantenimientos
+    idx = st.session_state.orden_seleccionada
+    if idx is None or idx not in df.index:
+        st.session_state.pagina = "ordenes"
+        st.rerun()
+        return
+
+    row = df.loc[idx]
+    st.markdown(f"""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Detalle OT {row.get('ID OT', '')}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    boton_volver_inicio("detalle_top")
+
+    st.markdown(f"""
+    <div class="detail-panel">
+        <div class="equipo-info">
+            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
+            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
+            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
+            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("Descripcion del Procedimiento")
+    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
+
+    st.subheader("Tecnico Asignado")
+    tecnico_actual = row.get("Tecnico_Asignado", "")
+    if tecnico_actual:
+        st.success(f"{tecnico_actual}")
+    else:
+        st.warning("Sin tecnico asignado")
+
+    st.subheader("Comentarios")
+    comentarios = row.get("Comentarios", "")
+    nuevo_comentario = st.text_area("Agregar comentario", value=comentarios, key="comentario_detalle")
+    if st.button("Guardar Comentario", key="guardar_comentario"):
+        df.at[idx, "Comentarios"] = nuevo_comentario
+        st.success("Comentario guardado")
+        st.rerun()
+
+    boton_volver_inicio("detalle_bottom")
+
+# ==================== PANTALLA DE ASIGNACION DE TECNICOS ====================
+
+def pantalla_asignacion():
+    df = st.session_state.df_mantenimientos
+    st.markdown(f"""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Asignacion de Tecnicos</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    boton_volver_inicio("asignacion_top")
+
+    # Filtros de asignacion
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        esp_sel = st.selectbox("Especialidad", ["Todas", "ELE", "MEC"],
+                               index=["Todas", "ELE", "MEC"].index(st.session_state.filtro_esp_asig))
+        st.session_state.filtro_esp_asig = esp_sel
+    with col2:
+        maquinas = obtener_maquinas_disponibles(df)
+        index_sel = 0
+        if st.session_state.filtro_maq_asig in maquinas:
+            index_sel = maquinas.index(st.session_state.filtro_maq_asig)
+        maq_sel = st.selectbox("Maquina", maquinas, index=index_sel)
+        st.session_state.filtro_maq_asig = maq_sel
+    with col3:
+        estados = ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"]
+        est_sel = st.selectbox("Estado", estados,
+                               index=estados.index(st.session_state.filtro_estado_asig))
+        st.session_state.filtro_estado_asig = est_sel
+
+    # Filtrar ordenes
+    df_asig = df.copy()
+    if st.session_state.filtro_esp_asig != "Todas" and "Especialidad" in df_asig.columns:
+        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_esp_asig]
+    if st.session_state.filtro_maq_asig != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maq_asig]
+    if st.session_state.filtro_estado_asig != "Todos" and "Estado" in df_asig.columns:
+        df_asig = df_asig[df_asig["Estado"] == st.session_state.filtro_estado_asig]
+
+    st.subheader(f"Ordenes para asignar ({len(df_asig)})")
+
+    for idx, row in df_asig.iterrows():
+        id_ot = str(row.get("ID OT", ""))
+        equipo = str(row.get("Equipo", ""))
+        ubicacion = str(row.get("Ubicacion", ""))
+        especialidad = str(row.get("Especialidad", ""))
+        estado = str(row.get("Estado", "Pendiente"))
+        tecnico_actual = str(row.get("Tecnico_Asignado", ""))
+        prioridad_actual = str(row.get("Prioridad_Actividad", ""))
+
+        estado_clase = obtener_estado_visual(estado)
+
+        # Fila compacta tipo tabla
+        st.markdown(f"""
+        <div class="tabla-fila-asig">
+            <div class="asig-info">
+                <div class="asig-ot"><strong>OT {id_ot}</strong> | <span class="asig-esp">{especialidad}</span></div>
+                <div class="asig-equipo">{equipo} | {ubicacion}</div>
+            </div>
+            <div class="asig-estado">
+                <span class="estado-badge {estado_clase}">{estado}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Controles de asignacion compactos
+        col1, col2 = st.columns(2)
+        with col1:
+            tecnicos_disponibles = obtener_tecnicos_por_especialidad(especialidad)
+            opciones = ["-- Sin asignar --"] + tecnicos_disponibles
+            indice_actual = 0
+            if tecnico_actual and tecnico_actual in tecnicos_disponibles:
+                indice_actual = tecnicos_disponibles.index(tecnico_actual) + 1
+
+            tecnico_seleccionado = st.selectbox(
+                "Tecnico",
+                opciones,
+                index=indice_actual,
+                key=f"tec_asig_{idx}",
+                label_visibility="collapsed"
+            )
+        with col2:
+            prioridades = ["-- Sin prioridad --", "Rojo", "Amarillo", "Verde"]
+            indice_prioridad = 0
+            if prioridad_actual and prioridad_actual in prioridades:
+                indice_prioridad = prioridades.index(prioridad_actual)
+
+            prioridad_seleccionada = st.selectbox(
+                "Prioridad",
+                prioridades,
+                index=indice_prioridad,
+                key=f"prio_asig_{idx}",
+                label_visibility="collapsed"
+            )
+
+        # Aplicar cambios silenciosos
+        if tecnico_seleccionado != "-- Sin asignar --":
+            if tecnico_seleccionado != tecnico_actual:
+                df.at[idx, "Tecnico_Asignado"] = tecnico_seleccionado
+        else:
+            if tecnico_actual:
+                df.at[idx, "Tecnico_Asignado"] = ""
+
+        if prioridad_seleccionada != "-- Sin prioridad --":
+            if prioridad_seleccionada != prioridad_actual:
+                df.at[idx, "Prioridad_Actividad"] = prioridad_seleccionada
+        else:
+            if prioridad_actual:
+                df.at[idx, "Prioridad_Actividad"] = ""
+
+        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
+    if st.button("Guardar todas las asignaciones", use_container_width=True, type="primary"):
+        st.success("Asignaciones guardadas correctamente")
+
+    boton_volver_inicio("asignacion_bottom")
+
+# ==================== MAIN ====================
+
+if st.session_state.pagina == "home":
+    pantalla_home()
+elif st.session_state.pagina == "ordenes":
+    pantalla_ordenes()
+elif st.session_state.pagina == "detalle":
+    pantalla_detalle()
+elif st.session_state.pagina == "asignacion":
+    pantalla_asignacion()
