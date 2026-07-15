@@ -859,3 +859,288 @@ def pantalla_detalle_tecnico():
 
     if row.get("Fecha_Ejecucion"):
         st.success(f"Ejecutado el: {row.get('Fecha_Ejecucion')} | Inicio: {row.get('Hora_Inicio', 'N/A')} | Fin: {row.get('Hora_Fin', 'N/A')}")
+
+
+# ==================== PANTALLA DETALLE (ADMIN / SUPERVISOR) ====================
+def pantalla_detalle():
+    df = st.session_state.df_mantenimientos
+    idx = st.session_state.orden_seleccionada
+    if idx is None or idx not in df.index:
+        st.session_state.pagina = "ordenes"; st.rerun(); return
+
+    row = df.loc[idx]
+    perfil = st.session_state.perfil
+    st.markdown(f"""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Detalle OT {row.get('ID OT', '')}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_back, col_home = st.columns(2)
+    with col_back:
+        if st.button("Volver", use_container_width=True, type="secondary", key="det_volver"):
+            st.session_state.pagina = "ordenes"; st.rerun()
+    with col_home:
+        if st.button("Inicio", use_container_width=True, type="secondary", key="det_inicio"):
+            st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
+
+    prioridad = str(row.get("Prioridad_Actividad", ""))
+    info_prioridad = obtener_color_prioridad(prioridad)
+    if prioridad:
+        st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
+
+    st.markdown(f"""
+    <div class="detail-panel">
+        <div class="equipo-info">
+            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
+            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
+            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
+            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("Descripcion del Procedimiento")
+    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
+
+    st.divider()
+    st.subheader("Editar Orden")
+
+    especialidad = str(row.get("Especialidad", ""))
+    tecnicos = obtener_tecnicos_por_especialidad(especialidad)
+    tecnicos = [""] + tecnicos
+
+    tecnico_actual = str(row.get("Tecnico_Asignado", ""))
+    try:
+        idx_tec = tecnicos.index(tecnico_actual) if tecnico_actual in tecnicos else 0
+    except:
+        idx_tec = 0
+
+    col1, col2 = st.columns(2)
+    with col1:
+        nuevo_tecnico = st.selectbox("Tecnico Asignado", tecnicos, index=idx_tec, key="det_tecnico")
+    with col2:
+        estados = ["Pendiente", "Ejecutado", "Verificado", "Cerrada"]
+        estado_actual = str(row.get("Estado", "Pendiente"))
+        idx_est = estados.index(estado_actual) if estado_actual in estados else 0
+        nuevo_estado = st.selectbox("Estado", estados, index=idx_est, key="det_estado")
+
+    col3, col4 = st.columns(2)
+    with col3:
+        prioridades = ["", "Rojo", "Amarillo", "Verde"]
+        idx_pri = prioridades.index(prioridad) if prioridad in prioridades else 0
+        nueva_prioridad = st.selectbox("Prioridad", prioridades, index=idx_pri, key="det_prioridad")
+    with col4:
+        fecha_ejec = st.date_input("Fecha Ejecucion", value=datetime.now(), key="det_fecha")
+
+    col5, col6 = st.columns(2)
+    with col5:
+        hora_inicio = st.time_input("Hora Inicio", value=datetime.strptime("08:00", "%H:%M").time(), key="det_hini")
+    with col6:
+        hora_fin = st.time_input("Hora Fin", value=datetime.strptime("17:00", "%H:%M").time(), key="det_hfin")
+
+    comentarios = st.text_area("Comentarios", value=str(row.get("Comentarios", "")), key="det_comentarios")
+    actividades = st.text_area("Actividades Hechas", value=str(row.get("Actividades_Hechas", "")), key="det_actividades")
+
+    if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary", key="det_guardar"):
+        df.at[idx, "Tecnico_Asignado"] = nuevo_tecnico
+        df.at[idx, "Estado"] = nuevo_estado
+        df.at[idx, "Prioridad_Actividad"] = nueva_prioridad
+        df.at[idx, "Comentarios"] = comentarios
+        df.at[idx, "Actividades_Hechas"] = actividades
+        df.at[idx, "Fecha_Ejecucion"] = fecha_ejec.strftime("%Y-%m-%d")
+        df.at[idx, "Hora_Inicio"] = hora_inicio.strftime("%H:%M")
+        df.at[idx, "Hora_Fin"] = hora_fin.strftime("%H:%M")
+
+        if guardar_asignaciones_github(df):
+            st.success("Cambios guardados exitosamente en GitHub")
+            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+            st.rerun()
+        else:
+            st.error("Error al guardar en GitHub")
+
+    if perfil == "supervisor" and nuevo_estado == "Ejecutado":
+        if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key="det_verificar"):
+            df.at[idx, "Estado"] = "Verificado"
+            if guardar_asignaciones_github(df):
+                st.success("Orden VERIFICADA")
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.rerun()
+            else:
+                st.error("Error al verificar")
+
+# ==================== PANTALLA ASIGNACION DE TECNICOS ====================
+def pantalla_asignacion():
+    df = st.session_state.df_mantenimientos
+    st.markdown("""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Asignacion de Tecnicos</span>
+    </div>
+    """, unsafe_allow_html=True)
+    boton_volver_inicio("asignacion_top")
+
+    st.subheader("Filtros de Asignacion")
+    col1, col2 = st.columns(2)
+    with col1:
+        esp_opciones = ["Todas", "ELE", "MEC"]
+        idx_esp = esp_opciones.index(st.session_state.filtro_esp_asig) if st.session_state.filtro_esp_asig in esp_opciones else 0
+        filtro_esp = st.selectbox("Especialidad", esp_opciones, index=idx_esp, key="asig_esp")
+        st.session_state.filtro_esp_asig = filtro_esp
+    with col2:
+        maquinas = obtener_maquinas_disponibles(df)
+        idx_maq = maquinas.index(st.session_state.filtro_maq_asig) if st.session_state.filtro_maq_asig in maquinas else 0
+        filtro_maq = st.selectbox("Maquina", maquinas, index=idx_maq, key="asig_maq")
+        st.session_state.filtro_maq_asig = filtro_maq
+
+    df_asig = df.copy()
+    if filtro_esp != "Todas" and "Especialidad" in df_asig.columns:
+        df_asig = df_asig[df_asig["Especialidad"] == filtro_esp]
+    if filtro_maq != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == filtro_maq]
+
+    st.subheader(f"Ordenes sin asignar o reasignables ({len(df_asig)})")
+
+    if df_asig.empty:
+        st.info("No hay ordenes con los filtros seleccionados.")
+        return
+
+    for idx, row in df_asig.iterrows():
+        id_ot = str(row.get("ID OT", ""))
+        tipo = str(row.get("Especialidad", ""))
+        equipo = str(row.get("Equipo", ""))
+        ubicacion = str(row.get("Ubicacion", ""))
+        estado = str(row.get("Estado", "Pendiente"))
+        tecnico_actual = str(row.get("Tecnico_Asignado", ""))
+        descripcion = str(row.get("Descripcion de procedimiento", ""))
+        desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
+
+        estado_clase = obtener_estado_visual(estado)
+        prioridad = str(row.get("Prioridad_Actividad", ""))
+        clase_prioridad = obtener_clase_css_prioridad(prioridad)
+
+        with st.container():
+            st.markdown(f"""
+            <div class="tabla-fila-asig {clase_prioridad}">
+                <div class="asig-info">
+                    <div class="asig-ot"><strong>OT {id_ot}</strong> | <span class="asig-esp">{tipo}</span></div>
+                    <div class="asig-equipo">{equipo} — {ubicacion}</div>
+                    <div style="font-size: 10px; color: #666; margin-top: 2px;">{desc_corta}</div>
+                </div>
+                <div class="asig-estado">
+                    <span class="estado-badge {estado_clase}">{estado}</span>
+                    <div style="font-size: 10px; color: #888; margin-top: 4px;">{tecnico_actual if tecnico_actual else 'Sin asignar'}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            tecnicos = obtener_tecnicos_por_especialidad(tipo)
+            tecnicos = ["Sin asignar"] + tecnicos
+            try:
+                idx_tec = tecnicos.index(tecnico_actual) if tecnico_actual in tecnicos else 0
+            except:
+                idx_tec = 0
+
+            nuevo_tec = st.selectbox(f"Asignar tecnico", tecnicos, index=idx_tec, key=f"asig_select_{idx}")
+            if nuevo_tec == "Sin asignar": nuevo_tec = ""
+
+            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=f"asig_btn_{idx}"):
+                df.at[idx, "Tecnico_Asignado"] = nuevo_tec
+                if guardar_asignaciones_github(df):
+                    st.success(f"Tecnico asignado a OT {id_ot}")
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                    st.rerun()
+                else:
+                    st.error("Error al guardar asignacion")
+
+# ==================== PANTALLA VERIFICAR (SUPERVISOR) ====================
+def pantalla_verificar():
+    df = st.session_state.df_mantenimientos
+    st.markdown("""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>Verificar Ordenes Ejecutadas</span>
+    </div>
+    """, unsafe_allow_html=True)
+    boton_volver_inicio("verificar_top")
+
+    df_ejecutadas = df[df["Estado"] == "Ejecutado"] if not df.empty and "Estado" in df.columns else pd.DataFrame()
+
+    st.subheader(f"Ordenes ejecutadas pendientes de verificacion ({len(df_ejecutadas)})")
+
+    if df_ejecutadas.empty:
+        st.info("No hay ordenes ejecutadas pendientes de verificacion.")
+        return
+
+    for idx, row in df_ejecutadas.iterrows():
+        id_ot = str(row.get("ID OT", ""))
+        tipo = str(row.get("Especialidad", ""))
+        equipo = str(row.get("Equipo", ""))
+        ubicacion = str(row.get("Ubicacion", ""))
+        tecnico = str(row.get("Tecnico_Asignado", "Sin asignar"))
+        descripcion = str(row.get("Descripcion de procedimiento", ""))
+        desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
+        fecha_ejec = str(row.get("Fecha_Ejecucion", "N/A"))
+        hora_ini = str(row.get("Hora_Inicio", "N/A"))
+        hora_fin = str(row.get("Hora_Fin", "N/A"))
+
+        st.markdown(f"""
+        <div class="detail-panel" style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <strong>OT {id_ot}</strong>
+                <span class="estado-badge estado-ejecutado">Ejecutado</span>
+            </div>
+            <div style="font-size: 12px; color: #666;">
+                <strong>{tipo}</strong> | {equipo} — {ubicacion}<br>
+                Tecnico: {tecnico}<br>
+                Ejecutado: {fecha_ejec} | {hora_ini} - {hora_fin}
+            </div>
+            <div style="font-size: 11px; color: #333; margin-top: 6px;">{desc_corta}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.expander("Ver detalles y comentarios"):
+            st.write(f"**Descripcion completa:** {descripcion}")
+            st.write(f"**Actividades realizadas:** {row.get('Actividades_Hechas', 'Sin registro')}")
+            st.write(f"**Comentarios:** {row.get('Comentarios', 'Sin comentarios')}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=f"verif_btn_{idx}"):
+                    df.at[idx, "Estado"] = "Verificado"
+                    if guardar_asignaciones_github(df):
+                        st.success(f"OT {id_ot} verificada correctamente")
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.rerun()
+                    else:
+                        st.error("Error al verificar")
+            with col2:
+                if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=f"rech_btn_{idx}"):
+                    df.at[idx, "Estado"] = "Pendiente"
+                    if guardar_asignaciones_github(df):
+                        st.warning(f"OT {id_ot} devuelta a Pendiente")
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.rerun()
+                    else:
+                        st.error("Error al rechazar")
+
+# ==================== FLUJO PRINCIPAL ====================
+if st.session_state.pagina == "login":
+    pantalla_login()
+elif st.session_state.pagina == "home":
+    pantalla_home()
+elif st.session_state.pagina == "ordenes":
+    pantalla_ordenes()
+elif st.session_state.pagina == "mis_ordenes":
+    pantalla_mis_ordenes()
+elif st.session_state.pagina == "ejecutar":
+    pantalla_ejecutar()
+elif st.session_state.pagina == "detalle_tecnico":
+    pantalla_detalle_tecnico()
+elif st.session_state.pagina == "detalle":
+    pantalla_detalle()
+elif st.session_state.pagina == "asignacion":
+    pantalla_asignacion()
+elif st.session_state.pagina == "verificar":
+    pantalla_verificar()
+else:
+    st.session_state.pagina = "login"
+    st.rerun()
