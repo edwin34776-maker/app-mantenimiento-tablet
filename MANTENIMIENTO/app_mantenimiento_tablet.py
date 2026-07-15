@@ -1,120 +1,105 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import base64
-import requests
-from io import BytesIO
+from supabase import create_client
 
-# ==================== CONFIGURACION GITHUB ====================
-GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
-GITHUB_REPO = st.secrets.get("GITHUB_REPO", "edwin34776-maker/app-mantenimiento-tablet")
-GITHUB_BRANCH = st.secrets.get("GITHUB_BRANCH", "main")
+# ==================== CONFIGURACION SUPABASE ====================
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
-HEADERS = {
-    "Authorization": f"token {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github.v3+json"
-}
+if not SUPABASE_KEY:
+    st.error("SUPABASE_KEY no configurada. Revisa tu secrets.toml o variables de entorno.")
+    st.stop()
 
-RUTA_EXCEL = "MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx"
-RUTA_TECNICOS = "MANTENIMIENTO/tecnico.xlsx"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ==================== FUNCIONES GITHUB ====================
-def leer_archivo_github(ruta_archivo):
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{ruta_archivo}"
-    params = {"ref": GITHUB_BRANCH}
+# ==================== FUNCIONES SUPABASE (CLIENTE OFICIAL) ====================
+def cargar_ordenes_supabase():
+    """Carga todas las ordenes desde Supabase usando el cliente oficial."""
     try:
-        response = requests.get(url, headers=HEADERS, params=params, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            contenido = base64.b64decode(data["content"])
-            return contenido, data["sha"]
-        elif response.status_code == 404:
-            return None, None
-        else:
-            st.error(f"Error leyendo {ruta_archivo}: {response.status_code}")
-            return None, None
+        response = supabase.table("ordenes").select("*").order("id_ot", desc=False).execute()
+        data = response.data
+        if not data:
+            return pd.DataFrame()
+        df = pd.DataFrame(data)
+        # Renombrar columnas de snake_case a los nombres originales
+        columnas_mapeo = {}
+        for col in df.columns:
+            if col == "id_ot": columnas_mapeo[col] = "ID OT"
+            elif col == "descripcion_procedimiento": columnas_mapeo[col] = "Descripcion de procedimiento"
+            elif col == "tecnico_asignado": columnas_mapeo[col] = "Tecnico_Asignado"
+            elif col == "prioridad_actividad": columnas_mapeo[col] = "Prioridad_Actividad"
+            elif col == "actividades_hechas": columnas_mapeo[col] = "Actividades_Hechas"
+            elif col == "fecha_ejecucion": columnas_mapeo[col] = "Fecha_Ejecucion"
+            elif col == "hora_inicio": columnas_mapeo[col] = "Hora_Inicio"
+            elif col == "hora_fin": columnas_mapeo[col] = "Hora_Fin"
+            else: columnas_mapeo[col] = col.capitalize()
+        df = df.rename(columns=columnas_mapeo)
+        # Columnas default
+        columnas_default = {
+            "Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+            "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
+            "Hora_Fin": "", "Prioridad_Actividad": ""
+        }
+        for col, default in columnas_default.items():
+            if col not in df.columns:
+                df[col] = default
+        return df
     except Exception as e:
-        st.error(f"Error de conexion: {e}")
-        return None, None
+        st.error(f"Error cargando ordenes: {e}")
+        return pd.DataFrame()
 
-def escribir_archivo_github(ruta_archivo, contenido_bytes, mensaje_commit, sha=None):
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{ruta_archivo}"
-    contenido_b64 = base64.b64encode(contenido_bytes).decode("utf-8")
-    data = {"message": mensaje_commit, "content": contenido_b64, "branch": GITHUB_BRANCH}
-    if sha:
-        data["sha"] = sha
+def guardar_orden_supabase(id_ot, datos):
+    """Guarda o actualiza una orden en Supabase usando upsert."""
     try:
-        response = requests.put(url, headers=HEADERS, json=data, timeout=20)
-        if response.status_code in [200, 201]:
-            return True
-        else:
-            st.error(f"Error guardando: {response.status_code}")
-            return False
+        datos_supabase = {"id_ot": str(id_ot)}
+        for key, value in datos.items():
+            key_snake = key.lower().replace(" ", "_").replace(".", "").replace("-", "_")
+            if key_snake in ["id_ot", "descripcion_de_procedimiento"]:
+                key_snake = key_snake.replace("_de_", "_").replace("__", "_")
+            datos_supabase[key_snake] = value if not pd.isna(value) else None
+        supabase.table("ordenes").upsert(datos_supabase).execute()
+        return True
     except Exception as e:
-        st.error(f"Error de conexion al guardar: {e}")
+        st.error(f"Error guardando orden: {e}")
         return False
 
-def cargar_excel_github(ruta_archivo, sheet_name="Inicial"):
-    contenido, sha = leer_archivo_github(ruta_archivo)
-    if contenido is None:
-        return pd.DataFrame(), None
+def actualizar_orden_supabase(id_ot, campo, valor):
+    """Actualiza un solo campo de una orden."""
     try:
-        df = pd.read_excel(BytesIO(contenido), sheet_name=sheet_name)
-        return df, sha
-    except Exception:
-        return pd.DataFrame(), sha
-
-def guardar_excel_github(ruta_archivo, df_dict, mensaje_commit, sha=None):
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        for nombre_hoja, df in df_dict.items():
-            df.to_excel(writer, sheet_name=nombre_hoja, index=False)
-    buffer.seek(0)
-    return escribir_archivo_github(ruta_archivo, buffer.getvalue(), mensaje_commit, sha)
-
-def fusionar_asignaciones(df_base, df_asig):
-    if df_asig.empty:
-        return df_base
-    columnas_editables = [
-        "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
-        "Comentarios", "Actividades_Hechas", "Fecha_Ejecucion",
-        "Hora_Inicio", "Hora_Fin"
-    ]
-    for col in columnas_editables:
-        if col in df_asig.columns and col in df_base.columns:
-            try:
-                mapeo = df_asig.set_index("ID OT")[col].to_dict()
-                for idx in df_base.index:
-                    id_ot = str(df_base.at[idx, "ID OT"])
-                    if id_ot in mapeo and pd.notna(mapeo[id_ot]) and str(mapeo[id_ot]) not in ["", "nan"]:
-                        df_base.at[idx, col] = mapeo[id_ot]
-            except:
-                pass
-    return df_base
-
-def guardar_asignaciones_github(df):
-    contenido, sha = leer_archivo_github(RUTA_EXCEL)
-    if contenido is None:
-        st.error("No se pudo leer el archivo actual de GitHub")
+        campo_snake = campo.lower().replace(" ", "_").replace(".", "").replace("-", "_")
+        supabase.table("ordenes").update({campo_snake: valor}).eq("id_ot", id_ot).execute()
+        return True
+    except Exception as e:
+        st.error(f"Error actualizando campo: {e}")
         return False
+
+def guardar_asignaciones_supabase(df):
+    """Guarda todas las asignaciones modificadas en Supabase."""
     try:
-        excel_file = pd.ExcelFile(BytesIO(contenido))
-        hojas = {}
-        for nombre in excel_file.sheet_names:
-            if nombre != "Asignaciones":
-                hojas[nombre] = pd.read_excel(BytesIO(contenido), sheet_name=nombre)
-        columnas_asig = [
-            "ID OT", "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
+        columnas_editables = [
+            "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
             "Comentarios", "Actividades_Hechas", "Fecha_Ejecucion",
             "Hora_Inicio", "Hora_Fin"
         ]
-        columnas_existentes = [c for c in columnas_asig if c in df.columns]
-        hojas["Asignaciones"] = df[columnas_existentes].copy()
-        mensaje = f"Actualizacion asignaciones - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        return guardar_excel_github(RUTA_EXCEL, hojas, mensaje, sha)
+        exitosos = 0
+        for idx, row in df.iterrows():
+            id_ot = str(row.get("ID OT", ""))
+            if not id_ot:
+                continue
+            datos = {}
+            for col in columnas_editables:
+                if col in row.index and pd.notna(row[col]):
+                    datos[col] = row[col]
+            if datos:
+                if guardar_orden_supabase(id_ot, datos):
+                    exitosos += 1
+        st.success(f"{exitosos} ordenes actualizadas en Supabase")
+        return exitosos > 0
     except Exception as e:
         st.error(f"Error guardando asignaciones: {e}")
         return False
+
 
 # Configuracion de la pagina - MODO TABLET
 st.set_page_config(
@@ -356,67 +341,13 @@ TECNICOS_MEC = [
 ]
 
 # ==================== FUNCIONES AUXILIARES ====================
-@st.cache_data(ttl=60)
 def cargar_excel_mantenimiento():
+    """Carga ordenes desde Supabase (sin cache para sincronizacion en tiempo real)."""
     try:
-        df, sha = cargar_excel_github(RUTA_EXCEL, sheet_name="Inicial")
-        if df.empty:
-            st.error("No se encontro el archivo de mantenimiento en GitHub")
-            return pd.DataFrame()
-        st.session_state["sha_mantenimiento"] = sha
-        if "UN" in df.columns:
-            df = df[df["UN"] != "UN"].reset_index(drop=True)
-        df.columns = df.columns.str.strip()
-        columnas_originales = list(df.columns)
-        columnas_mapeo = {}
-        for col in columnas_originales:
-            col_norm = col.lower().replace(" ", "").replace("á","a").replace("é","e").replace("í","i").replace("ó","o").replace("ú","u").replace("ñ","n")
-            if "ubicacion" in col_norm: columnas_mapeo[col] = "Ubicacion"
-            elif "descripcion" in col_norm and "procedimiento" in col_norm: columnas_mapeo[col] = "Descripcion de procedimiento"
-            elif "especialidad" in col_norm: columnas_mapeo[col] = "Especialidad"
-            elif "equipo" in col_norm: columnas_mapeo[col] = "Equipo"
-            elif "id" in col_norm and ("ot" in col_norm or "orden" in col_norm): columnas_mapeo[col] = "ID OT"
-        df = df.rename(columns=columnas_mapeo)
-        columnas_default = {
-            "Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
-            "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
-            "Hora_Fin": "", "Prioridad_Actividad": ""
-        }
-        for col, default in columnas_default.items():
-            if col not in df.columns: df[col] = default
-        try:
-            df_asig, _ = cargar_excel_github(RUTA_EXCEL, sheet_name="Asignaciones")
-            if not df_asig.empty:
-                df = fusionar_asignaciones(df, df_asig)
-        except:
-            pass
+        df = cargar_ordenes_supabase()
         return df
     except Exception as e:
-        st.error(f"Error al cargar el archivo de mantenimiento: {e}")
-        return pd.DataFrame()
-
-@st.cache_data(ttl=60)
-def cargar_excel_tecnicos():
-    try:
-        df, _ = cargar_excel_github(RUTA_TECNICOS, sheet_name="query")
-        if df.empty:
-            st.error("No se encontro el archivo de tecnicos en GitHub")
-            return pd.DataFrame()
-        df.columns = df.columns.str.strip()
-        columnas_originales = list(df.columns)
-        columnas_mapeo = {}
-        for col in columnas_originales:
-            col_upper = col.upper().strip()
-            if col_upper == "ACTIVIDAD": columnas_mapeo[col] = "ACTIVIDAD"
-            elif col_upper in ["TECNICOS", "TECNICO"]: columnas_mapeo[col] = "TECNICOS"
-            elif col_upper in ["ESPE", "ESPECIALIDAD"]: columnas_mapeo[col] = "ESPE"
-        df = df.rename(columns=columnas_mapeo)
-        if "ACTIVIDAD" in df.columns: df = df[df["ACTIVIDAD"] != "ACTIVIDAD"].reset_index(drop=True)
-        if "TECNICOS" in df.columns: df["TECNICOS"] = df["TECNICOS"].astype(str).str.strip()
-        if "ESPE" in df.columns: df["ESPE"] = df["ESPE"].astype(str).str.strip()
-        return df
-    except Exception as e:
-        st.error(f"Error al cargar el archivo de tecnicos: {e}")
+        st.error(f"Error al cargar ordenes: {e}")
         return pd.DataFrame()
 
 def obtener_tecnicos_por_especialidad(especialidad):
@@ -482,7 +413,6 @@ if "perfil" not in st.session_state: st.session_state.perfil = None
 if "pagina" not in st.session_state: st.session_state.pagina = "login"
 if "orden_seleccionada" not in st.session_state: st.session_state.orden_seleccionada = None
 if "df_mantenimientos" not in st.session_state: st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-if "df_tecnicos" not in st.session_state: st.session_state.df_tecnicos = cargar_excel_tecnicos()
 if "filtro_especialidad" not in st.session_state: st.session_state.filtro_especialidad = "Todas"
 if "filtro_maquina" not in st.session_state: st.session_state.filtro_maquina = "Todas"
 if "filtro_esp_asig" not in st.session_state: st.session_state.filtro_esp_asig = "Todas"
@@ -799,13 +729,13 @@ def pantalla_ejecutar():
         df.at[idx, "Fecha_Ejecucion"] = datetime.now().strftime("%Y-%m-%d")
         df.at[idx, "Hora_Inicio"] = hora_inicio.strftime("%H:%M")
         df.at[idx, "Hora_Fin"] = hora_fin.strftime("%H:%M")
-        if guardar_asignaciones_github(df):
-            st.success("Orden marcada como EJECUTADA y guardada en GitHub")
+        if guardar_asignaciones_supabase(df):
+            st.success("Orden marcada como EJECUTADA y guardada en Supabase")
             st.balloons()
             st.session_state.pagina = "mis_ordenes"
             st.rerun()
         else:
-            st.error("Error al guardar en GitHub. Intenta de nuevo.")
+            st.error("Error al guardar en Supabase. Intenta de nuevo.")
 
 # ==================== PANTALLA DETALLE TECNICO ====================
 def pantalla_detalle_tecnico():
@@ -943,6 +873,7 @@ def pantalla_detalle():
     actividades = st.text_area("Actividades Hechas", value=str(row.get("Actividades_Hechas", "")), key="det_actividades")
 
     if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary", key="det_guardar"):
+        id_ot = str(row.get("ID OT", ""))
         df.at[idx, "Tecnico_Asignado"] = nuevo_tecnico
         df.at[idx, "Estado"] = nuevo_estado
         df.at[idx, "Prioridad_Actividad"] = nueva_prioridad
@@ -952,17 +883,29 @@ def pantalla_detalle():
         df.at[idx, "Hora_Inicio"] = hora_inicio.strftime("%H:%M")
         df.at[idx, "Hora_Fin"] = hora_fin.strftime("%H:%M")
 
-        if guardar_asignaciones_github(df):
-            st.success("Cambios guardados exitosamente en GitHub")
+        # Guardar en Supabase
+        datos = {
+            "Tecnico_Asignado": nuevo_tecnico,
+            "Estado": nuevo_estado,
+            "Prioridad_Actividad": nueva_prioridad,
+            "Comentarios": comentarios,
+            "Actividades_Hechas": actividades,
+            "Fecha_Ejecucion": fecha_ejec.strftime("%Y-%m-%d"),
+            "Hora_Inicio": hora_inicio.strftime("%H:%M"),
+            "Hora_Fin": hora_fin.strftime("%H:%M")
+        }
+        if guardar_orden_supabase(id_ot, datos):
+            st.success("Cambios guardados exitosamente en Supabase")
             st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
             st.rerun()
         else:
-            st.error("Error al guardar en GitHub")
+            st.error("Error al guardar en Supabase")
 
     if perfil == "supervisor" and nuevo_estado == "Ejecutado":
         if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key="det_verificar"):
+            id_ot = str(row.get("ID OT", ""))
             df.at[idx, "Estado"] = "Verificado"
-            if guardar_asignaciones_github(df):
+            if actualizar_orden_supabase(id_ot, "Estado", "Verificado"):
                 st.success("Orden VERIFICADA")
                 st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                 st.rerun()
@@ -1045,7 +988,7 @@ def pantalla_asignacion():
 
             if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=f"asig_btn_{idx}"):
                 df.at[idx, "Tecnico_Asignado"] = nuevo_tec
-                if guardar_asignaciones_github(df):
+                if actualizar_orden_supabase(id_ot, "Tecnico_Asignado", nuevo_tec):
                     st.success(f"Tecnico asignado a OT {id_ot}")
                     st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                     st.rerun()
@@ -1106,7 +1049,7 @@ def pantalla_verificar():
             with col1:
                 if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=f"verif_btn_{idx}"):
                     df.at[idx, "Estado"] = "Verificado"
-                    if guardar_asignaciones_github(df):
+                    if actualizar_orden_supabase(id_ot, "Estado", "Verificado"):
                         st.success(f"OT {id_ot} verificada correctamente")
                         st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
@@ -1115,7 +1058,7 @@ def pantalla_verificar():
             with col2:
                 if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=f"rech_btn_{idx}"):
                     df.at[idx, "Estado"] = "Pendiente"
-                    if guardar_asignaciones_github(df):
+                    if actualizar_orden_supabase(id_ot, "Estado", "Pendiente"):
                         st.warning(f"OT {id_ot} devuelta a Pendiente")
                         st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
