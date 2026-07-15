@@ -58,7 +58,7 @@ def guardar_orden_supabase(id_ot, datos):
             if key_snake in ["id_ot", "descripcion_de_procedimiento"]:
                 key_snake = key_snake.replace("_de_", "_").replace("__", "_")
             datos_supabase[key_snake] = value if not pd.isna(value) else None
-        supabase.table("ordenes").upsert(datos_supabase).execute()
+        supabase.table("ordenes_trabajo").upsert(datos_supabase).execute()
         return True
     except Exception as e:
         st.error(f"Error guardando orden: {e}")
@@ -68,7 +68,7 @@ def actualizar_orden_supabase(id_ot, campo, valor):
     """Actualiza un solo campo de una orden."""
     try:
         campo_snake = campo.lower().replace(" ", "_").replace(".", "").replace("-", "_")
-        supabase.table("ordenes").update({campo_snake: valor}).eq("id_ot", id_ot).execute()
+        supabase.table("ordenes_trabajo").update({campo_snake: valor}).eq("id_ot", id_ot).execute()
         return True
     except Exception as e:
         st.error(f"Error actualizando campo: {e}")
