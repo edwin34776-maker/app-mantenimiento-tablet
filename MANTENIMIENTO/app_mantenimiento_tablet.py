@@ -2,6 +2,122 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os
+import base64
+import requests
+from io import BytesIO
+
+# ==================== CONFIGURACION GITHUB ====================
+GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
+GITHUB_REPO = st.secrets.get("GITHUB_REPO", "edwin34776-maker/app-mantenimiento-tablet")
+GITHUB_BRANCH = st.secrets.get("GITHUB_BRANCH", "main")
+
+HEADERS = {
+    "Authorization": f"token {GITHUB_TOKEN}",
+    "Accept": "application/vnd.github.v3+json"
+}
+
+RUTA_EXCEL = "MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx"
+RUTA_TECNICOS = "MANTENIMIENTO/tecnico.xlsx"
+
+# ==================== FUNCIONES GITHUB ====================
+def leer_archivo_github(ruta_archivo):
+    """Lee un archivo desde GitHub. Retorna (contenido_bytes, sha) o (None, None)."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{ruta_archivo}"
+    params = {"ref": GITHUB_BRANCH}
+    try:
+        response = requests.get(url, headers=HEADERS, params=params, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            contenido = base64.b64decode(data["content"])
+            return contenido, data["sha"]
+        elif response.status_code == 404:
+            return None, None
+        else:
+            st.error(f"Error leyendo {ruta_archivo}: {response.status_code}")
+            return None, None
+    except Exception as e:
+        st.error(f"Error de conexion: {e}")
+        return None, None
+
+def escribir_archivo_github(ruta_archivo, contenido_bytes, mensaje_commit, sha=None):
+    """Escribe o actualiza un archivo en GitHub."""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{ruta_archivo}"
+    contenido_b64 = base64.b64encode(contenido_bytes).decode("utf-8")
+    data = {"message": mensaje_commit, "content": contenido_b64, "branch": GITHUB_BRANCH}
+    if sha:
+        data["sha"] = sha
+    try:
+        response = requests.put(url, headers=HEADERS, json=data, timeout=20)
+        if response.status_code in [200, 201]:
+            return True
+        else:
+            st.error(f"Error guardando: {response.status_code} - {response.text[:200]}")
+            return False
+    except Exception as e:
+        st.error(f"Error de conexion al guardar: {e}")
+        return False
+
+def cargar_excel_github(ruta_archivo, sheet_name="Inicial"):
+    """Carga un Excel desde GitHub."""
+    contenido, sha = leer_archivo_github(ruta_archivo)
+    if contenido is None:
+        return pd.DataFrame(), None
+    try:
+        df = pd.read_excel(BytesIO(contenido), sheet_name=sheet_name)
+        return df, sha
+    except Exception as e:
+        st.error(f"Error leyendo Excel: {e}")
+        return pd.DataFrame(), None
+
+def guardar_excel_github(ruta_archivo, df_dict, mensaje_commit, sha=None):
+    """Guarda DataFrames en un Excel en GitHub."""
+    buffer = BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        for nombre_hoja, df in df_dict.items():
+            df.to_excel(writer, sheet_name=nombre_hoja, index=False)
+    buffer.seek(0)
+    return escribir_archivo_github(ruta_archivo, buffer.getvalue(), mensaje_commit, sha)
+
+def fusionar_asignaciones(df_base, df_asig):
+    """Fusiona las asignaciones guardadas con los datos base."""
+    columnas_editables = [
+        "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
+        "Comentarios", "Actividades_Hechas", "Fecha_Ejecucion",
+        "Hora_Inicio", "Hora_Fin"
+    ]
+    for col in columnas_editables:
+        if col in df_asig.columns and col in df_base.columns:
+            mapeo = df_asig.set_index("ID OT")[col].to_dict()
+            for idx in df_base.index:
+                id_ot = str(df_base.at[idx, "ID OT"])
+                if id_ot in mapeo and pd.notna(mapeo[id_ot]) and str(mapeo[id_ot]) not in ["", "nan"]:
+                    df_base.at[idx, col] = mapeo[id_ot]
+    return df_base
+
+def guardar_asignaciones_github(df):
+    """Guarda las asignaciones en la hoja 'Asignaciones' del Excel en GitHub."""
+    contenido, sha = leer_archivo_github(RUTA_EXCEL)
+    if contenido is None:
+        st.error("No se pudo leer el archivo actual de GitHub")
+        return False
+    try:
+        excel_file = pd.ExcelFile(BytesIO(contenido))
+        hojas = {}
+        for nombre in excel_file.sheet_names:
+            if nombre != "Asignaciones":
+                hojas[nombre] = pd.read_excel(BytesIO(contenido), sheet_name=nombre)
+        columnas_asig = [
+            "ID OT", "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
+            "Comentarios", "Actividades_Hechas", "Fecha_Ejecucion",
+            "Hora_Inicio", "Hora_Fin"
+        ]
+        columnas_existentes = [c for c in columnas_asig if c in df.columns]
+        hojas["Asignaciones"] = df[columnas_existentes].copy()
+        mensaje = f"Actualizacion asignaciones - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        return guardar_excel_github(RUTA_EXCEL, hojas, mensaje, sha)
+    except Exception as e:
+        st.error(f"Error guardando asignaciones: {e}")
+        return False
 
 # Configuracion de la pagina - MODO TABLET
 st.set_page_config(
@@ -243,10 +359,14 @@ TECNICOS_MEC = [
 ]
 
 # ==================== FUNCIONES AUXILIARES ====================
-@st.cache_data
+@st.cache_data(ttl=60)
 def cargar_excel_mantenimiento():
     try:
-        df = pd.read_excel("MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx", sheet_name="Inicial")
+        df, sha = cargar_excel_github(RUTA_EXCEL, sheet_name="Inicial")
+        if df.empty:
+            st.error("No se encontro el archivo de mantenimiento en GitHub")
+            return pd.DataFrame()
+        st.session_state["sha_mantenimiento"] = sha
         if "UN" in df.columns:
             df = df[df["UN"] != "UN"].reset_index(drop=True)
         df.columns = df.columns.str.strip()
@@ -267,18 +387,25 @@ def cargar_excel_mantenimiento():
         }
         for col, default in columnas_default.items():
             if col not in df.columns: df[col] = default
+        # Cargar asignaciones guardadas
+        try:
+            df_asig, _ = cargar_excel_github(RUTA_EXCEL, sheet_name="Asignaciones")
+            if not df_asig.empty:
+                df = fusionar_asignaciones(df, df_asig)
+        except:
+            pass
         return df
-    except FileNotFoundError:
-        st.error("No se encontro el archivo: MANTENIMIENTO/Formato de mantenimiento preventivo.xlsx")
-        return pd.DataFrame()
     except Exception as e:
         st.error(f"Error al cargar el archivo de mantenimiento: {e}")
         return pd.DataFrame()
 
-@st.cache_data
+@st.cache_data(ttl=60)
 def cargar_excel_tecnicos():
     try:
-        df = pd.read_excel("MANTENIMIENTO/tecnico.xlsx", sheet_name="query")
+        df, _ = cargar_excel_github(RUTA_TECNICOS, sheet_name="query")
+        if df.empty:
+            st.error("No se encontro el archivo de tecnicos en GitHub")
+            return pd.DataFrame()
         df.columns = df.columns.str.strip()
         columnas_originales = list(df.columns)
         columnas_mapeo = {}
@@ -292,9 +419,6 @@ def cargar_excel_tecnicos():
         if "TECNICOS" in df.columns: df["TECNICOS"] = df["TECNICOS"].astype(str).str.strip()
         if "ESPE" in df.columns: df["ESPE"] = df["ESPE"].astype(str).str.strip()
         return df
-    except FileNotFoundError:
-        st.error("No se encontro el archivo: MANTENIMIENTO/tecnico.xlsx")
-        return pd.DataFrame()
     except Exception as e:
         st.error(f"Error al cargar el archivo de tecnicos: {e}")
         return pd.DataFrame()
@@ -424,7 +548,6 @@ def pantalla_home():
     perfil = st.session_state.perfil
     df = st.session_state.df_mantenimientos
 
-    # Header con perfil
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>App Tablet Mtto</span>
@@ -441,7 +564,6 @@ def pantalla_home():
     </div>
     """, unsafe_allow_html=True)
 
-    # Filtros por especialidad (todos los perfiles)
     st.markdown("<div style='text-align: center; margin-bottom: 10px; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns([1,1,1,1])
     with col1:
@@ -465,7 +587,6 @@ def pantalla_home():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Botones según perfil
     if perfil == "admin":
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
@@ -582,12 +703,9 @@ def pantalla_mis_ordenes():
     """, unsafe_allow_html=True)
     boton_volver_inicio("mis_ordenes_top")
 
-    # Filtrar solo las ordenes del técnico
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
-        # Para demo, si no hay técnico logueado específico, mostramos todas las asignadas
         df_mias = df_mias[df_mias["Tecnico_Asignado"].notna() & (df_mias["Tecnico_Asignado"] != "")]
-        # Filtrar por especialidad si aplica
         if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_mias.columns:
             df_mias = df_mias[df_mias["Especialidad"] == st.session_state.filtro_especialidad]
         if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_mias.columns:
@@ -609,7 +727,6 @@ def pantalla_mis_ordenes():
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
         prioridad = str(row.get("Prioridad_Actividad", ""))
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
-        info_prioridad = obtener_color_prioridad(prioridad)
 
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
@@ -686,10 +803,13 @@ def pantalla_ejecutar():
         df.at[idx, "Fecha_Ejecucion"] = datetime.now().strftime("%Y-%m-%d")
         df.at[idx, "Hora_Inicio"] = hora_inicio.strftime("%H:%M")
         df.at[idx, "Hora_Fin"] = hora_fin.strftime("%H:%M")
-        st.success("Orden marcada como EJECUTADA correctamente")
-        st.balloons()
-        st.session_state.pagina = "mis_ordenes"
-        st.rerun()
+        if guardar_asignaciones_github(df):
+            st.success("✅ Orden marcada como EJECUTADA y guardada en GitHub")
+            st.balloons()
+            st.session_state.pagina = "mis_ordenes"
+            st.rerun()
+        else:
+            st.error("❌ Error al guardar en GitHub. Intenta de nuevo.")
 
 # ==================== PANTALLA DETALLE TÉCNICO ====================
 def pantalla_detalle_tecnico():
@@ -795,13 +915,19 @@ def pantalla_verificar():
                 with col1:
                     if st.button("✓ VERIFICAR", key=f"btn_verif_{idx}", use_container_width=True, type="primary"):
                         df.at[idx, "Estado"] = "Verificado"
-                        st.success(f"OT {id_ot} verificada correctamente")
-                        st.rerun()
+                        if guardar_asignaciones_github(df):
+                            st.success(f"✅ OT {id_ot} verificada y guardada en GitHub")
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al guardar")
                 with col2:
                     if st.button("✕ RECHAZAR", key=f"btn_rech_{idx}", use_container_width=True, type="secondary"):
                         df.at[idx, "Estado"] = "Pendiente"
-                        st.warning(f"OT {id_ot} devuelta a Pendiente")
-                        st.rerun()
+                        if guardar_asignaciones_github(df):
+                            st.warning(f"OT {id_ot} devuelta a Pendiente")
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al guardar")
 
 # ==================== PANTALLA DE DETALLE (ADMIN) ====================
 def pantalla_detalle():
@@ -842,25 +968,28 @@ def pantalla_detalle():
     if tecnico_actual: st.success(f"{tecnico_actual}")
     else: st.warning("Sin tecnico asignado")
 
-    # Cambiar estado (solo admin)
     estado_actual = row.get("Estado", "Pendiente")
     nuevo_estado = st.selectbox("Cambiar Estado", ["Pendiente", "Ejecutado", "Verificado", "Cerrada"], index=["Pendiente", "Ejecutado", "Verificado", "Cerrada"].index(estado_actual))
     if nuevo_estado != estado_actual:
         df.at[idx, "Estado"] = nuevo_estado
         if nuevo_estado == "Ejecutado":
             df.at[idx, "Fecha_Ejecucion"] = datetime.now().strftime("%Y-%m-%d")
-        st.success(f"Estado cambiado a: {nuevo_estado}")
-        st.rerun()
+        if guardar_asignaciones_github(df):
+            st.success(f"✅ Estado cambiado a: {nuevo_estado} y guardado en GitHub")
+            st.rerun()
+        else:
+            st.error("❌ Error al guardar")
 
     st.subheader("Comentarios")
     comentarios = row.get("Comentarios", "")
     nuevo_comentario = st.text_area("Agregar comentario", value=comentarios, key="comentario_detalle")
     if st.button("Guardar Comentario", key="guardar_comentario"):
         df.at[idx, "Comentarios"] = nuevo_comentario
-        st.success("Comentario guardado"); st.rerun()
-
-    if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary"):
-        st.success("Cambios guardados en memoria (recuerda: en Streamlit Cloud los cambios no persisten)")
+        if guardar_asignaciones_github(df):
+            st.success("✅ Comentario guardado en GitHub")
+            st.rerun()
+        else:
+            st.error("❌ Error al guardar")
 
     boton_volver_inicio("detalle_bottom")
 
@@ -942,7 +1071,12 @@ def pantalla_asignacion():
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     if st.button("Guardar todas las asignaciones", use_container_width=True, type="primary"):
-        st.success("Asignaciones guardadas correctamente")
+        if guardar_asignaciones_github(df):
+            st.success("✅ Asignaciones guardadas en GitHub - Todos los dispositivos las veran")
+            st.cache_data.clear()
+            st.rerun()
+        else:
+            st.error("❌ Error al guardar en GitHub. Intenta de nuevo.")
 
     boton_volver_inicio("asignacion_bottom")
 
