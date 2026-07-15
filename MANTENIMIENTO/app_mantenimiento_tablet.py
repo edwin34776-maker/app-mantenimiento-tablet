@@ -492,4 +492,4 @@ def obtener_maquinas_disponibles(df):
 # ==================== INICIALIZAR ESTADO ====================
 if "perfil" not in st.session_state: st.session_state.perfil = None
 if "pagina" not in st.session_state: st.session_state.pagina = "login"
-if "orden_seleccionad
+if "orden_seleccionad"
