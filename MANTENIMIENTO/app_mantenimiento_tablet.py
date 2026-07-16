@@ -17,7 +17,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def cargar_ordenes_supabase():
     """Carga todas las ordenes desde Supabase usando el cliente oficial."""
     try:
-        response = supabase.table("ordenes").select("*").order("id_ot", desc=False).execute()
+        response = supabase.table("ordenes_trabajo").select("*").order("id_ot", desc=False).execute()
         data = response.data
         if not data:
             return pd.DataFrame()
