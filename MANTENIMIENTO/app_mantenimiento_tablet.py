@@ -17,7 +17,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def cargar_ordenes_supabase():
     """Carga todas las ordenes desde Supabase usando el cliente oficial."""
     try:
-        response = supabase.table("ordenes_trabajo").select("*").order("id_ot", desc=False).execute()
+        response = supabase.table("ordenes").select("*").order("id_ot", desc=False).execute()
         data = response.data
         if not data:
             return pd.DataFrame()
@@ -429,13 +429,13 @@ def pantalla_login():
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.markdown("""
         <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
             <div class="perfil-icon">👤</div>
             <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
-            <div class="perfil-desc">Asigna técnicos<br>Cambia prioridades<br>Ve todo el sistema</div>
+            <div class="perfil-desc">Asigna técnicos<br>Cambia prioridades<br>Verifica ejecuciones<br>Ve todo el sistema</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key="login_admin"):
@@ -453,19 +453,6 @@ def pantalla_login():
         """, unsafe_allow_html=True)
         if st.button("ENTRAR COMO TÉCNICO", use_container_width=True, type="primary", key="login_tecnico"):
             st.session_state.perfil = "tecnico"
-            st.session_state.pagina = "home"
-            st.rerun()
-
-    with col3:
-        st.markdown("""
-        <div class="perfil-card perfil-supervisor" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">✓</div>
-            <div class="perfil-titulo" style="color: #007bff;">SUPERVISOR</div>
-            <div class="perfil-desc">Verifica ejecuciones<br>Revisa calidad<br>Cierra órdenes</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("ENTRAR COMO SUPERVISOR", use_container_width=True, type="primary", key="login_supervisor"):
-            st.session_state.perfil = "supervisor"
             st.session_state.pagina = "home"
             st.rerun()
 
@@ -514,13 +501,16 @@ def pantalla_home():
     st.markdown("<br>", unsafe_allow_html=True)
 
     if perfil == "admin":
-        col_btn1, col_btn2 = st.columns(2)
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
             if st.button("VER ORDENES PREVENTIVAS", use_container_width=True, type="primary"):
                 st.session_state.pagina = "ordenes"; st.rerun()
         with col_btn2:
             if st.button("ASIGNACION DE TECNICOS", use_container_width=True, type="primary"):
                 st.session_state.pagina = "asignacion"; st.rerun()
+        with col_btn3:
+            if st.button("VER ORDENES EJECUTADAS", use_container_width=True, type="primary"):
+                st.session_state.pagina = "verificar"; st.rerun()
     elif perfil == "tecnico":
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
@@ -529,14 +519,7 @@ def pantalla_home():
         with col_btn2:
             if st.button("VER TODAS LAS ORDENES", use_container_width=True, type="secondary"):
                 st.session_state.pagina = "ordenes"; st.rerun()
-    elif perfil == "supervisor":
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            if st.button("VER ORDENES EJECUTADAS", use_container_width=True, type="primary"):
-                st.session_state.pagina = "verificar"; st.rerun()
-        with col_btn2:
-            if st.button("VER TODAS LAS ORDENES", use_container_width=True, type="secondary"):
-                st.session_state.pagina = "ordenes"; st.rerun()
+
 
     if not df.empty and "Especialidad" in df.columns:
         st.divider()
@@ -901,7 +884,7 @@ def pantalla_detalle():
         else:
             st.error("Error al guardar en Supabase")
 
-    if perfil == "supervisor" and nuevo_estado == "Ejecutado":
+    if perfil in ["admin", "supervisor"] and nuevo_estado == "Ejecutado":
         if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key="det_verificar"):
             id_ot = str(row.get("ID OT", ""))
             df.at[idx, "Estado"] = "Verificado"
