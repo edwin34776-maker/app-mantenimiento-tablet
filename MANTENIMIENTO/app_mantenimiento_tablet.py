@@ -1199,6 +1199,13 @@ def pantalla_asignacion():
         st.info("No hay ordenes con los filtros seleccionados.")
         return
 
+    # Verificar IDs duplicados
+    if "ID OT" in df_asig.columns:
+        ids = df_asig["ID OT"].astype(str)
+        duplicados = ids[ids.duplicated(keep=False)].unique()
+        if len(duplicados) > 0:
+            st.warning(f"⚠️ Se detectaron {len(duplicados)} ID(s) duplicado(s): {', '.join(duplicados[:5])}{'...' if len(duplicados) > 5 else ''}")
+
     for idx, row in df_asig.iterrows():
         id_ot = str(row.get("ID OT", ""))
         tipo = str(row.get("Especialidad", ""))
@@ -1235,10 +1242,10 @@ def pantalla_asignacion():
             except:
                 idx_tec = 0
 
-            nuevo_tec = st.selectbox(f"Asignar tecnico", tecnicos, index=idx_tec, key=f"asig_select_{id_ot}")
+            nuevo_tec = st.selectbox(f"Asignar tecnico", tecnicos, index=idx_tec, key=f"asig_select_{id_ot}_{idx}")
             if nuevo_tec == "Sin asignar": nuevo_tec = ""
 
-            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=f"asig_btn_{id_ot}"):
+            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=f"asig_btn_{id_ot}_{idx}"):
                 df.at[idx, "Tecnico_Asignado"] = nuevo_tec
                 if actualizar_orden_supabase(id_ot, "Tecnico_Asignado", nuevo_tec):
                     st.success(f"Tecnico asignado a OT {id_ot}")
@@ -1300,7 +1307,7 @@ def pantalla_verificar():
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=f"verif_btn_{id_ot}"):
+                if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=f"verif_btn_{id_ot}_{idx}"):
                     df.at[idx, "Estado"] = "Verificado"
                     if actualizar_orden_supabase(id_ot, "Estado", "Verificado"):
                         st.success(f"OT {id_ot} verificada correctamente")
@@ -1309,7 +1316,7 @@ def pantalla_verificar():
                     else:
                         st.error("Error al verificar")
             with col2:
-                if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=f"rech_btn_{id_ot}"):
+                if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=f"rech_btn_{id_ot}_{idx}"):
                     df.at[idx, "Estado"] = "Pendiente"
                     if actualizar_orden_supabase(id_ot, "Estado", "Pendiente"):
                         st.warning(f"OT {id_ot} devuelta a Pendiente")
