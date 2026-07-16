@@ -2,12 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from supabase import create_client
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
-import io
 
 # ==================== CONFIGURACION SUPABASE ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
@@ -19,131 +13,35 @@ if not SUPABASE_KEY:
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ==================== DESTINATARIOS POR DEFECTO ====================
-DESTINATARIOS_DEFAULT = [
-    "mantobogota@gmail.com",
-    "supermantobogota@gmail.com"
-]
-
-# ==================== MAPEO DE COLUMNAS (Centralizado) ====================
-COL_MAP_SUPABASE_TO_DISPLAY = {
-    "id_ot": "ID OT",
-    "descripcion_procedimiento": "Descripcion de procedimiento",
-    "tecnico_asignado": "Tecnico_Asignado",
-    "prioridad_actividad": "Prioridad_Actividad",
-    "actividades_hechas": "Actividades_Hechas",
-    "fecha_ejecucion": "Fecha_Ejecucion",
-    "hora_inicio": "Hora_Inicio",
-    "hora_fin": "Hora_Fin",
-    "estado": "Estado",
-    "comentarios": "Comentarios",
-    "equipo": "Equipo",
-    "ubicacion": "Ubicacion",
-    "especialidad": "Especialidad"
-}
-
-COL_MAP_DISPLAY_TO_SUPABASE = {v: k for k, v in COL_MAP_SUPABASE_TO_DISPLAY.items()}
-
-COLUMNAS_DEFAULT = {
-    "Estado": "Pendiente",
-    "Comentarios": "",
-    "Tecnico_Asignado": "",
-    "Actividades_Hechas": "",
-    "Fecha_Ejecucion": "",
-    "Hora_Inicio": "",
-    "Hora_Fin": "",
-    "Prioridad_Actividad": "",
-    "Equipo": "",
-    "Ubicacion": "",
-    "Especialidad": "",
-    "Descripcion de procedimiento": ""
-}
-
-# ==================== FUNCIONES DE CORREO ELECTRONICO ====================
-def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", usar_cuenta_secundaria=False):
-    """
-    Envia correo con Excel adjunto y resumen de porcentajes.
-    """
-    if usar_cuenta_secundaria:
-        email_user = st.secrets.get("EMAIL_USER_2", "")
-        email_pass = st.secrets.get("EMAIL_PASS_2", "")
-    else:
-        email_user = st.secrets.get("EMAIL_USER", "")
-        email_pass = st.secrets.get("EMAIL_PASS", "")
-
-    if not email_user or not email_pass:
-        return False, "Credenciales de correo no configuradas en secrets.toml"
-
-    total = len(df)
-    if total == 0:
-        ejecutadas_pct = pendientes_pct = verificar_pct = 0.0
-    else:
-        ejecutadas = len(df[df["Estado"] == "Ejecutado"])
-        pendientes = len(df[df["Estado"] == "Pendiente"])
-        verificar = len(df[df["Estado"] == "Verificado"])
-        ejecutadas_pct = round((ejecutadas / total) * 100, 1)
-        pendientes_pct = round((pendientes / total) * 100, 1)
-        verificar_pct = round((verificar / total) * 100, 1)
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Preventivas')
-    output.seek(0)
-
-    cuerpo_html = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; color: #333;">
-        <p style="font-size: 16px; font-weight: bold;">Preventivo</p>
-        <p style="font-size: 14px;">{area_mecanica}</p>
-        <p style="font-size: 14px;">Ejecutadas {ejecutadas_pct}%</p>
-        <p style="font-size: 14px;">Pendientes {pendientes_pct}%</p>
-        <p style="font-size: 14px;">Verificar {verificar_pct}%</p>
-        <br>
-        <p style="font-size: 14px;">Comentario:</p>
-    </body>
-    </html>
-    """
-
-    msg = MIMEMultipart()
-    msg['From'] = email_user
-    msg['To'] = ", ".join(destinatarios)
-    msg['Subject'] = asunto
-    msg.attach(MIMEText(cuerpo_html, 'html'))
-
-    attachment = MIMEBase('application', 'octet-stream')
-    attachment.set_payload(output.read())
-    encoders.encode_base64(attachment)
-    attachment.add_header('Content-Disposition', f'attachment; filename="{area_mecanica}.xlsx"')
-    msg.attach(attachment)
-
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(email_user, email_pass)
-        server.sendmail(email_user, destinatarios, msg.as_string())
-        server.quit()
-        return True, f"Correo enviado desde {email_user}"
-    except Exception as e:
-        return False, f"Error al enviar: {str(e)}"
-
-# ==================== FUNCIONES SUPABASE ====================
-@st.cache_data(ttl=60)
+# ==================== FUNCIONES SUPABASE (CLIENTE OFICIAL) ====================
 def cargar_ordenes_supabase():
-    """Carga todas las ordenes desde Supabase usando el cliente oficial. Con cache."""
+    """Carga todas las ordenes desde Supabase usando el cliente oficial."""
     try:
         response = supabase.table("ordenes_trabajo").select("*").order("id_ot", desc=False).execute()
         data = response.data
         if not data:
             return pd.DataFrame()
         df = pd.DataFrame(data)
+        # Renombrar columnas de snake_case a los nombres originales
         columnas_mapeo = {}
         for col in df.columns:
-            if col in COL_MAP_SUPABASE_TO_DISPLAY:
-                columnas_mapeo[col] = COL_MAP_SUPABASE_TO_DISPLAY[col]
-            else:
-                columnas_mapeo[col] = col.capitalize()
+            if col == "id_ot": columnas_mapeo[col] = "ID OT"
+            elif col == "descripcion_procedimiento": columnas_mapeo[col] = "Descripcion de procedimiento"
+            elif col == "tecnico_asignado": columnas_mapeo[col] = "Tecnico_Asignado"
+            elif col == "prioridad_actividad": columnas_mapeo[col] = "Prioridad_Actividad"
+            elif col == "actividades_hechas": columnas_mapeo[col] = "Actividades_Hechas"
+            elif col == "fecha_ejecucion": columnas_mapeo[col] = "Fecha_Ejecucion"
+            elif col == "hora_inicio": columnas_mapeo[col] = "Hora_Inicio"
+            elif col == "hora_fin": columnas_mapeo[col] = "Hora_Fin"
+            else: columnas_mapeo[col] = col.capitalize()
         df = df.rename(columns=columnas_mapeo)
-        for col, default in COLUMNAS_DEFAULT.items():
+        # Columnas default
+        columnas_default = {
+            "Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+            "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
+            "Hora_Fin": "", "Prioridad_Actividad": ""
+        }
+        for col, default in columnas_default.items():
             if col not in df.columns:
                 df[col] = default
         return df
@@ -156,10 +54,9 @@ def guardar_orden_supabase(id_ot, datos):
     try:
         datos_supabase = {"id_ot": str(id_ot)}
         for key, value in datos.items():
-            if key in COL_MAP_DISPLAY_TO_SUPABASE:
-                key_snake = COL_MAP_DISPLAY_TO_SUPABASE[key]
-            else:
-                key_snake = key.lower().replace(" ", "_").replace(".", "").replace("-", "_")
+            key_snake = key.lower().replace(" ", "_").replace(".", "").replace("-", "_")
+            if key_snake in ["id_ot", "descripcion_de_procedimiento"]:
+                key_snake = key_snake.replace("_de_", "_").replace("__", "_")
             datos_supabase[key_snake] = value if not pd.isna(value) else None
         supabase.table("ordenes_trabajo").upsert(datos_supabase).execute()
         return True
@@ -170,30 +67,23 @@ def guardar_orden_supabase(id_ot, datos):
 def actualizar_orden_supabase(id_ot, campo, valor):
     """Actualiza un solo campo de una orden."""
     try:
-        if campo in COL_MAP_DISPLAY_TO_SUPABASE:
-            campo_snake = COL_MAP_DISPLAY_TO_SUPABASE[campo]
-        else:
-            campo_snake = campo.lower().replace(" ", "_").replace(".", "").replace("-", "_")
+        campo_snake = campo.lower().replace(" ", "_").replace(".", "").replace("-", "_")
         supabase.table("ordenes_trabajo").update({campo_snake: valor}).eq("id_ot", id_ot).execute()
         return True
     except Exception as e:
         st.error(f"Error actualizando campo: {e}")
         return False
 
-def guardar_asignaciones_supabase(df, idx_modificado=None):
-    """Guarda asignaciones modificadas en Supabase. Solo guarda la fila indicada."""
+def guardar_asignaciones_supabase(df):
+    """Guarda todas las asignaciones modificadas en Supabase."""
     try:
         columnas_editables = [
             "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
             "Comentarios", "Actividades_Hechas", "Fecha_Ejecucion",
             "Hora_Inicio", "Hora_Fin"
         ]
-        indices_a_guardar = [idx_modificado] if idx_modificado is not None else df.index
         exitosos = 0
-        for idx in indices_a_guardar:
-            if idx not in df.index:
-                continue
-            row = df.loc[idx]
+        for idx, row in df.iterrows():
             id_ot = str(row.get("ID OT", ""))
             if not id_ot:
                 continue
@@ -204,12 +94,12 @@ def guardar_asignaciones_supabase(df, idx_modificado=None):
             if datos:
                 if guardar_orden_supabase(id_ot, datos):
                     exitosos += 1
-        if exitosos > 0:
-            st.success(f"{exitosos} orden(es) actualizada(s) en Supabase")
+        st.success(f"{exitosos} ordenes actualizadas en Supabase")
         return exitosos > 0
     except Exception as e:
         st.error(f"Error guardando asignaciones: {e}")
         return False
+
 
 # Configuracion de la pagina - MODO TABLET
 st.set_page_config(
@@ -335,10 +225,6 @@ st.markdown("""
         border-left: 4px solid #28a745 !important;
         background: linear-gradient(90deg, #f0fff4 0%, #ffffff 100%) !important;
     }
-    .prioridad-sin-clasificar {
-        border-left: 4px solid #adb5bd !important;
-        background: linear-gradient(90deg, #f8f9fa 0%, #ffffff 100%) !important;
-    }
     .tabla-header {
         display: grid;
         grid-template-columns: 70px 45px 1fr 90px 110px;
@@ -456,7 +342,7 @@ TECNICOS_MEC = [
 
 # ==================== FUNCIONES AUXILIARES ====================
 def cargar_excel_mantenimiento():
-    """Carga ordenes desde Supabase (con cache para eficiencia)."""
+    """Carga ordenes desde Supabase (sin cache para sincronizacion en tiempo real)."""
     try:
         df = cargar_ordenes_supabase()
         return df
@@ -493,8 +379,8 @@ def obtener_color_prioridad(prioridad):
     return colores.get(prioridad, colores[""])
 
 def obtener_clase_css_prioridad(prioridad):
-    clases = {"Rojo": "prioridad-critico", "Amarillo": "prioridad-secundario", "Verde": "prioridad-estandar", "": "prioridad-sin-clasificar"}
-    return clases.get(prioridad, "prioridad-sin-clasificar")
+    clases = {"Rojo": "prioridad-critico", "Amarillo": "prioridad-secundario", "Verde": "prioridad-estandar", "": ""}
+    return clases.get(prioridad, "")
 
 def boton_volver_inicio(key_suffix=""):
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -502,7 +388,6 @@ def boton_volver_inicio(key_suffix=""):
         if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary", key=f"volver_inicio_{key_suffix}"):
             st.session_state.pagina = "home"
             st.session_state.orden_seleccionada = None
-            st.session_state.orden_id_ot = None
             st.session_state.busqueda = ""
             st.rerun()
 
@@ -511,7 +396,6 @@ def boton_cerrar_sesion():
         st.session_state.perfil = None
         st.session_state.pagina = "login"
         st.session_state.orden_seleccionada = None
-        st.session_state.orden_id_ot = None
         st.session_state.busqueda = ""
         st.rerun()
 
@@ -524,36 +408,10 @@ def obtener_maquinas_disponibles(df):
     except Exception:
         return ["Todas"]
 
-def auto_refresh(paginas_excluidas=None):
-    """Recarga la pagina cada 30 segundos, excepto en pantallas de formulario."""
-    if paginas_excluidas is None:
-        paginas_excluidas = ["ejecutar", "detalle", "detalle_tecnico"]
-    if st.session_state.pagina not in paginas_excluidas:
-        st.markdown(
-            '<meta http-equiv="refresh" content="30">',
-            unsafe_allow_html=True
-        )
-
-def refrescar_datos():
-    """Fuerza la recarga de datos desde Supabase invalidando el cache."""
-    cargar_ordenes_supabase.clear()
-    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-
-def obtener_fila_por_id_ot(df, id_ot):
-    """Obtiene una fila del DataFrame buscando por ID_OT. Retorna (idx, row) o (None, None)."""
-    if df.empty or "ID OT" not in df.columns:
-        return None, None
-    mask = df["ID OT"].astype(str) == str(id_ot)
-    if mask.any():
-        idx = df[mask].index[0]
-        return idx, df.loc[idx]
-    return None, None
-
 # ==================== INICIALIZAR ESTADO ====================
 if "perfil" not in st.session_state: st.session_state.perfil = None
 if "pagina" not in st.session_state: st.session_state.pagina = "login"
 if "orden_seleccionada" not in st.session_state: st.session_state.orden_seleccionada = None
-if "orden_id_ot" not in st.session_state: st.session_state.orden_id_ot = None
 if "df_mantenimientos" not in st.session_state: st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
 if "filtro_especialidad" not in st.session_state: st.session_state.filtro_especialidad = "Todas"
 if "filtro_maquina" not in st.session_state: st.session_state.filtro_maquina = "Todas"
@@ -561,11 +419,9 @@ if "filtro_esp_asig" not in st.session_state: st.session_state.filtro_esp_asig =
 if "filtro_maq_asig" not in st.session_state: st.session_state.filtro_maq_asig = "Todas"
 if "filtro_estado_asig" not in st.session_state: st.session_state.filtro_estado_asig = "Todos"
 if "busqueda" not in st.session_state: st.session_state.busqueda = ""
-if "mostrar_envio_correo" not in st.session_state: st.session_state.mostrar_envio_correo = False
 
 # ==================== PANTALLA DE LOGIN ====================
 def pantalla_login():
-    auto_refresh(paginas_excluidas=[])
     st.markdown('<div class="tablet-header">App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
     st.markdown("""
     <div style="text-align: center; padding: 20px 0;">
@@ -579,7 +435,7 @@ def pantalla_login():
         <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
             <div class="perfil-icon">👤</div>
             <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
-            <div class="perfil-desc">Asigna tecnicos<br>Cambia prioridades<br>Verifica ejecuciones<br>Ve todo el sistema</div>
+            <div class="perfil-desc">Asigna técnicos<br>Cambia prioridades<br>Verifica ejecuciones<br>Ve todo el sistema</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key="login_admin"):
@@ -591,25 +447,24 @@ def pantalla_login():
         st.markdown("""
         <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
             <div class="perfil-icon">🔧</div>
-            <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
-            <div class="perfil-desc">Ve sus ordenes<br>Ejecuta actividades<br>Comenta y reporta</div>
+            <div class="perfil-titulo" style="color: #28a745;">TÉCNICO</div>
+            <div class="perfil-desc">Ve sus órdenes<br>Ejecuta actividades<br>Comenta y reporta</div>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key="login_tecnico"):
+        if st.button("ENTRAR COMO TÉCNICO", use_container_width=True, type="primary", key="login_tecnico"):
             st.session_state.perfil = "tecnico"
             st.session_state.pagina = "home"
             st.rerun()
 
 # ==================== PANTALLA DE INICIO (HOME) ====================
 def pantalla_home():
-    auto_refresh()
     perfil = st.session_state.perfil
     df = st.session_state.df_mantenimientos
 
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>App Tablet Mtto</span>
-        <span style="font-size: 12px; opacity: 0.8;">{'👤 Admin' if perfil == 'admin' else '🔧 Tecnico'}</span>
+        <span style="font-size: 12px; opacity: 0.8;">{'👤 Admin' if perfil == 'admin' else '🔧 Técnico' if perfil == 'tecnico' else '✓ Supervisor'}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -646,7 +501,7 @@ def pantalla_home():
     st.markdown("<br>", unsafe_allow_html=True)
 
     if perfil == "admin":
-        col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
             if st.button("VER ORDENES PREVENTIVAS", use_container_width=True, type="primary"):
                 st.session_state.pagina = "ordenes"; st.rerun()
@@ -656,10 +511,6 @@ def pantalla_home():
         with col_btn3:
             if st.button("VER ORDENES EJECUTADAS", use_container_width=True, type="primary"):
                 st.session_state.pagina = "verificar"; st.rerun()
-        with col_btn4:
-            if st.button("📧 ENVIAR CORREO", use_container_width=True, type="primary"):
-                st.session_state.mostrar_envio_correo = True
-                st.rerun()
     elif perfil == "tecnico":
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
@@ -669,69 +520,6 @@ def pantalla_home():
             if st.button("VER TODAS LAS ORDENES", use_container_width=True, type="secondary"):
                 st.session_state.pagina = "ordenes"; st.rerun()
 
-    # ==================== PANEL DE ENVIO DE CORREO ====================
-    if perfil == "admin" and st.session_state.mostrar_envio_correo:
-        st.divider()
-        st.subheader("📧 Enviar Resumen por Correo")
-
-        df_envio = df.copy()
-        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_envio.columns:
-            df_envio = df_envio[df_envio["Especialidad"] == st.session_state.filtro_especialidad]
-        if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_envio.columns:
-            df_envio = df_envio[df_envio["Ubicacion"] == st.session_state.filtro_maquina]
-
-        pct_ejec, pct_pdte, pct_verif = calcular_progreso(df_envio)
-
-        col_stat1, col_stat2, col_stat3 = st.columns(3)
-        with col_stat1: st.metric("Ejecutadas", f"{pct_ejec}%")
-        with col_stat2: st.metric("Pendientes", f"{pct_pdte}%")
-        with col_stat3: st.metric("Verificar", f"{pct_verif}%")
-
-        st.write(f"**Total de ordenes a enviar:** {len(df_envio)}")
-
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            cuenta = st.radio("Cuenta de envio:", [
-                "ordenespreventivasmtctg@gmail.com",
-                "supermantobogota@gmail.com"
-            ])
-            usar_secundaria = (cuenta == "supermantobogota@gmail.com")
-
-        with col_c2:
-            area = st.text_input("Area / Proyecto", value="INY4 MEC")
-
-        asunto = st.text_input("Asunto del correo", value=f"Ordenes preventivas {area}")
-
-        destinatarios_text = st.text_area(
-            "Destinatarios:",
-            value="\n".join(DESTINATARIOS_DEFAULT),
-            disabled=True
-        )
-
-        col_env1, col_env2 = st.columns(2)
-        with col_env1:
-            if st.button("📤 ENVIAR CORREO", use_container_width=True, type="primary"):
-                if len(df_envio) == 0:
-                    st.error("No hay ordenes para enviar con el filtro actual")
-                else:
-                    with st.spinner("Enviando correo..."):
-                        exito, mensaje = enviar_correo_preventivo(
-                            df=df_envio,
-                            destinatarios=DESTINATARIOS_DEFAULT,
-                            asunto=asunto,
-                            area_mecanica=area,
-                            usar_cuenta_secundaria=usar_secundaria
-                        )
-                    if exito:
-                        st.success(mensaje)
-                        st.session_state.mostrar_envio_correo = False
-                    else:
-                        st.error(mensaje)
-
-        with col_env2:
-            if st.button("❌ CANCELAR", use_container_width=True, type="secondary"):
-                st.session_state.mostrar_envio_correo = False
-                st.rerun()
 
     if not df.empty and "Especialidad" in df.columns:
         st.divider()
@@ -745,7 +533,6 @@ def pantalla_home():
 
 # ==================== PANTALLA DE ORDENES (LISTA) ====================
 def pantalla_ordenes():
-    auto_refresh()
     df = st.session_state.df_mantenimientos
     perfil = st.session_state.perfil
     st.markdown(f"""
@@ -811,15 +598,11 @@ def pantalla_ordenes():
         </div>
         """, unsafe_allow_html=True)
 
-        # KEY UNICA: usa id_ot + prefijo de pantalla
-        if st.button(f"Ver detalle", key=f"ordenes_ver_{id_ot}", use_container_width=True):
-            st.session_state.orden_id_ot = id_ot
-            st.session_state.pagina = "detalle"
-            st.rerun()
+        if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
+            st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle"; st.rerun()
 
 # ==================== PANTALLA MIS ORDENES (TECNICO) ====================
 def pantalla_mis_ordenes():
-    auto_refresh()
     df = st.session_state.df_mantenimientos
     perfil = st.session_state.perfil
     st.markdown(f"""
@@ -866,33 +649,23 @@ def pantalla_mis_ordenes():
 
         col1, col2 = st.columns(2)
         with col1:
-            # KEY UNICA con prefijo de pantalla
-            if st.button(f"Ver detalle", key=f"mis_ver_{id_ot}", use_container_width=True):
-                st.session_state.orden_id_ot = id_ot
-                st.session_state.pagina = "detalle_tecnico"
-                st.rerun()
+            if st.button(f"Ver detalle", key=f"btn_ver_tec_{idx}", use_container_width=True):
+                st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle_tecnico"; st.rerun()
         with col2:
-            if estado == "Pendiente" and st.button(f"Ejecutar", key=f"mis_ejec_{id_ot}", use_container_width=True, type="primary"):
-                st.session_state.orden_id_ot = id_ot
-                st.session_state.pagina = "ejecutar"
-                st.rerun()
+            if estado == "Pendiente" and st.button(f"Ejecutar", key=f"btn_ejec_{idx}", use_container_width=True, type="primary"):
+                st.session_state.orden_seleccionada = idx; st.session_state.pagina = "ejecutar"; st.rerun()
 
 # ==================== PANTALLA EJECUTAR ORDEN (TECNICO) ====================
 def pantalla_ejecutar():
-    auto_refresh(paginas_excluidas=["ejecutar"])  # No auto-refresh en formulario
     df = st.session_state.df_mantenimientos
-    id_ot = st.session_state.orden_id_ot
+    idx = st.session_state.orden_seleccionada
+    if idx is None or idx not in df.index:
+        st.session_state.pagina = "mis_ordenes"; st.rerun(); return
 
-    idx, row = obtener_fila_por_id_ot(df, id_ot)
-    if idx is None:
-        st.error("Orden no encontrada. Volviendo...")
-        st.session_state.pagina = "mis_ordenes"
-        st.rerun()
-        return
-
+    row = df.loc[idx]
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Ejecutar OT {id_ot}</span>
+        <span>Ejecutar OT {row.get('ID OT', '')}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -902,7 +675,7 @@ def pantalla_ejecutar():
             st.session_state.pagina = "mis_ordenes"; st.rerun()
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary"):
-            st.session_state.pagina = "home"; st.session_state.orden_id_ot = None; st.rerun()
+            st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
 
     st.markdown(f"""
     <div class="detail-panel">
@@ -932,34 +705,14 @@ def pantalla_ejecutar():
     st.subheader("Actividades Realizadas")
     actividades = st.text_area("Liste las actividades hechas (una por linea)...", value=row.get("Actividades_Hechas", ""), key="actividades_hechas")
 
-    # Validaciones antes de guardar
-    errores = []
     if st.button("MARCAR COMO EJECUTADO", use_container_width=True, type="primary"):
-        if not actividades.strip():
-            errores.append("Debes registrar las actividades realizadas.")
-        if not nuevo_comentario.strip():
-            errores.append("Debes agregar un comentario de ejecucion.")
-
-        # Validar hora fin > hora inicio
-        hi = datetime.strptime(hora_inicio.strftime("%H:%M"), "%H:%M")
-        hf = datetime.strptime(hora_fin.strftime("%H:%M"), "%H:%M")
-        if hf <= hi:
-            errores.append("La hora de fin debe ser mayor que la hora de inicio.")
-
-        if errores:
-            for err in errores:
-                st.error(err)
-            return
-
-        # Solo guarda la fila modificada
         df.at[idx, "Estado"] = "Ejecutado"
         df.at[idx, "Comentarios"] = nuevo_comentario
         df.at[idx, "Actividades_Hechas"] = actividades
         df.at[idx, "Fecha_Ejecucion"] = datetime.now().strftime("%Y-%m-%d")
         df.at[idx, "Hora_Inicio"] = hora_inicio.strftime("%H:%M")
         df.at[idx, "Hora_Fin"] = hora_fin.strftime("%H:%M")
-
-        if guardar_asignaciones_supabase(df, idx_modificado=idx):
+        if guardar_asignaciones_supabase(df):
             st.success("Orden marcada como EJECUTADA y guardada en Supabase")
             st.balloons()
             st.session_state.pagina = "mis_ordenes"
@@ -969,20 +722,15 @@ def pantalla_ejecutar():
 
 # ==================== PANTALLA DETALLE TECNICO ====================
 def pantalla_detalle_tecnico():
-    auto_refresh(paginas_excluidas=["detalle_tecnico"])
     df = st.session_state.df_mantenimientos
-    id_ot = st.session_state.orden_id_ot
+    idx = st.session_state.orden_seleccionada
+    if idx is None or idx not in df.index:
+        st.session_state.pagina = "mis_ordenes"; st.rerun(); return
 
-    idx, row = obtener_fila_por_id_ot(df, id_ot)
-    if idx is None:
-        st.error("Orden no encontrada. Volviendo...")
-        st.session_state.pagina = "mis_ordenes"
-        st.rerun()
-        return
-
+    row = df.loc[idx]
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Detalle OT {id_ot}</span>
+        <span>Detalle OT {row.get('ID OT', '')}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -992,7 +740,7 @@ def pantalla_detalle_tecnico():
             st.session_state.pagina = "mis_ordenes"; st.rerun()
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary"):
-            st.session_state.pagina = "home"; st.session_state.orden_id_ot = None; st.rerun()
+            st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
 
     prioridad = str(row.get("Prioridad_Actividad", ""))
     info_prioridad = obtener_color_prioridad(prioridad)
@@ -1025,23 +773,19 @@ def pantalla_detalle_tecnico():
     if row.get("Fecha_Ejecucion"):
         st.success(f"Ejecutado el: {row.get('Fecha_Ejecucion')} | Inicio: {row.get('Hora_Inicio', 'N/A')} | Fin: {row.get('Hora_Fin', 'N/A')}")
 
-# ==================== PANTALLA DETALLE (ADMIN) ====================
+
+# ==================== PANTALLA DETALLE (ADMIN / SUPERVISOR) ====================
 def pantalla_detalle():
-    auto_refresh(paginas_excluidas=["detalle"])
     df = st.session_state.df_mantenimientos
-    id_ot = st.session_state.orden_id_ot
+    idx = st.session_state.orden_seleccionada
+    if idx is None or idx not in df.index:
+        st.session_state.pagina = "ordenes"; st.rerun(); return
 
-    idx, row = obtener_fila_por_id_ot(df, id_ot)
-    if idx is None:
-        st.error("Orden no encontrada. Volviendo...")
-        st.session_state.pagina = "ordenes"
-        st.rerun()
-        return
-
+    row = df.loc[idx]
     perfil = st.session_state.perfil
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Detalle OT {id_ot}</span>
+        <span>Detalle OT {row.get('ID OT', '')}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1051,7 +795,7 @@ def pantalla_detalle():
             st.session_state.pagina = "ordenes"; st.rerun()
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary", key="det_inicio"):
-            st.session_state.pagina = "home"; st.session_state.orden_id_ot = None; st.rerun()
+            st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
 
     prioridad = str(row.get("Prioridad_Actividad", ""))
     info_prioridad = obtener_color_prioridad(prioridad)
@@ -1112,21 +856,7 @@ def pantalla_detalle():
     actividades = st.text_area("Actividades Hechas", value=str(row.get("Actividades_Hechas", "")), key="det_actividades")
 
     if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary", key="det_guardar"):
-        # Validaciones
-        errores = []
-        if nuevo_estado == "Ejecutado" and not actividades.strip():
-            errores.append("Las ordenes ejecutadas deben tener actividades registradas.")
-
-        hi = datetime.strptime(hora_inicio.strftime("%H:%M"), "%H:%M")
-        hf = datetime.strptime(hora_fin.strftime("%H:%M"), "%H:%M")
-        if hf <= hi:
-            errores.append("La hora de fin debe ser mayor que la hora de inicio.")
-
-        if errores:
-            for err in errores:
-                st.error(err)
-            return
-
+        id_ot = str(row.get("ID OT", ""))
         df.at[idx, "Tecnico_Asignado"] = nuevo_tecnico
         df.at[idx, "Estado"] = nuevo_estado
         df.at[idx, "Prioridad_Actividad"] = nueva_prioridad
@@ -1136,6 +866,7 @@ def pantalla_detalle():
         df.at[idx, "Hora_Inicio"] = hora_inicio.strftime("%H:%M")
         df.at[idx, "Hora_Fin"] = hora_fin.strftime("%H:%M")
 
+        # Guardar en Supabase
         datos = {
             "Tecnico_Asignado": nuevo_tecnico,
             "Estado": nuevo_estado,
@@ -1148,24 +879,24 @@ def pantalla_detalle():
         }
         if guardar_orden_supabase(id_ot, datos):
             st.success("Cambios guardados exitosamente en Supabase")
-            refrescar_datos()
+            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
             st.rerun()
         else:
             st.error("Error al guardar en Supabase")
 
-    if perfil == "admin" and nuevo_estado == "Ejecutado":
+    if perfil in ["admin", "supervisor"] and nuevo_estado == "Ejecutado":
         if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key="det_verificar"):
+            id_ot = str(row.get("ID OT", ""))
             df.at[idx, "Estado"] = "Verificado"
             if actualizar_orden_supabase(id_ot, "Estado", "Verificado"):
                 st.success("Orden VERIFICADA")
-                refrescar_datos()
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                 st.rerun()
             else:
                 st.error("Error al verificar")
 
 # ==================== PANTALLA ASIGNACION DE TECNICOS ====================
 def pantalla_asignacion():
-    auto_refresh()
     df = st.session_state.df_mantenimientos
     st.markdown("""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
@@ -1198,13 +929,6 @@ def pantalla_asignacion():
     if df_asig.empty:
         st.info("No hay ordenes con los filtros seleccionados.")
         return
-
-    # Verificar IDs duplicados
-    if "ID OT" in df_asig.columns:
-        ids = df_asig["ID OT"].astype(str)
-        duplicados = ids[ids.duplicated(keep=False)].unique()
-        if len(duplicados) > 0:
-            st.warning(f"⚠️ Se detectaron {len(duplicados)} ID(s) duplicado(s): {', '.join(duplicados[:5])}{'...' if len(duplicados) > 5 else ''}")
 
     for idx, row in df_asig.iterrows():
         id_ot = str(row.get("ID OT", ""))
@@ -1242,21 +966,20 @@ def pantalla_asignacion():
             except:
                 idx_tec = 0
 
-            nuevo_tec = st.selectbox(f"Asignar tecnico", tecnicos, index=idx_tec, key=f"asig_select_{id_ot}_{idx}")
+            nuevo_tec = st.selectbox(f"Asignar tecnico", tecnicos, index=idx_tec, key=f"asig_select_{idx}")
             if nuevo_tec == "Sin asignar": nuevo_tec = ""
 
-            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=f"asig_btn_{id_ot}_{idx}"):
+            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=f"asig_btn_{idx}"):
                 df.at[idx, "Tecnico_Asignado"] = nuevo_tec
                 if actualizar_orden_supabase(id_ot, "Tecnico_Asignado", nuevo_tec):
                     st.success(f"Tecnico asignado a OT {id_ot}")
-                    refrescar_datos()
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                     st.rerun()
                 else:
                     st.error("Error al guardar asignacion")
 
-# ==================== PANTALLA VERIFICAR (ADMIN) ====================
+# ==================== PANTALLA VERIFICAR (SUPERVISOR) ====================
 def pantalla_verificar():
-    auto_refresh()
     df = st.session_state.df_mantenimientos
     st.markdown("""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
@@ -1307,20 +1030,20 @@ def pantalla_verificar():
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=f"verif_btn_{id_ot}_{idx}"):
+                if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=f"verif_btn_{idx}"):
                     df.at[idx, "Estado"] = "Verificado"
                     if actualizar_orden_supabase(id_ot, "Estado", "Verificado"):
                         st.success(f"OT {id_ot} verificada correctamente")
-                        refrescar_datos()
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
                     else:
                         st.error("Error al verificar")
             with col2:
-                if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=f"rech_btn_{id_ot}_{idx}"):
+                if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=f"rech_btn_{idx}"):
                     df.at[idx, "Estado"] = "Pendiente"
                     if actualizar_orden_supabase(id_ot, "Estado", "Pendiente"):
                         st.warning(f"OT {id_ot} devuelta a Pendiente")
-                        refrescar_datos()
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
                     else:
                         st.error("Error al rechazar")
