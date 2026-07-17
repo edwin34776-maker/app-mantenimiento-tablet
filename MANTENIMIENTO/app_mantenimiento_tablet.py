@@ -330,7 +330,7 @@ def boton_volver_inicio(key_suffix=""):
             st.rerun()
 
 def boton_cerrar_sesion():
-    if st.button("CERRAR SESION", use_container_width=True, type="secondary"):
+    if st.button("CERRAR SESION", use_container_width=True, type="secondary", key="btn_cerrar_sesion"):
         st.session_state.perfil = None
         st.session_state.pagina = "login"
         st.session_state.orden_seleccionada = None
@@ -420,22 +420,22 @@ def pantalla_home():
     st.markdown("<div style='text-align: center; margin-bottom: 10px; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns([1,1,1,1])
     with col1:
-        if st.button("TODAS", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary"):
+        if st.button("TODAS", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary", key="btn_filtro_todas"):
             st.session_state.filtro_especialidad = "Todas"; st.rerun()
     with col2:
-        if st.button("ELE", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "ELE" else "secondary"):
+        if st.button("ELE", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "ELE" else "secondary", key="btn_filtro_ele"):
             st.session_state.filtro_especialidad = "ELE"; st.rerun()
     with col3:
-        if st.button("MEC", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "MEC" else "secondary"):
+        if st.button("MEC", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "MEC" else "secondary", key="btn_filtro_mec"):
             st.session_state.filtro_especialidad = "MEC"; st.rerun()
     with col4:
-        if st.button("LIMPIAR", use_container_width=True):
+        if st.button("LIMPIAR", use_container_width=True, key="btn_filtro_limpiar"):
             st.session_state.filtro_especialidad = "Todas"; st.session_state.busqueda = ""; st.rerun()
 
     maquinas = obtener_maquinas_disponibles(df)
     index_sel = 0
     if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
-    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel)
+    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key="sel_maquina_home")
     st.session_state.filtro_maquina = maquina_sel
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -443,25 +443,25 @@ def pantalla_home():
     if perfil == "admin":
         col_btn1, col_btn2, col_btn3, col_btn4 = st.columns(4)
         with col_btn1:
-            if st.button("VER ORDENES PREVENTIVAS", use_container_width=True, type="primary"):
+            if st.button("VER ORDENES PREVENTIVAS", use_container_width=True, type="primary", key="btn_ver_ordenes"):
                 st.session_state.pagina = "ordenes"; st.rerun()
         with col_btn2:
-            if st.button("ASIGNACION DE TECNICOS", use_container_width=True, type="primary"):
+            if st.button("ASIGNACION DE TECNICOS", use_container_width=True, type="primary", key="btn_asignacion"):
                 st.session_state.pagina = "asignacion"; st.rerun()
         with col_btn3:
-            if st.button("VER ORDENES EJECUTADAS", use_container_width=True, type="primary"):
+            if st.button("VER ORDENES EJECUTADAS", use_container_width=True, type="primary", key="btn_ver_ejecutadas"):
                 st.session_state.pagina = "verificar"; st.rerun()
         with col_btn4:
-            if st.button("ENVIAR CORREO", use_container_width=True, type="primary"):
+            if st.button("ENVIAR CORREO", use_container_width=True, type="primary", key="btn_abrir_correo"):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
     elif perfil == "tecnico":
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("MIS ORDENES ASIGNADAS", use_container_width=True, type="primary"):
+            if st.button("MIS ORDENES ASIGNADAS", use_container_width=True, type="primary", key="btn_mis_ordenes"):
                 st.session_state.pagina = "mis_ordenes"; st.rerun()
         with col_btn2:
-            if st.button("VER TODAS LAS ORDENES", use_container_width=True, type="secondary"):
+            if st.button("VER TODAS LAS ORDENES", use_container_width=True, type="secondary", key="btn_ver_todas"):
                 st.session_state.pagina = "ordenes"; st.rerun()
 
     # PANEL DE ENVIO DE CORREO
@@ -489,23 +489,24 @@ def pantalla_home():
             cuenta = st.radio("Cuenta de envio:", [
                 "ordenespreventivasmtctg@gmail.com",
                 "supermantobogota@gmail.com"
-            ])
+            ], key="radio_cuenta_correo")
             usar_secundaria = (cuenta == "supermantobogota@gmail.com")
 
         with col_c2:
-            area = st.text_input("Area / Proyecto", value="INY4 MEC")
+            area = st.text_input("Area / Proyecto", value="INY4 MEC", key="txt_area_correo")
 
-        asunto = st.text_input("Asunto del correo", value=f"Ordenes preventivas {area}")
+        asunto = st.text_input("Asunto del correo", value=f"Ordenes preventivas {area}", key="txt_asunto_correo")
 
         destinatarios_text = st.text_area(
             "Destinatarios:",
             value="\n".join(DESTINATARIOS_DEFAULT),
-            disabled=True
+            disabled=True,
+            key="txt_destinatarios"
         )
 
         col_env1, col_env2 = st.columns(2)
         with col_env1:
-            if st.button("ENVIAR CORREO", use_container_width=True, type="primary"):
+            if st.button("ENVIAR CORREO AHORA", use_container_width=True, type="primary", key="btn_enviar_correo"):
                 if len(df_envio) == 0:
                     st.error("No hay ordenes para enviar con el filtro actual")
                 else:
@@ -524,7 +525,7 @@ def pantalla_home():
                         st.error(mensaje)
 
         with col_env2:
-            if st.button("CANCELAR", use_container_width=True, type="secondary"):
+            if st.button("CANCELAR", use_container_width=True, type="secondary", key="btn_cancelar_correo"):
                 st.session_state.mostrar_envio_correo = False
                 st.rerun()
 
@@ -551,7 +552,7 @@ def pantalla_ordenes():
     """, unsafe_allow_html=True)
     boton_volver_inicio("ordenes_top")
 
-    busqueda = st.text_input("Buscar ID OT, equipo o descripcion...", value=st.session_state.busqueda, placeholder="Escribe para buscar...")
+    busqueda = st.text_input("Buscar ID OT, equipo o descripcion...", value=st.session_state.busqueda, placeholder="Escribe para buscar...", key="txt_busqueda_ordenes")
     st.session_state.busqueda = busqueda
 
     pct_ejec, pct_pdte, pct_verif = calcular_progreso(df)
@@ -679,10 +680,10 @@ def pantalla_ejecutar():
 
     col_back, col_home = st.columns(2)
     with col_back:
-        if st.button("Volver", use_container_width=True, type="secondary"):
+        if st.button("Volver", use_container_width=True, type="secondary", key="ejec_volver"):
             st.session_state.pagina = "mis_ordenes"; st.rerun()
     with col_home:
-        if st.button("Inicio", use_container_width=True, type="secondary"):
+        if st.button("Inicio", use_container_width=True, type="secondary", key="ejec_inicio"):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
 
     st.markdown(f"""
@@ -713,7 +714,7 @@ def pantalla_ejecutar():
     st.subheader("Actividades Realizadas")
     actividades = st.text_area("Liste las actividades hechas (una por linea)...", value=row.get("Actividades_Hechas", ""), key="actividades_hechas")
 
-    if st.button("MARCAR COMO EJECUTADO", use_container_width=True, type="primary"):
+    if st.button("MARCAR COMO EJECUTADO", use_container_width=True, type="primary", key="btn_marcar_ejecutado"):
         df.at[idx, "Estado"] = "Ejecutado"
         df.at[idx, "Comentarios"] = nuevo_comentario
         df.at[idx, "Actividades_Hechas"] = actividades
@@ -744,10 +745,10 @@ def pantalla_detalle_tecnico():
 
     col_back, col_home = st.columns(2)
     with col_back:
-        if st.button("Volver", use_container_width=True, type="secondary"):
+        if st.button("Volver", use_container_width=True, type="secondary", key="dettec_volver"):
             st.session_state.pagina = "mis_ordenes"; st.rerun()
     with col_home:
-        if st.button("Inicio", use_container_width=True, type="secondary"):
+        if st.button("Inicio", use_container_width=True, type="secondary", key="dettec_inicio"):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
 
     prioridad = str(row.get("Prioridad_Actividad", ""))
