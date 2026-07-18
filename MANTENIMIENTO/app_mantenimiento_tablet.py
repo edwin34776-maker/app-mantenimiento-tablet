@@ -487,7 +487,7 @@ def pantalla_home():
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             cuenta = st.radio("Cuenta de envio:", [
-                "ordenespreventivasmtctg@gmail.com",
+                "mantobogota@gmail.com",
                 "supermantobogota@gmail.com"
             ], key="radio_cuenta_correo")
             usar_secundaria = (cuenta == "supermantobogota@gmail.com")
