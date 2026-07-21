@@ -26,8 +26,8 @@ DESTINATARIOS_DEFAULT = [
 ]
 
 # ==================== FUNCIONES DE CORREO ELECTRONICO ====================
-def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", usar_cuenta_secundaria=False):
-    if usar_cuenta_secundaria:
+def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", email_remitente=None):
+    if email_remitente == "supermantobogota@gmail.com":
         email_user = st.secrets.get("EMAIL_USER_2", "")
         email_pass = st.secrets.get("EMAIL_PASS_2", "")
     else:
@@ -623,7 +623,7 @@ def pantalla_home():
                 "mantobogota@gmail.com",
                 "supermantobogota@gmail.com"
             ], key="radio_cuenta_correo")
-            usar_secundaria = (cuenta == "supermantobogota@gmail.com")
+
 
         with col_c2:
             area = st.text_input("Area / Proyecto", value="INY4 MEC", key="txt_area_correo")
@@ -649,7 +649,7 @@ def pantalla_home():
                             destinatarios=DESTINATARIOS_DEFAULT,
                             asunto=asunto,
                             area_mecanica=area,
-                            usar_cuenta_secundaria=usar_secundaria
+                            email_remitente=cuenta
                         )
                     if exito:
                         st.success(mensaje)
