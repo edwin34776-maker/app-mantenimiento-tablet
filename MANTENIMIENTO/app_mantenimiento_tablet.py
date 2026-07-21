@@ -183,7 +183,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-
 # ==================== ESTILOS CSS ====================
 st.markdown("""
 <style>
@@ -258,6 +257,18 @@ st.markdown("""
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
+    /* === ESTILOS NUEVOS PARA FILTRO POR MAQUINA (NODO) === */
+    .maquina-card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
+    .maquina-card:hover { border-color: #1a237e; box-shadow: 0 2px 8px rgba(26,35,158,0.15); }
+    .maquina-card.activa { border-color: #1a237e; background: linear-gradient(135deg, #e8eaf6 0%, #ffffff 100%); }
+    .maquina-nombre { font-size: 15px; font-weight: 700; color: #1a237e; }
+    .maquina-badge { background: #1a237e; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .filtro-nodo-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
+    .contador-maquinas { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
+    .contador-maquina { background: white; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
+    .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #1a237e; }
+    .contador-maquina-label { font-size: 10px; color: #666; }
+    .nodo-badge-mini { background: #e8eaf6; color: #1a237e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: monospace; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -346,6 +357,70 @@ def obtener_maquinas_disponibles(df):
     except Exception:
         return ["Todas"]
 
+# ==================== FUNCIONES NUEVAS PARA FILTRO POR NODO/MAQUINA ====================
+def extraer_maquina_nodo(nodo):
+    """Extrae el codigo de maquina del nodo (ej: PRETF45-DE01 -> PRETF45)"""
+    if pd.isna(nodo) or str(nodo).strip() == "":
+        return "SIN_NODO"
+    partes = str(nodo).split("-")
+    return partes[0] if len(partes) > 0 else str(nodo)
+
+def extraer_subsistema_nodo(nodo):
+    """Extrae el subsistema del nodo (ej: PRETF45-DE01 -> DE01)"""
+    if pd.isna(nodo) or str(nodo).strip() == "":
+        return "SIN_CODIGO"
+    partes = str(nodo).split("-")
+    return partes[1] if len(partes) > 1 else "SIN_CODIGO"
+
+def obtener_maquinas_desde_nodo(df):
+    """Obtiene lista unica de maquinas extraidas de la columna Nodo"""
+    if df.empty or "Nodo" not in df.columns:
+        return ["Todas"]
+    try:
+        maquinas = df["Nodo"].dropna().apply(extraer_maquina_nodo).unique().tolist()
+        maquinas = [m for m in maquinas if str(m).strip() and str(m).strip() != "SIN_NODO"]
+        return ["Todas"] + sorted(maquinas)
+    except Exception:
+        return ["Todas"]
+
+def obtener_subsistemas_desde_nodo(df, maquina_filtro="Todas"):
+    """Obtiene lista de subsistemas filtrados por maquina"""
+    if df.empty or "Nodo" not in df.columns:
+        return ["Todos"]
+    try:
+        df_temp = df.copy()
+        if maquina_filtro != "Todas":
+            df_temp = df_temp[df_temp["Nodo"].apply(extraer_maquina_nodo) == maquina_filtro]
+        subsistemas = df_temp["Nodo"].dropna().apply(extraer_subsistema_nodo).unique().tolist()
+        subsistemas = [s for s in subsistemas if str(s).strip() and str(s).strip() != "SIN_CODIGO"]
+        return ["Todos"] + sorted(subsistemas)
+    except Exception:
+        return ["Todos"]
+
+def contar_por_maquina(df):
+    """Cuenta ordenes por maquina para mostrar en tarjetas"""
+    if df.empty or "Nodo" not in df.columns:
+        return {}
+    try:
+        maquinas = df["Nodo"].dropna().apply(extraer_maquina_nodo)
+        return maquinas.value_counts().to_dict()
+    except Exception:
+        return {}
+
+def contar_por_subsistema(df, maquina_filtro="Todas"):
+    """Cuenta ordenes por subsistema"""
+    if df.empty or "Nodo" not in df.columns:
+        return {}
+    try:
+        df_temp = df.copy()
+        if maquina_filtro != "Todas":
+            df_temp = df_temp[df_temp["Nodo"].apply(extraer_maquina_nodo) == maquina_filtro]
+        subsistemas = df_temp["Nodo"].dropna().apply(extraer_subsistema_nodo)
+        return subsistemas.value_counts().to_dict()
+    except Exception:
+        return {}
+
+
 # ==================== INICIALIZAR ESTADO ====================
 if "perfil" not in st.session_state: st.session_state.perfil = None
 if "pagina" not in st.session_state: st.session_state.pagina = "login"
@@ -358,6 +433,9 @@ if "filtro_maq_asig" not in st.session_state: st.session_state.filtro_maq_asig =
 if "filtro_estado_asig" not in st.session_state: st.session_state.filtro_estado_asig = "Todos"
 if "busqueda" not in st.session_state: st.session_state.busqueda = ""
 if "mostrar_envio_correo" not in st.session_state: st.session_state.mostrar_envio_correo = False
+# === NUEVOS ESTADOS PARA FILTRO POR NODO ===
+if "filtro_maquina_nodo" not in st.session_state: st.session_state.filtro_maquina_nodo = "Todas"
+if "filtro_subsistema_nodo" not in st.session_state: st.session_state.filtro_subsistema_nodo = "Todos"
 
 
 # ==================== PANTALLA DE LOGIN ====================
@@ -417,7 +495,22 @@ def pantalla_home():
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div style='text-align: center; margin-bottom: 10px; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
+    # === NUEVO: CONTADORES POR MAQUINA (NODO) ===
+    if "Nodo" in df.columns:
+        conteo_maquinas = contar_por_maquina(df)
+        if conteo_maquinas:
+            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #666; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
+            cols = st.columns(min(len(conteo_maquinas), 4))
+            for i, (maq, cant) in enumerate(conteo_maquinas.items()):
+                with cols[i % 4]:
+                    st.markdown(f"""
+                    <div class="contador-maquina">
+                        <div class="contador-maquina-valor">{cant}</div>
+                        <div class="contador-maquina-label">{maq}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns([1,1,1,1])
     with col1:
         if st.button("TODAS", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary", key="btn_filtro_todas"):
@@ -430,13 +523,48 @@ def pantalla_home():
             st.session_state.filtro_especialidad = "MEC"; st.rerun()
     with col4:
         if st.button("LIMPIAR", use_container_width=True, key="btn_filtro_limpiar"):
-            st.session_state.filtro_especialidad = "Todas"; st.session_state.busqueda = ""; st.rerun()
+            st.session_state.filtro_especialidad = "Todas"
+            st.session_state.filtro_maquina = "Todas"
+            st.session_state.filtro_maquina_nodo = "Todas"
+            st.session_state.filtro_subsistema_nodo = "Todos"
+            st.session_state.busqueda = ""
+            st.rerun()
 
+    # === FILTRO POR UBICACION (EXISTENTE) ===
     maquinas = obtener_maquinas_disponibles(df)
     index_sel = 0
     if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
     maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key="sel_maquina_home")
     st.session_state.filtro_maquina = maquina_sel
+
+    # === NUEVO: FILTRO POR NODO/MAQUINA ===
+    if "Nodo" in df.columns:
+        st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #dee2e6;'>", unsafe_allow_html=True)
+
+        col_nodo1, col_nodo2 = st.columns(2)
+        with col_nodo1:
+            maquinas_nodo = obtener_maquinas_desde_nodo(df)
+            idx_maq_nodo = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
+            maquina_nodo_sel = st.selectbox("Filtrar por Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key="sel_maquina_nodo")
+            if maquina_nodo_sel != st.session_state.filtro_maquina_nodo:
+                st.session_state.filtro_maquina_nodo = maquina_nodo_sel
+                st.session_state.filtro_subsistema_nodo = "Todos"
+                st.rerun()
+        with col_nodo2:
+            subsistemas = obtener_subsistemas_desde_nodo(df, st.session_state.filtro_maquina_nodo)
+            idx_sub = subsistemas.index(st.session_state.filtro_subsistema_nodo) if st.session_state.filtro_subsistema_nodo in subsistemas else 0
+            subsistema_sel = st.selectbox("Subsistema (Codigo)", subsistemas, index=idx_sub, key="sel_subsistema_nodo")
+            st.session_state.filtro_subsistema_nodo = subsistema_sel
+
+        # Mostrar contadores de subsistemas si hay maquina seleccionada
+        if st.session_state.filtro_maquina_nodo != "Todas":
+            conteo_subs = contar_por_subsistema(df, st.session_state.filtro_maquina_nodo)
+            if conteo_subs:
+                st.markdown("<div style='font-size: 11px; color: #666; margin-bottom: 6px;'>Distribucion por subsistema:</div>", unsafe_allow_html=True)
+                sub_cols = st.columns(min(len(conteo_subs), 6))
+                for i, (sub, cant) in enumerate(conteo_subs.items()):
+                    with sub_cols[i % 6]:
+                        st.markdown(f"<div style='text-align: center;'><span class='nodo-badge-mini'>{sub}</span><br><span style='font-size: 11px; font-weight: 700; color: #1a237e;'>{cant}</span></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -474,6 +602,11 @@ def pantalla_home():
             df_envio = df_envio[df_envio["Especialidad"] == st.session_state.filtro_especialidad]
         if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_envio.columns:
             df_envio = df_envio[df_envio["Ubicacion"] == st.session_state.filtro_maquina]
+        # Aplicar filtro por nodo al envio de correo
+        if "Nodo" in df_envio.columns and st.session_state.filtro_maquina_nodo != "Todas":
+            df_envio = df_envio[df_envio["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+        if "Nodo" in df_envio.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+            df_envio = df_envio[df_envio["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
         pct_ejec, pct_pdte, pct_verif = calcular_progreso(df_envio)
 
@@ -569,6 +702,11 @@ def pantalla_ordenes():
         df_filtrado = df_filtrado[df_filtrado["Especialidad"] == st.session_state.filtro_especialidad]
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado["Ubicacion"] == st.session_state.filtro_maquina]
+    # === NUEVO: Aplicar filtro por Nodo/Maquina ===
+    if "Nodo" in df_filtrado.columns and st.session_state.filtro_maquina_nodo != "Todas":
+        df_filtrado = df_filtrado[df_filtrado["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+    if "Nodo" in df_filtrado.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+        df_filtrado = df_filtrado[df_filtrado["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
     if busqueda:
         busqueda_lower = busqueda.lower()
         mask = pd.Series([False] * len(df_filtrado), index=df_filtrado.index)
@@ -576,6 +714,7 @@ def pantalla_ordenes():
         if "Ubicacion" in df_filtrado.columns: mask |= df_filtrado["Ubicacion"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         if "ID OT" in df_filtrado.columns: mask |= df_filtrado["ID OT"].astype(str).str.contains(busqueda_lower, na=False)
         if "Descripcion de procedimiento" in df_filtrado.columns: mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        if "Nodo" in df_filtrado.columns: mask |= df_filtrado["Nodo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         df_filtrado = df_filtrado[mask]
 
     st.subheader(f"Ordenes ({len(df_filtrado)})")
@@ -596,10 +735,13 @@ def pantalla_ordenes():
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
         prioridad = str(row.get("Prioridad_Actividad", ""))
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
+        # === NUEVO: Mostrar nodo si existe ===
+        nodo = str(row.get("Nodo", ""))
+        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id"><strong>{id_ot}</strong></div>
+            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
             <div class="col-esp">{tipo}</div>
             <div class="col-desc" title="{descripcion}">{desc_corta}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
@@ -628,6 +770,11 @@ def pantalla_mis_ordenes():
             df_mias = df_mias[df_mias["Especialidad"] == st.session_state.filtro_especialidad]
         if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_mias.columns:
             df_mias = df_mias[df_mias["Ubicacion"] == st.session_state.filtro_maquina]
+        # === NUEVO: Aplicar filtro por Nodo ===
+        if "Nodo" in df_mias.columns and st.session_state.filtro_maquina_nodo != "Todas":
+            df_mias = df_mias[df_mias["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+        if "Nodo" in df_mias.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+            df_mias = df_mias[df_mias["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
     else:
         df_mias = pd.DataFrame()
 
@@ -645,10 +792,12 @@ def pantalla_mis_ordenes():
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
         prioridad = str(row.get("Prioridad_Actividad", ""))
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
+        nodo = str(row.get("Nodo", ""))
+        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id"><strong>{id_ot}</strong></div>
+            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
             <div class="col-esp">{tipo}</div>
             <div class="col-desc" title="{descripcion}">{desc_corta}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
@@ -686,9 +835,13 @@ def pantalla_ejecutar():
         if st.button("Inicio", use_container_width=True, type="secondary", key="ejec_inicio"):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
 
+    # === NUEVO: Mostrar Nodo en detalle ===
+    nodo_info = f"<strong>Nodo:</strong> {row.get('Nodo', 'N/A')}<br>" if 'Nodo' in row else ""
+
     st.markdown(f"""
     <div class="detail-panel">
         <div class="equipo-info">
+            {nodo_info}
             <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
             <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
             <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
@@ -756,9 +909,13 @@ def pantalla_detalle_tecnico():
     if prioridad:
         st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
 
+    # === NUEVO: Mostrar Nodo ===
+    nodo_info = f"<strong>Nodo:</strong> {row.get('Nodo', 'N/A')}<br>" if 'Nodo' in row else ""
+
     st.markdown(f"""
     <div class="detail-panel">
         <div class="equipo-info">
+            {nodo_info}
             <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
             <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
             <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
@@ -811,9 +968,13 @@ def pantalla_detalle():
     if prioridad:
         st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
 
+    # === NUEVO: Mostrar Nodo en panel de detalle ===
+    nodo_info = f"<strong>Nodo:</strong> {row.get('Nodo', 'N/A')}<br>" if 'Nodo' in row else ""
+
     st.markdown(f"""
     <div class="detail-panel">
         <div class="equipo-info">
+            {nodo_info}
             <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
             <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
             <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
@@ -926,11 +1087,30 @@ def pantalla_asignacion():
         filtro_maq = st.selectbox("Maquina", maquinas, index=idx_maq, key="asig_maq")
         st.session_state.filtro_maq_asig = filtro_maq
 
+    # === NUEVO: Filtro por Nodo en asignacion ===
+    if "Nodo" in df.columns:
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            maquinas_nodo = obtener_maquinas_desde_nodo(df)
+            idx_mn = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
+            filtro_maq_nodo = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_mn, key="asig_maq_nodo")
+            st.session_state.filtro_maquina_nodo = filtro_maq_nodo
+        with col_n2:
+            subsistemas = obtener_subsistemas_desde_nodo(df, st.session_state.filtro_maquina_nodo)
+            idx_sn = subsistemas.index(st.session_state.filtro_subsistema_nodo) if st.session_state.filtro_subsistema_nodo in subsistemas else 0
+            filtro_sub_nodo = st.selectbox("Subsistema", subsistemas, index=idx_sn, key="asig_sub_nodo")
+            st.session_state.filtro_subsistema_nodo = filtro_sub_nodo
+
     df_asig = df.copy()
     if filtro_esp != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == filtro_esp]
     if filtro_maq != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == filtro_maq]
+    # === NUEVO: Aplicar filtro nodo en asignacion ===
+    if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+    if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
     st.subheader(f"Ordenes sin asignar o reasignables ({len(df_asig)})")
 
@@ -951,12 +1131,15 @@ def pantalla_asignacion():
         estado_clase = obtener_estado_visual(estado)
         prioridad = str(row.get("Prioridad_Actividad", ""))
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
+        # === NUEVO: Mostrar nodo en asignacion ===
+        nodo = str(row.get("Nodo", ""))
+        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
         with st.container():
             st.markdown(f"""
             <div class="tabla-fila-asig {clase_prioridad}">
                 <div class="asig-info">
-                    <div class="asig-ot"><strong>OT {id_ot}</strong> | <span class="asig-esp">{tipo}</span></div>
+                    <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge} | <span class="asig-esp">{tipo}</span></div>
                     <div class="asig-equipo">{equipo} — {ubicacion}</div>
                     <div style="font-size: 10px; color: #666; margin-top: 2px;">{desc_corta}</div>
                 </div>
@@ -1015,11 +1198,14 @@ def pantalla_verificar():
         fecha_ejec = str(row.get("Fecha_Ejecucion", "N/A"))
         hora_ini = str(row.get("Hora_Inicio", "N/A"))
         hora_fin = str(row.get("Hora_Fin", "N/A"))
+        # === NUEVO: Mostrar nodo en verificar ===
+        nodo = str(row.get("Nodo", ""))
+        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
         st.markdown(f"""
         <div class="detail-panel" style="margin-bottom: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <strong>OT {id_ot}</strong>
+                <strong>OT {id_ot}</strong> {nodo_badge}
                 <span class="estado-badge estado-ejecutado">Ejecutado</span>
             </div>
             <div style="font-size: 12px; color: #666;">
