@@ -748,7 +748,7 @@ def pantalla_ordenes():
         if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
             st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle"; st.rerun()
 
-# ==================== PANTALLA MIS ORDENES (TECNICO) ====================
+# ==================== PANTALLA MIS ORDENES (TECNICO) - MODIFICADA CON FILTRO ====================
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
     perfil = st.session_state.perfil
@@ -759,14 +759,35 @@ def pantalla_mis_ordenes():
     """, unsafe_allow_html=True)
     boton_volver_inicio("mis_ordenes_top")
 
+    # === FILTRO POR TECNICO ===
+    st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Selecciona tu nombre</div>", unsafe_allow_html=True)
+
+    # Obtener lista de todos los técnicos (ELE + MEC)
+    todos_tecnicos = sorted(TECNICOS_ELE + TECNICOS_MEC)
+    tecnicos_opciones = ["Seleccionar..."] + todos_tecnicos
+
+    # Si ya hay un técnico seleccionado en session_state, usarlo
+    idx_tec = 0
+    if "tecnico_seleccionado" in st.session_state and st.session_state.tecnico_seleccionado in tecnicos_opciones:
+        idx_tec = tecnicos_opciones.index(st.session_state.tecnico_seleccionado)
+
+    tecnico_sel = st.selectbox("Tecnico", tecnicos_opciones, index=idx_tec, key="sel_tecnico_mis_ordenes")
+    st.session_state.tecnico_seleccionado = tecnico_sel
+
+    if tecnico_sel == "Seleccionar...":
+        st.info("Por favor selecciona tu nombre para ver tus ordenes asignadas.")
+        return
+
+    # Filtrar ordenes por el técnico seleccionado
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
-        df_mias = df_mias[df_mias["Tecnico_Asignado"].notna() & (df_mias["Tecnico_Asignado"] != "")]
+        df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_sel]
+
+        # Aplicar filtros adicionales de la home
         if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_mias.columns:
             df_mias = df_mias[df_mias["Especialidad"] == st.session_state.filtro_especialidad]
         if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_mias.columns:
             df_mias = df_mias[df_mias["Ubicacion"] == st.session_state.filtro_maquina]
-        # === NUEVO: Aplicar filtro por Nodo ===
         if "Nodo" in df_mias.columns and st.session_state.filtro_maquina_nodo != "Todas":
             df_mias = df_mias[df_mias["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
         if "Nodo" in df_mias.columns and st.session_state.filtro_subsistema_nodo != "Todos":
@@ -774,10 +795,10 @@ def pantalla_mis_ordenes():
     else:
         df_mias = pd.DataFrame()
 
-    st.subheader(f"Tienes {len(df_mias)} orden(es) asignada(s)")
+    st.subheader(f"{tecnico_sel} - Tienes {len(df_mias)} orden(es) asignada(s)")
 
     if df_mias.empty:
-        st.info("No tienes ordenes asignadas actualmente.")
+        st.info(f"No tienes ordenes asignadas actualmente, {tecnico_sel}.")
         return
 
     for idx, row in df_mias.iterrows():
@@ -793,11 +814,9 @@ def pantalla_mis_ordenes():
 
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
             <div class="col-esp">{tipo}</div>
             <div class="col-desc" title="{descripcion}">{desc_corta}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
-            <div class="col-tec">{tecnico[:15]}...</div>
         </div>
         """, unsafe_allow_html=True)
 
