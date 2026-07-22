@@ -270,124 +270,151 @@ st.markdown("""
     .contador-maquina-label { font-size: 10px; color: #666; }
     .nodo-badge-mini { background: #e8eaf6; color: #1a237e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: monospace; }
 
-    /* === ESTILOS PARA TARJETA AGRUPADA DE ORDENES DEL TECNICO === */
-    .orden-card-tecnico {
-        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
-        border-radius: 16px;
-        padding: 20px;
-        margin: 12px 0;
-        box-shadow: 0 8px 32px rgba(26,35,158,0.3);
-        border: 1px solid rgba(255,255,255,0.1);
+    /* === ESTILOS PARA TARJETA UNICA AGRUPADA - DISEÑO MORADO === */
+    .tarjeta-unica-tecnico {
+        background: linear-gradient(135deg, #311b92 0%, #512da8 100%);
+        border-radius: 20px;
+        padding: 24px;
+        margin: 16px 0;
+        box-shadow: 0 12px 40px rgba(49,27,146,0.35);
+        border: 2px solid rgba(179,157,219,0.3);
         color: white;
     }
-    .tecnico-nombre-card {
-        font-size: 1.2rem;
-        font-weight: 700;
+    .tarjeta-header {
+        text-align: center;
+        padding-bottom: 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.15);
+        margin-bottom: 16px;
+    }
+    .tarjeta-nombre {
+        font-size: 1.3rem;
+        font-weight: 800;
         color: #ffffff;
-        margin-bottom: 2px;
+        margin-bottom: 4px;
+        letter-spacing: 0.5px;
     }
-    .ordenes-contador-card {
-        font-size: 0.9rem;
-        color: #a8b9ff;
-        margin-bottom: 14px;
+    .tarjeta-contador {
+        font-size: 1rem;
+        color: #d1c4e9;
+        font-weight: 500;
     }
-    .progreso-container-card {
-        margin: 12px 0 16px 0;
+    .tarjeta-progreso-container {
+        margin: 12px 0 20px 0;
     }
-    .progreso-barra-card {
-        height: 8px;
-        background: rgba(255,255,255,0.15);
-        border-radius: 4px;
+    .tarjeta-progreso-barra {
+        height: 10px;
+        background: rgba(255,255,255,0.12);
+        border-radius: 5px;
         overflow: hidden;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
     }
-    .progreso-fill-card {
+    .tarjeta-progreso-fill {
         height: 100%;
-        background: linear-gradient(90deg, #4fc3f7, #66bb6a);
-        border-radius: 4px;
-        transition: width 0.5s ease;
+        background: linear-gradient(90deg, #b39ddb, #7e57c2, #9575cd);
+        border-radius: 5px;
+        transition: width 0.6s ease;
+        box-shadow: 0 0 10px rgba(126,87,194,0.4);
     }
-    .progreso-texto-card {
-        font-size: 0.75rem;
-        color: #a8b9ff;
-        margin-top: 4px;
-        text-align: right;
+    .tarjeta-progreso-texto {
+        font-size: 0.8rem;
+        color: #b39ddb;
+        margin-top: 6px;
+        text-align: center;
+        font-weight: 500;
     }
-    .actividad-item-card {
+    .lista-actividades {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .actividad-fila {
+        display: flex;
+        align-items: flex-start;
+        padding: 12px 14px;
+        background: rgba(255,255,255,0.06);
+        border-radius: 12px;
+        border-left: 4px solid #b39ddb;
+        transition: all 0.25s ease;
+    }
+    .actividad-fila:hover {
+        background: rgba(255,255,255,0.1);
+        transform: translateX(4px);
+    }
+    .actividad-fila.completada {
+        border-left-color: #69f0ae;
+        opacity: 0.7;
+    }
+    .actividad-fila.completada .actividad-ubicacion,
+    .actividad-fila.completada .actividad-equipo {
+        text-decoration: line-through;
+        color: #9e9e9e;
+    }
+    .actividad-checkbox-wrapper {
+        margin-right: 12px;
+        padding-top: 2px;
+    }
+    .actividad-checkbox-wrapper input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+        accent-color: #7e57c2;
+        cursor: pointer;
+    }
+    .actividad-info {
+        flex: 1;
+        min-width: 0;
+    }
+    .actividad-ubicacion {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #ede7f6;
+        margin-bottom: 3px;
         display: flex;
         align-items: center;
-        padding: 10px 12px;
-        margin: 5px 0;
-        background: rgba(255,255,255,0.08);
-        border-radius: 10px;
-        border-left: 3px solid #4fc3f7;
-        transition: all 0.2s ease;
+        gap: 6px;
     }
-    .actividad-item-card:hover {
-        background: rgba(255,255,255,0.12);
-        transform: translateX(3px);
+    .actividad-equipo {
+        font-size: 0.82rem;
+        color: #b39ddb;
+        font-weight: 400;
     }
-    .actividad-item-card.completada {
-        border-left-color: #66bb6a;
-        opacity: 0.75;
-    }
-    .actividad-item-card.completada .actividad-texto-card {
-        text-decoration: line-through;
-        color: #90a4ae;
-    }
-    .actividad-texto-card {
-        font-size: 0.9rem;
-        color: #e3f2fd;
-        font-weight: 500;
-        margin-left: 10px;
-        flex: 1;
-    }
-    .btn-marcar-todas-card {
-        background: linear-gradient(90deg, #43a047, #66bb6a) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 10px !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-        padding: 10px 20px !important;
-        width: 100% !important;
-        margin-top: 14px !important;
-        box-shadow: 0 4px 15px rgba(67, 160, 71, 0.3) !important;
-    }
-    .btn-marcar-todas-card:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px rgba(67, 160, 71, 0.4) !important;
-    }
-    .sin-ordenes-card {
-        text-align: center;
-        padding: 40px 20px;
-        color: #78909c;
-    }
-    .estado-badge-mini {
+    .actividad-estado-badge {
         font-size: 10px;
-        padding: 2px 8px;
-        border-radius: 8px;
-        font-weight: 600;
-        margin-left: auto;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-weight: 700;
+        margin-left: 8px;
         flex-shrink: 0;
+        white-space: nowrap;
     }
     .badge-pendiente { background: #fff3cd; color: #856404; }
     .badge-ejecutado { background: #d4edda; color: #155724; }
     .badge-verificado { background: #cce5ff; color: #004085; }
-    .badge-cerrada { background: #d1ecf1; color: #0c5460; }
-    .info-line-card {
-        font-size: 0.8rem;
-        color: #a8b9ff;
-        margin-top: 2px;
+    .badge-cerrada { background: #e0e0e0; color: #616161; }
+    .btn-marcar-todas-morado {
+        background: linear-gradient(90deg, #4527a0, #5e35b1, #7e57c2) !important;
+        color: white !important;
+        border: 2px solid rgba(179,157,219,0.4) !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        font-size: 1rem !important;
+        padding: 14px 24px !important;
+        width: 100% !important;
+        margin-top: 18px !important;
+        box-shadow: 0 6px 20px rgba(69,39,160,0.4) !important;
+        letter-spacing: 0.5px !important;
     }
-    .ubicacion-texto {
-        font-size: 0.85rem;
-        color: #e3f2fd;
-        font-weight: 600;
+    .btn-marcar-todas-morado:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(69,39,160,0.5) !important;
+        border-color: rgba(179,157,219,0.7) !important;
     }
-    .equipo-texto {
-        font-size: 0.8rem;
-        color: #a8b9ff;
+    .sin-ordenes-morado {
+        text-align: center;
+        padding: 50px 20px;
+        color: #78909c;
     }
+    .icono-ubicacion { font-size: 1rem; }
+    .icono-equipo { font-size: 0.9rem; opacity: 0.8; }
 
 </style>
 """, unsafe_allow_html=True)
@@ -547,7 +574,6 @@ def contar_por_subsistema(df, maquina_filtro="Todas"):
 def cargar_excel_tecnicos():
     """Carga el Excel de asignacion de tecnicos por actividad/nodo."""
     try:
-        # Intentar cargar desde varias rutas posibles
         rutas_posibles = [
             "MANTENIMIENTO/tecnico.xlsx",
             "tecnico.xlsx",
@@ -558,15 +584,11 @@ def cargar_excel_tecnicos():
         for ruta in rutas_posibles:
             try:
                 df_tec = pd.read_excel(ruta)
-                # Limpiar columnas
                 df_tec.columns = df_tec.columns.str.strip().str.upper()
-                # Renombrar columnas si es necesario
                 if "ACTIVIDAD" in df_tec.columns and "TECNICOS" in df_tec.columns:
                     df_tec = df_tec.rename(columns={"ACTIVIDAD": "Nodo_Tecnico", "TECNICOS": "Tecnico_Nombre", "ESPE": "Especialidad_Tec"})
-                # Limpiar espacios
                 df_tec["Tecnico_Nombre"] = df_tec["Tecnico_Nombre"].astype(str).str.strip()
                 df_tec["Nodo_Tecnico"] = df_tec["Nodo_Tecnico"].astype(str).str.strip()
-                # Quitar filas vacias
                 df_tec = df_tec[df_tec["Tecnico_Nombre"] != "nan"]
                 df_tec = df_tec[df_tec["Tecnico_Nombre"] != ""]
                 return df_tec
@@ -581,53 +603,22 @@ def filtrar_ordenes_por_tecnico(df_ordenes, nombre_tecnico, df_tecnicos):
     """Filtra las ordenes que le corresponden a un tecnico segun el Excel de asignacion."""
     if df_tecnicos.empty or df_ordenes.empty:
         return pd.DataFrame()
-
-    # Limpiar nombre del tecnico
     nombre_limpio = str(nombre_tecnico).strip()
-
-    # Filtrar el Excel para obtener los nodos asignados a este tecnico
     df_tec_filtrado = df_tecnicos[df_tecnicos["Tecnico_Nombre"] == nombre_limpio]
-
     if df_tec_filtrado.empty:
         return pd.DataFrame()
-
-    # Obtener los nodos asignados a este tecnico
     nodos_asignados = df_tec_filtrado["Nodo_Tecnico"].unique().tolist()
-
-    # DEBUG: Mostrar info de comparacion (temporal)
-    # st.write(f"DEBUG: Tecnico: '{nombre_limpio}' | Nodos en Excel: {nodos_asignados[:5]}...")
-    # if "Nodo" in df_ordenes.columns:
-    #     st.write(f"DEBUG: Nodos unicos en BD: {df_ordenes['Nodo'].dropna().unique()[:5]}...")
-
-    # Filtrar las ordenes que coincidan con esos nodos
-    # Hacemos match flexible: comparar el Nodo completo o la parte antes del guion
     if "Nodo" in df_ordenes.columns:
         df_resultado = df_ordenes.copy()
-
-        # Crear columna de nodo limpio para comparacion
         df_resultado["_nodo_clean"] = df_resultado["Nodo"].astype(str).str.strip().str.upper()
-
-        # Filtrar por coincidencia exacta o parcial
         mask = df_resultado["_nodo_clean"].isin([n.upper() for n in nodos_asignados])
-
-        # Tambien intentar match por prefijo (ej: PRETF45-DE01 vs ESPTF05-DE01 -> match por DE01)
         for nodo_tec in nodos_asignados:
             partes = nodo_tec.split("-")
             if len(partes) >= 2:
-                # Match por la parte despues del primer guion
                 sufijo = "-".join(partes[1:])
                 mask |= df_resultado["_nodo_clean"].str.contains(sufijo, na=False, case=False)
-
         df_resultado = df_resultado[mask].copy()
         df_resultado = df_resultado.drop(columns=["_nodo_clean"], errors="ignore")
-
-        # Agregar la especialidad del tecnico desde el Excel
-        df_resultado = df_resultado.merge(
-            df_tec_filtrado[["Nodo_Tecnico", "Especialidad_Tec"]],
-            left_on="Nodo",
-            right_on="Nodo_Tecnico",
-            how="left"
-        )
         return df_resultado
     else:
         return pd.DataFrame()
@@ -986,7 +977,7 @@ def pantalla_ordenes():
         if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
             st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle"; st.rerun()
 
-# ==================== PANTALLA MIS ORDENES (TECNICO) - AGRUPADA ====================
+# ==================== PANTALLA MIS ORDENES (TECNICO) - UN SOLO CUADRO ====================
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
     df_tecnicos = st.session_state.df_tecnicos
@@ -1006,17 +997,15 @@ def pantalla_mis_ordenes():
             st.session_state.pagina = "home"; st.rerun()
         return
 
-    # === FILTRAR ORDENES POR TECNICO USANDO EL EXCEL DE ASIGNACION ===
-    # El Excel tiene: ACTIVIDAD (Nodo) | TECNICOS (nombre) | ESPE (ELE/MEC)
+    # === FILTRAR ORDENES POR TECNICO USANDO EL EXCEL ===
     df_mias = filtrar_ordenes_por_tecnico(df, tecnico_sel, df_tecnicos)
 
     if df_mias.empty:
         st.markdown(f"""
-            <div class="sin-ordenes-card">
-                <div style="font-size: 3rem; margin-bottom: 12px;">&#128229;</div>
-                <h3 style="color: #1a237e; margin-bottom: 8px;">No tienes ordenes asignadas</h3>
-                <p>No se encontraron actividades para: <strong>{tecnico_sel}</strong></p>
-                <p style="font-size: 12px; color: #999;">Verifica que tu nombre este en el archivo tecnico.xlsx</p>
+            <div class="sin-ordenes-morado">
+                <div style="font-size: 3.5rem; margin-bottom: 16px;">&#128229;</div>
+                <h3 style="color: #311b92; margin-bottom: 10px; font-size: 1.3rem;">No tienes ordenes asignadas</h3>
+                <p style="color: #78909c;">No se encontraron actividades para: <strong>{tecnico_sel}</strong></p>
             </div>
         """, unsafe_allow_html=True)
         return
@@ -1027,31 +1016,30 @@ def pantalla_mis_ordenes():
     realizadas = sum(1 for oid in ids_ordenes if oid in st.session_state.actividades_marcadas)
     porcentaje = (realizadas / total_ordenes * 100) if total_ordenes > 0 else 0
 
-    # === TARJETA PRINCIPAL AGRUPADA ===
+    # === INICIO DE LA TARJETA UNICA MORADA ===
     st.markdown(f"""
-        <div class="orden-card-tecnico">
-            <div class="tecnico-nombre-card">&#128100; {tecnico_sel}</div>
-            <div class="ordenes-contador-card">&#128203; Tienes {total_ordenes} ordenes asignadas</div>
-            <div class="progreso-container-card">
-                <div class="progreso-barra-card">
-                    <div class="progreso-fill-card" style="width: {porcentaje}%;"></div>
-                </div>
-                <div class="progreso-texto-card">{realizadas}/{total_ordenes} completadas ({porcentaje:.0f}%)</div>
+        <div class="tarjeta-unica-tecnico">
+            <div class="tarjeta-header">
+                <div class="tarjeta-nombre">&#128100; {tecnico_sel}</div>
+                <div class="tarjeta-contador">&#128203; Tienes {total_ordenes} ordenes asignadas</div>
             </div>
+            <div class="tarjeta-progreso-container">
+                <div class="tarjeta-progreso-barra">
+                    <div class="tarjeta-progreso-fill" style="width: {porcentaje}%;"></div>
+                </div>
+                <div class="tarjeta-progreso-texto">{realizadas}/{total_ordenes} completadas ({porcentaje:.0f}%)</div>
+            </div>
+            <div class="lista-actividades">
     """, unsafe_allow_html=True)
 
-    # Lista de actividades con checkboxes - SOLO UBICACION Y EQUIPO
+    # Lista de actividades con checkboxes DENTRO de la tarjeta
     for idx, row in df_mias.iterrows():
         id_ot = str(row.get("ID OT", ""))
         equipo = str(row.get("Equipo", "Sin equipo"))
         ubicacion = str(row.get("Ubicacion", "Sin ubicacion"))
         estado = str(row.get("Estado", "Pendiente"))
-        nodo = str(row.get("Nodo", ""))
 
-        # Key unica basada en el indice del DataFrame
         key_unica = f"ord_{idx}"
-
-        # Determinar si esta marcada
         esta_marcada = (key_unica in st.session_state.actividades_marcadas) or (estado in ["Ejecutado", "Verificado", "Cerrada"])
 
         # Badge de estado
@@ -1064,11 +1052,13 @@ def pantalla_mis_ordenes():
         else:
             badge_class = "badge-pendiente"; badge_text = "Pendiente"
 
-        col_chk, col_txt = st.columns([0.08, 0.92])
+        clase_completada = "completada" if (esta_marcada or estado in ["Ejecutado", "Verificado", "Cerrada"]) else ""
 
-        with col_chk:
+        # Checkbox de Streamlit + info en columnas
+        col_chk = st.columns([0.08, 0.92])
+        with col_chk[0]:
             checked = st.checkbox(
-                label=f"chk_{key_unica}",
+                label=f"",
                 value=esta_marcada,
                 key=f"chk_{key_unica}",
                 label_visibility="collapsed",
@@ -1080,23 +1070,26 @@ def pantalla_mis_ordenes():
             elif not checked and key_unica in st.session_state.actividades_marcadas:
                 st.session_state.actividades_marcadas.discard(key_unica)
 
-        with col_txt:
-            clase_completada = "completada" if (checked or estado in ["Ejecutado", "Verificado", "Cerrada"]) else ""
-            icono = "&#9989;" if (checked or estado in ["Ejecutado", "Verificado", "Cerrada"]) else "&#11036;"
+        with col_chk[1]:
             st.markdown(f"""
-                <div class="actividad-item-card {clase_completada}">
-                    <span style="font-size: 1.1rem;">{icono}</span>
-                    <div style="flex: 1; margin-left: 10px;">
-                        <div class="ubicacion-texto">&#128205; {ubicacion}</div>
-                        <div class="equipo-texto">&#9881; {equipo}</div>
+                <div class="actividad-fila {clase_completada}" style="margin-top: -8px;">
+                    <div class="actividad-info">
+                        <div class="actividad-ubicacion">
+                            <span class="icono-ubicacion">&#128205;</span> {ubicacion}
+                            <span class="actividad-estado-badge {badge_class}">{badge_text}</span>
+                        </div>
+                        <div class="actividad-equipo">
+                            <span class="icono-equipo">&#9881;</span> {equipo}
+                        </div>
                     </div>
-                    <span class="estado-badge-mini {badge_class}">{badge_text}</span>
                 </div>
             """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
     # Boton Marcar Todas
+    st.markdown("""
+            </div>
+    """, unsafe_allow_html=True)
+
     col_btn, _ = st.columns([1, 1])
     with col_btn:
         if st.button("&#9989; MARCAR TODAS COMO REALIZADAS", 
@@ -1116,7 +1109,7 @@ def pantalla_mis_ordenes():
             st.toast(f"&#127881; ¡Todas las ordenes marcadas como realizadas!", icon="&#127881;")
             st.rerun()
 
-    # Boton para ejecutar ordenes seleccionadas individualmente
+    # Boton para ejecutar ordenes seleccionadas
     ordenes_pendientes = []
     for idx, row in df_mias.iterrows():
         key_unica = f"ord_{idx}"
@@ -1139,6 +1132,8 @@ def pantalla_mis_ordenes():
             st.success(f"{len(ordenes_pendientes)} orden(es) ejecutada(s) correctamente")
             st.balloons()
             st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)  # Cierre de tarjeta
 # ==================== PANTALLA EJECUTAR ORDEN (TECNICO) ====================
 def pantalla_ejecutar():
     df = st.session_state.df_mantenimientos
