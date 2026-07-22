@@ -607,21 +607,34 @@ def filtrar_ordenes_por_tecnico(df_ordenes, nombre_tecnico, df_tecnicos):
     df_tec_filtrado = df_tecnicos[df_tecnicos["Tecnico_Nombre"] == nombre_limpio]
     if df_tec_filtrado.empty:
         return pd.DataFrame()
+
+    # Obtener los nodos asignados a este tecnico desde el Excel
     nodos_asignados = df_tec_filtrado["Nodo_Tecnico"].unique().tolist()
+
     if "Nodo" in df_ordenes.columns:
         df_resultado = df_ordenes.copy()
-        df_resultado["_nodo_clean"] = df_resultado["Nodo"].astype(str).str.strip().str.upper()
-        mask = df_resultado["_nodo_clean"].isin([n.upper() for n in nodos_asignados])
+
+        # Extraer el sufijo del Nodo en la base de datos (todo despues del primer guion)
+        # Ej: PRETF45-DE01 → DE01, PRETF45-DE01ME01 → DE01ME01
+        df_resultado["_nodo_sufijo_bd"] = df_resultado["Nodo"].astype(str).str.split("-", n=1).str[1]
+
+        # Para cada nodo asignado en el Excel, extraer el sufijo y buscar match exacto
+        # Ej: ESPTF05-DE01 → DE01, ESPTF05-DE01ME01 → DE01ME01
+        mask = pd.Series([False] * len(df_resultado), index=df_resultado.index)
+
         for nodo_tec in nodos_asignados:
-            partes = nodo_tec.split("-")
+            partes = nodo_tec.split("-", 1)
             if len(partes) >= 2:
-                sufijo = "-".join(partes[1:])
-                mask |= df_resultado["_nodo_clean"].str.contains(sufijo, na=False, case=False)
+                sufijo_tec = partes[1]  # DE01, DE01ME01, etc.
+                # Match exacto del sufijo
+                mask |= (df_resultado["_nodo_sufijo_bd"] == sufijo_tec)
+
         df_resultado = df_resultado[mask].copy()
-        df_resultado = df_resultado.drop(columns=["_nodo_clean"], errors="ignore")
+        df_resultado = df_resultado.drop(columns=["_nodo_sufijo_bd"], errors="ignore")
         return df_resultado
     else:
         return pd.DataFrame()
+
 
 # ==================== INICIALIZAR ESTADO ====================
 if "perfil" not in st.session_state: st.session_state.perfil = None
