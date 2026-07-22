@@ -552,19 +552,33 @@ def pantalla_home():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # === 5. BOTONES DE ACCION — SOLO 3 CON NOMBRES MEJORADOS ===
+    # === 5. BOTONES DE ACCION — SOLO 3: VER ORDENES (con opciones) + ASIGNAR + ENVIAR CORREO ===
     if perfil == "admin":
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
+            if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key="btn_ver_ordenes_toggle"):
+                st.session_state.mostrar_opciones_ordenes = not st.session_state.get("mostrar_opciones_ordenes", False)
+                st.rerun()
+        with col_btn2:
             if st.button("ASIGNAR TECNICOS", use_container_width=True, type="primary", key="btn_asignacion"):
                 st.session_state.pagina = "asignacion"; st.rerun()
-        with col_btn2:
-            if st.button("ORDENES EJECUTADAS", use_container_width=True, type="primary", key="btn_ver_ejecutadas"):
-                st.session_state.pagina = "verificar"; st.rerun()
         with col_btn3:
             if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key="btn_abrir_correo"):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
+
+        # Mostrar opciones de ordenes si el usuario dio click en VER ORDENES
+        if st.session_state.get("mostrar_opciones_ordenes", False):
+            st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+            col_op1, col_op2 = st.columns(2)
+            with col_op1:
+                if st.button("📋 PREVENTIVAS", use_container_width=True, type="secondary", key="btn_ver_preventivas"):
+                    st.session_state.mostrar_opciones_ordenes = False
+                    st.session_state.pagina = "ordenes"; st.rerun()
+            with col_op2:
+                if st.button("✅ EJECUTADAS", use_container_width=True, type="secondary", key="btn_ver_ejecutadas"):
+                    st.session_state.mostrar_opciones_ordenes = False
+                    st.session_state.pagina = "verificar"; st.rerun()
     elif perfil == "tecnico":
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
