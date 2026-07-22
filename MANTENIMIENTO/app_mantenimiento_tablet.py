@@ -1089,32 +1089,13 @@ def pantalla_asignacion():
     """, unsafe_allow_html=True)
     boton_volver_inicio("asignacion_top")
 
-    st.subheader("Filtros de Asignacion")
-    col1, col2 = st.columns(2)
-    with col1:
-        esp_opciones = ["Todas", "ELE", "MEC"]
-        idx_esp = esp_opciones.index(st.session_state.filtro_esp_asig) if st.session_state.filtro_esp_asig in esp_opciones else 0
-        filtro_esp = st.selectbox("Especialidad", esp_opciones, index=idx_esp, key="asig_esp")
-        st.session_state.filtro_esp_asig = filtro_esp
-    with col2:
-        maquinas = obtener_maquinas_disponibles(df)
-        idx_maq = maquinas.index(st.session_state.filtro_maq_asig) if st.session_state.filtro_maq_asig in maquinas else 0
-        filtro_maq = st.selectbox("Maquina", maquinas, index=idx_maq, key="asig_maq")
-        st.session_state.filtro_maq_asig = filtro_maq
-
-    # === Filtro por Nodo en asignacion (solo Maquina) ===
-    if "Nodo" in df.columns:
-        maquinas_nodo = obtener_maquinas_desde_nodo(df)
-        idx_mn = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
-        filtro_maq_nodo = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_mn, key="asig_maq_nodo")
-        st.session_state.filtro_maquina_nodo = filtro_maq_nodo
-
+    # Los filtros ya se aplican desde la pantalla principal (HOME)
+    # Se usan los filtros guardados en session_state
     df_asig = df.copy()
-    if filtro_esp != "Todas" and "Especialidad" in df_asig.columns:
-        df_asig = df_asig[df_asig["Especialidad"] == filtro_esp]
-    if filtro_maq != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == filtro_maq]
-    # Aplicar filtro nodo en asignacion
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
+        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
+    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
     if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
 
