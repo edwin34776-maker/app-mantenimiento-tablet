@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -374,22 +375,19 @@ st.markdown("""
     .badge-ejecutado { background: #d4edda; color: #155724; }
     .badge-verificado { background: #cce5ff; color: #004085; }
     .badge-cerrada { background: #d1ecf1; color: #0c5460; }
-    .nodo-badge-card {
-        background: rgba(255,255,255,0.15);
-        color: #ffffff;
-        padding: 1px 6px;
-        border-radius: 4px;
-        font-size: 9px;
-        font-weight: 600;
-        font-family: monospace;
-        margin-left: 6px;
-    }
-    .id-ot-card {
-        font-size: 0.75rem;
+    .info-line-card {
+        font-size: 0.8rem;
         color: #a8b9ff;
-        font-family: monospace;
-        margin-right: 8px;
-        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    .ubicacion-texto {
+        font-size: 0.85rem;
+        color: #e3f2fd;
+        font-weight: 600;
+    }
+    .equipo-texto {
+        font-size: 0.8rem;
+        color: #a8b9ff;
     }
 
 </style>
@@ -896,7 +894,7 @@ def pantalla_ordenes():
         if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
             st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle"; st.rerun()
 
-# ==================== PANTALLA MIS ORDENES (TECNICO) - MODIFICADA AGRUPADA ====================
+# ==================== PANTALLA MIS ORDENES (TECNICO) - AGRUPADA ====================
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
     st.markdown(f"""
@@ -906,7 +904,6 @@ def pantalla_mis_ordenes():
     """, unsafe_allow_html=True)
     boton_volver_inicio("mis_ordenes_top")
 
-    # Obtener el técnico seleccionado desde la pantalla principal
     tecnico_sel = st.session_state.get("tecnico_seleccionado", "Seleccionar...")
 
     if tecnico_sel == "Seleccionar...":
@@ -915,7 +912,7 @@ def pantalla_mis_ordenes():
             st.session_state.pagina = "home"; st.rerun()
         return
 
-    # Filtrar SOLO las ordenes del técnico seleccionado
+    # Filtrar SOLO las ordenes del tecnico seleccionado
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
         df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_sel]
@@ -934,7 +931,7 @@ def pantalla_mis_ordenes():
 
     # Contar realizadas vs totales
     total_ordenes = len(df_mias)
-    ids_ordenes = [str(row.get("ID OT", idx)) for idx, row in df_mias.iterrows()]
+    ids_ordenes = [f"ord_{idx}" for idx in df_mias.index]
     realizadas = sum(1 for oid in ids_ordenes if oid in st.session_state.actividades_marcadas)
     porcentaje = (realizadas / total_ordenes * 100) if total_ordenes > 0 else 0
 
@@ -951,15 +948,18 @@ def pantalla_mis_ordenes():
             </div>
     """, unsafe_allow_html=True)
 
-    # Lista de actividades con checkboxes
+    # Lista de actividades con checkboxes - SOLO UBICACION Y EQUIPO
     for idx, row in df_mias.iterrows():
-        id_ot = str(row.get("ID OT", idx))
-        actividad = str(row.get("Descripcion de procedimiento", "Sin descripcion"))
+        id_ot = str(row.get("ID OT", ""))
+        equipo = str(row.get("Equipo", "Sin equipo"))
+        ubicacion = str(row.get("Ubicacion", "Sin ubicacion"))
         estado = str(row.get("Estado", "Pendiente"))
-        nodo = str(row.get("Nodo", ""))
 
-        # Determinar si está marcada (local o ya ejecutada en Supabase)
-        esta_marcada = (id_ot in st.session_state.actividades_marcadas) or (estado in ["Ejecutado", "Verificado"])
+        # Key unica basada en el indice del DataFrame
+        key_unica = f"ord_{idx}"
+
+        # Determinar si esta marcada
+        esta_marcada = (key_unica in st.session_state.actividades_marcadas) or (estado in ["Ejecutado", "Verificado", "Cerrada"])
 
         # Badge de estado
         if estado == "Ejecutado":
@@ -971,25 +971,21 @@ def pantalla_mis_ordenes():
         else:
             badge_class = "badge-pendiente"; badge_text = "Pendiente"
 
-        nodo_html = f"<span class='nodo-badge-card'>{nodo}</span>" if nodo and nodo != "nan" else ""
-
         col_chk, col_txt = st.columns([0.08, 0.92])
 
         with col_chk:
-            # Checkbox nativo (oculto visualmente, usado para estado)
             checked = st.checkbox(
-                label=f"chk_{id_ot}",
+                label=f"chk_{key_unica}",
                 value=esta_marcada,
-                key=f"chk_act_{id_ot}",
+                key=f"chk_{key_unica}",
                 label_visibility="collapsed",
                 disabled=(estado in ["Ejecutado", "Verificado", "Cerrada"])
             )
 
-            # Actualizar estado en session_state
-            if checked and id_ot not in st.session_state.actividades_marcadas:
-                st.session_state.actividades_marcadas.add(id_ot)
-            elif not checked and id_ot in st.session_state.actividades_marcadas:
-                st.session_state.actividades_marcadas.discard(id_ot)
+            if checked and key_unica not in st.session_state.actividades_marcadas:
+                st.session_state.actividades_marcadas.add(key_unica)
+            elif not checked and key_unica in st.session_state.actividades_marcadas:
+                st.session_state.actividades_marcadas.discard(key_unica)
 
         with col_txt:
             clase_completada = "completada" if (checked or estado in ["Ejecutado", "Verificado", "Cerrada"]) else ""
@@ -997,15 +993,17 @@ def pantalla_mis_ordenes():
             st.markdown(f"""
                 <div class="actividad-item-card {clase_completada}">
                     <span style="font-size: 1.1rem;">{icono}</span>
-                    <span class="id-ot-card">OT {id_ot}</span>
-                    <span class="actividad-texto-card">{actividad}{nodo_html}</span>
+                    <div style="flex: 1; margin-left: 10px;">
+                        <div class="ubicacion-texto">&#128205; {ubicacion}</div>
+                        <div class="equipo-texto">&#9881; {equipo}</div>
+                    </div>
                     <span class="estado-badge-mini {badge_class}">{badge_text}</span>
                 </div>
             """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)  # Cierre de tarjeta
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Botón Marcar Todas
+    # Boton Marcar Todas
     col_btn, _ = st.columns([1, 1])
     with col_btn:
         if st.button("&#9989; MARCAR TODAS COMO REALIZADAS", 
@@ -1013,23 +1011,25 @@ def pantalla_mis_ordenes():
                      type="primary",
                      key="btn_marcar_todas_tec"):
             for idx, row in df_mias.iterrows():
-                id_ot = str(row.get("ID OT", idx))
+                key_unica = f"ord_{idx}"
                 estado = str(row.get("Estado", "Pendiente"))
                 if estado not in ["Ejecutado", "Verificado", "Cerrada"]:
-                    st.session_state.actividades_marcadas.add(id_ot)
-                    # Guardar en Supabase
-                    actualizar_orden_supabase(id_ot, "Estado", "Ejecutado")
-                    actualizar_orden_supabase(id_ot, "Fecha_Ejecucion", datetime.now().strftime("%Y-%m-%d"))
+                    st.session_state.actividades_marcadas.add(key_unica)
+                    id_ot = str(row.get("ID OT", ""))
+                    if id_ot:
+                        actualizar_orden_supabase(id_ot, "Estado", "Ejecutado")
+                        actualizar_orden_supabase(id_ot, "Fecha_Ejecucion", datetime.now().strftime("%Y-%m-%d"))
             st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
             st.toast(f"&#127881; ¡Todas las ordenes marcadas como realizadas!", icon="&#127881;")
             st.rerun()
 
-    # Botón para ejecutar ordenes seleccionadas individualmente
+    # Boton para ejecutar ordenes seleccionadas individualmente
     ordenes_pendientes = []
     for idx, row in df_mias.iterrows():
-        id_ot = str(row.get("ID OT", idx))
+        key_unica = f"ord_{idx}"
         estado = str(row.get("Estado", "Pendiente"))
-        if id_ot in st.session_state.actividades_marcadas and estado not in ["Ejecutado", "Verificado", "Cerrada"]:
+        id_ot = str(row.get("ID OT", ""))
+        if key_unica in st.session_state.actividades_marcadas and estado not in ["Ejecutado", "Verificado", "Cerrada"] and id_ot:
             ordenes_pendientes.append(id_ot)
 
     if ordenes_pendientes:
@@ -1297,7 +1297,7 @@ def pantalla_detalle():
             else:
                 st.error("Error al verificar")
 
-# ==================== PANTALLA ASIGNACION DE TECNICOS - MODIFICADA ====================
+# ==================== PANTALLA ASIGNACION DE TECNICOS ====================
 def pantalla_asignacion():
     df = st.session_state.df_mantenimientos
     st.markdown("""
@@ -1335,6 +1335,7 @@ def pantalla_asignacion():
         estado_clase = obtener_estado_visual(estado)
         prioridad = str(row.get("Prioridad_Actividad", ""))
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
+        # === NUEVO: Mostrar nodo en asignacion ===
         nodo = str(row.get("Nodo", ""))
         nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
@@ -1371,6 +1372,7 @@ def pantalla_asignacion():
                     st.rerun()
                 else:
                     st.error("Error al guardar asignacion")
+
 # ==================== PANTALLA VERIFICAR (SUPERVISOR) ====================
 def pantalla_verificar():
     df = st.session_state.df_mantenimientos
