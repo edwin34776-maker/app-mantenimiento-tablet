@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -595,9 +594,33 @@ def filtrar_ordenes_por_tecnico(df_ordenes, nombre_tecnico, df_tecnicos):
     # Obtener los nodos asignados a este tecnico
     nodos_asignados = df_tec_filtrado["Nodo_Tecnico"].unique().tolist()
 
+    # DEBUG: Mostrar info de comparacion (temporal)
+    # st.write(f"DEBUG: Tecnico: '{nombre_limpio}' | Nodos en Excel: {nodos_asignados[:5]}...")
+    # if "Nodo" in df_ordenes.columns:
+    #     st.write(f"DEBUG: Nodos unicos en BD: {df_ordenes['Nodo'].dropna().unique()[:5]}...")
+
     # Filtrar las ordenes que coincidan con esos nodos
+    # Hacemos match flexible: comparar el Nodo completo o la parte antes del guion
     if "Nodo" in df_ordenes.columns:
-        df_resultado = df_ordenes[df_ordenes["Nodo"].astype(str).isin(nodos_asignados)].copy()
+        df_resultado = df_ordenes.copy()
+
+        # Crear columna de nodo limpio para comparacion
+        df_resultado["_nodo_clean"] = df_resultado["Nodo"].astype(str).str.strip().str.upper()
+
+        # Filtrar por coincidencia exacta o parcial
+        mask = df_resultado["_nodo_clean"].isin([n.upper() for n in nodos_asignados])
+
+        # Tambien intentar match por prefijo (ej: PRETF45-DE01 vs ESPTF05-DE01 -> match por DE01)
+        for nodo_tec in nodos_asignados:
+            partes = nodo_tec.split("-")
+            if len(partes) >= 2:
+                # Match por la parte despues del primer guion
+                sufijo = "-".join(partes[1:])
+                mask |= df_resultado["_nodo_clean"].str.contains(sufijo, na=False, case=False)
+
+        df_resultado = df_resultado[mask].copy()
+        df_resultado = df_resultado.drop(columns=["_nodo_clean"], errors="ignore")
+
         # Agregar la especialidad del tecnico desde el Excel
         df_resultado = df_resultado.merge(
             df_tec_filtrado[["Nodo_Tecnico", "Especialidad_Tec"]],
