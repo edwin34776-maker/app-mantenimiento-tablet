@@ -912,19 +912,29 @@ def pantalla_mis_ordenes():
             st.session_state.pagina = "home"; st.rerun()
         return
 
-    # Filtrar SOLO las ordenes del tecnico seleccionado
+    # === FILTRO ROBUSTO POR TECNICO ===
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
-        df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_sel]
+        # Limpiar espacios y comparar sin importar mayusculas
+        tecnico_limpio = str(tecnico_sel).strip()
+        df_mias["_tec_clean"] = df_mias["Tecnico_Asignado"].astype(str).str.strip().str.lower()
+        tecnico_buscar = tecnico_limpio.lower()
+        df_mias = df_mias[df_mias["_tec_clean"] == tecnico_buscar]
+        df_mias = df_mias.drop(columns=["_tec_clean"])
     else:
+        st.error("No se encontro la columna Tecnico_Asignado en los datos.")
         df_mias = pd.DataFrame()
+        return
+
+    # DEBUG: mostrar info de filtrado (quitar en produccion)
+    # st.write(f"DEBUG: Tecnico buscado: '{tecnico_limpio}' | Encontradas: {len(df_mias)} ordenes")
 
     if df_mias.empty:
-        st.markdown("""
+        st.markdown(f"""
             <div class="sin-ordenes-card">
                 <div style="font-size: 3rem; margin-bottom: 12px;">&#128229;</div>
                 <h3 style="color: #1a237e; margin-bottom: 8px;">No tienes ordenes asignadas</h3>
-                <p>No se encontraron actividades pendientes para tu usuario.</p>
+                <p>No se encontraron actividades para: <strong>{tecnico_sel}</strong></p>
             </div>
         """, unsafe_allow_html=True)
         return
