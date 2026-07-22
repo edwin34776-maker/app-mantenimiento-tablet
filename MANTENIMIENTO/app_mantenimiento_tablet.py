@@ -1102,30 +1102,21 @@ def pantalla_asignacion():
         filtro_maq = st.selectbox("Maquina", maquinas, index=idx_maq, key="asig_maq")
         st.session_state.filtro_maq_asig = filtro_maq
 
-    # === NUEVO: Filtro por Nodo en asignacion ===
+    # === Filtro por Nodo en asignacion (solo Maquina) ===
     if "Nodo" in df.columns:
-        col_n1, col_n2 = st.columns(2)
-        with col_n1:
-            maquinas_nodo = obtener_maquinas_desde_nodo(df)
-            idx_mn = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
-            filtro_maq_nodo = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_mn, key="asig_maq_nodo")
-            st.session_state.filtro_maquina_nodo = filtro_maq_nodo
-        with col_n2:
-            subsistemas = obtener_subsistemas_desde_nodo(df, st.session_state.filtro_maquina_nodo)
-            idx_sn = subsistemas.index(st.session_state.filtro_subsistema_nodo) if st.session_state.filtro_subsistema_nodo in subsistemas else 0
-            filtro_sub_nodo = st.selectbox("Subsistema", subsistemas, index=idx_sn, key="asig_sub_nodo")
-            st.session_state.filtro_subsistema_nodo = filtro_sub_nodo
+        maquinas_nodo = obtener_maquinas_desde_nodo(df)
+        idx_mn = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
+        filtro_maq_nodo = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_mn, key="asig_maq_nodo")
+        st.session_state.filtro_maquina_nodo = filtro_maq_nodo
 
     df_asig = df.copy()
     if filtro_esp != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == filtro_esp]
     if filtro_maq != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == filtro_maq]
-    # === NUEVO: Aplicar filtro nodo en asignacion ===
+    # Aplicar filtro nodo en asignacion
     if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
-    if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
-        df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
     st.subheader(f"Ordenes sin asignar o reasignables ({len(df_asig)})")
 
