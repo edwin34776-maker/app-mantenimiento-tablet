@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -269,6 +270,129 @@ st.markdown("""
     .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #1a237e; }
     .contador-maquina-label { font-size: 10px; color: #666; }
     .nodo-badge-mini { background: #e8eaf6; color: #1a237e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: monospace; }
+
+    /* === ESTILOS PARA TARJETA AGRUPADA DE ORDENES DEL TECNICO === */
+    .orden-card-tecnico {
+        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+        border-radius: 16px;
+        padding: 20px;
+        margin: 12px 0;
+        box-shadow: 0 8px 32px rgba(26,35,158,0.3);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: white;
+    }
+    .tecnico-nombre-card {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 2px;
+    }
+    .ordenes-contador-card {
+        font-size: 0.9rem;
+        color: #a8b9ff;
+        margin-bottom: 14px;
+    }
+    .progreso-container-card {
+        margin: 12px 0 16px 0;
+    }
+    .progreso-barra-card {
+        height: 8px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .progreso-fill-card {
+        height: 100%;
+        background: linear-gradient(90deg, #4fc3f7, #66bb6a);
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+    .progreso-texto-card {
+        font-size: 0.75rem;
+        color: #a8b9ff;
+        margin-top: 4px;
+        text-align: right;
+    }
+    .actividad-item-card {
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+        margin: 5px 0;
+        background: rgba(255,255,255,0.08);
+        border-radius: 10px;
+        border-left: 3px solid #4fc3f7;
+        transition: all 0.2s ease;
+    }
+    .actividad-item-card:hover {
+        background: rgba(255,255,255,0.12);
+        transform: translateX(3px);
+    }
+    .actividad-item-card.completada {
+        border-left-color: #66bb6a;
+        opacity: 0.75;
+    }
+    .actividad-item-card.completada .actividad-texto-card {
+        text-decoration: line-through;
+        color: #90a4ae;
+    }
+    .actividad-texto-card {
+        font-size: 0.9rem;
+        color: #e3f2fd;
+        font-weight: 500;
+        margin-left: 10px;
+        flex: 1;
+    }
+    .btn-marcar-todas-card {
+        background: linear-gradient(90deg, #43a047, #66bb6a) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        font-size: 0.9rem !important;
+        padding: 10px 20px !important;
+        width: 100% !important;
+        margin-top: 14px !important;
+        box-shadow: 0 4px 15px rgba(67, 160, 71, 0.3) !important;
+    }
+    .btn-marcar-todas-card:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 20px rgba(67, 160, 71, 0.4) !important;
+    }
+    .sin-ordenes-card {
+        text-align: center;
+        padding: 40px 20px;
+        color: #78909c;
+    }
+    .estado-badge-mini {
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 8px;
+        font-weight: 600;
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+    .badge-pendiente { background: #fff3cd; color: #856404; }
+    .badge-ejecutado { background: #d4edda; color: #155724; }
+    .badge-verificado { background: #cce5ff; color: #004085; }
+    .badge-cerrada { background: #d1ecf1; color: #0c5460; }
+    .nodo-badge-card {
+        background: rgba(255,255,255,0.15);
+        color: #ffffff;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 9px;
+        font-weight: 600;
+        font-family: monospace;
+        margin-left: 6px;
+    }
+    .id-ot-card {
+        font-size: 0.75rem;
+        color: #a8b9ff;
+        font-family: monospace;
+        margin-right: 8px;
+        flex-shrink: 0;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -433,6 +557,7 @@ if "filtro_maq_asig" not in st.session_state: st.session_state.filtro_maq_asig =
 if "filtro_estado_asig" not in st.session_state: st.session_state.filtro_estado_asig = "Todos"
 if "busqueda" not in st.session_state: st.session_state.busqueda = ""
 if "mostrar_envio_correo" not in st.session_state: st.session_state.mostrar_envio_correo = False
+if "actividades_marcadas" not in st.session_state: st.session_state.actividades_marcadas = set()
 # === NUEVOS ESTADOS PARA FILTRO POR NODO ===
 if "filtro_maquina_nodo" not in st.session_state: st.session_state.filtro_maquina_nodo = "Todas"
 if "filtro_subsistema_nodo" not in st.session_state: st.session_state.filtro_subsistema_nodo = "Todos"
@@ -772,10 +897,9 @@ def pantalla_ordenes():
         if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
             st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle"; st.rerun()
 
-# ==================== PANTALLA MIS ORDENES (TECNICO) - MODIFICADA ====================
+# ==================== PANTALLA MIS ORDENES (TECNICO) - MODIFICADA AGRUPADA ====================
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
-    perfil = st.session_state.perfil
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Mis Ordenes Asignadas</span>
@@ -792,48 +916,137 @@ def pantalla_mis_ordenes():
             st.session_state.pagina = "home"; st.rerun()
         return
 
+    # Filtrar SOLO las ordenes del técnico seleccionado
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
-        # Filtrar SOLO por el técnico seleccionado
         df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_sel]
     else:
         df_mias = pd.DataFrame()
 
-    st.subheader(f"{tecnico_sel} - Tienes {len(df_mias)} orden(es) asignada(s)")
-
     if df_mias.empty:
-        st.info("No tienes ordenes asignadas actualmente.")
+        st.markdown("""
+            <div class="sin-ordenes-card">
+                <div style="font-size: 3rem; margin-bottom: 12px;">&#128229;</div>
+                <h3 style="color: #1a237e; margin-bottom: 8px;">No tienes ordenes asignadas</h3>
+                <p>No se encontraron actividades pendientes para tu usuario.</p>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
+    # Contar realizadas vs totales
+    total_ordenes = len(df_mias)
+    ids_ordenes = [str(row.get("ID OT", idx)) for idx, row in df_mias.iterrows()]
+    realizadas = sum(1 for oid in ids_ordenes if oid in st.session_state.actividades_marcadas)
+    porcentaje = (realizadas / total_ordenes * 100) if total_ordenes > 0 else 0
+
+    # === TARJETA PRINCIPAL AGRUPADA ===
+    st.markdown(f"""
+        <div class="orden-card-tecnico">
+            <div class="tecnico-nombre-card">&#128100; {tecnico_sel}</div>
+            <div class="ordenes-contador-card">&#128203; Tienes {total_ordenes} ordenes asignadas</div>
+            <div class="progreso-container-card">
+                <div class="progreso-barra-card">
+                    <div class="progreso-fill-card" style="width: {porcentaje}%;"></div>
+                </div>
+                <div class="progreso-texto-card">{realizadas}/{total_ordenes} completadas ({porcentaje:.0f}%)</div>
+            </div>
+    """, unsafe_allow_html=True)
+
+    # Lista de actividades con checkboxes
     for idx, row in df_mias.iterrows():
-        id_ot = str(row.get("ID OT", "")); tipo = str(row.get("Especialidad", ""))
-        descripcion = str(row.get("Descripcion de procedimiento", ""))
-        estado = str(row.get("Estado", "Pendiente")); tecnico = str(row.get("Tecnico_Asignado", ""))
-        estado_clase = obtener_estado_visual(estado)
-        desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
-        prioridad = str(row.get("Prioridad_Actividad", ""))
-        clase_prioridad = obtener_clase_css_prioridad(prioridad)
+        id_ot = str(row.get("ID OT", idx))
+        actividad = str(row.get("Descripcion de procedimiento", "Sin descripcion"))
+        estado = str(row.get("Estado", "Pendiente"))
         nodo = str(row.get("Nodo", ""))
-        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
-        st.markdown(f"""
-        <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
-            <div class="col-esp">{tipo}</div>
-            <div class="col-desc" title="{descripcion}">{desc_corta}</div>
-            <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
-            <div class="col-tec">{tecnico[:15]}...</div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Determinar si está marcada (local o ya ejecutada en Supabase)
+        esta_marcada = (id_ot in st.session_state.actividades_marcadas) or (estado in ["Ejecutado", "Verificado"])
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button(f"Ver detalle", key=f"btn_ver_tec_{idx}", use_container_width=True):
-                st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle_tecnico"; st.rerun()
-        with col2:
-            if estado == "Pendiente" and st.button(f"Ejecutar", key=f"btn_ejec_{idx}", use_container_width=True, type="primary"):
-                st.session_state.orden_seleccionada = idx; st.session_state.pagina = "ejecutar"; st.rerun()
+        # Badge de estado
+        if estado == "Ejecutado":
+            badge_class = "badge-ejecutado"; badge_text = "Ejecutado"
+        elif estado == "Verificado":
+            badge_class = "badge-verificado"; badge_text = "Verificado"
+        elif estado == "Cerrada":
+            badge_class = "badge-cerrada"; badge_text = "Cerrada"
+        else:
+            badge_class = "badge-pendiente"; badge_text = "Pendiente"
 
+        nodo_html = f"<span class='nodo-badge-card'>{nodo}</span>" if nodo and nodo != "nan" else ""
+
+        col_chk, col_txt = st.columns([0.08, 0.92])
+
+        with col_chk:
+            # Checkbox nativo (oculto visualmente, usado para estado)
+            checked = st.checkbox(
+                label=f"chk_{id_ot}",
+                value=esta_marcada,
+                key=f"chk_act_{id_ot}",
+                label_visibility="collapsed",
+                disabled=(estado in ["Ejecutado", "Verificado", "Cerrada"])
+            )
+
+            # Actualizar estado en session_state
+            if checked and id_ot not in st.session_state.actividades_marcadas:
+                st.session_state.actividades_marcadas.add(id_ot)
+            elif not checked and id_ot in st.session_state.actividades_marcadas:
+                st.session_state.actividades_marcadas.discard(id_ot)
+
+        with col_txt:
+            clase_completada = "completada" if (checked or estado in ["Ejecutado", "Verificado", "Cerrada"]) else ""
+            icono = "&#9989;" if (checked or estado in ["Ejecutado", "Verificado", "Cerrada"]) else "&#11036;"
+            st.markdown(f"""
+                <div class="actividad-item-card {clase_completada}">
+                    <span style="font-size: 1.1rem;">{icono}</span>
+                    <span class="id-ot-card">OT {id_ot}</span>
+                    <span class="actividad-texto-card">{actividad}{nodo_html}</span>
+                    <span class="estado-badge-mini {badge_class}">{badge_text}</span>
+                </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)  # Cierre de tarjeta
+
+    # Botón Marcar Todas
+    col_btn, _ = st.columns([1, 1])
+    with col_btn:
+        if st.button("&#9989; MARCAR TODAS COMO REALIZADAS", 
+                     use_container_width=True,
+                     type="primary",
+                     key="btn_marcar_todas_tec"):
+            for idx, row in df_mias.iterrows():
+                id_ot = str(row.get("ID OT", idx))
+                estado = str(row.get("Estado", "Pendiente"))
+                if estado not in ["Ejecutado", "Verificado", "Cerrada"]:
+                    st.session_state.actividades_marcadas.add(id_ot)
+                    # Guardar en Supabase
+                    actualizar_orden_supabase(id_ot, "Estado", "Ejecutado")
+                    actualizar_orden_supabase(id_ot, "Fecha_Ejecucion", datetime.now().strftime("%Y-%m-%d"))
+            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+            st.toast(f"&#127881; ¡Todas las ordenes marcadas como realizadas!", icon="&#127881;")
+            st.rerun()
+
+    # Botón para ejecutar ordenes seleccionadas individualmente
+    ordenes_pendientes = []
+    for idx, row in df_mias.iterrows():
+        id_ot = str(row.get("ID OT", idx))
+        estado = str(row.get("Estado", "Pendiente"))
+        if id_ot in st.session_state.actividades_marcadas and estado not in ["Ejecutado", "Verificado", "Cerrada"]:
+            ordenes_pendientes.append(id_ot)
+
+    if ordenes_pendientes:
+        st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+        if st.button(f"&#128640; EJECUTAR {len(ordenes_pendientes)} ORDEN(ES) SELECCIONADA(S)", 
+                     use_container_width=True,
+                     type="primary",
+                     key="btn_ejecutar_seleccionadas"):
+            for id_ot in ordenes_pendientes:
+                actualizar_orden_supabase(id_ot, "Estado", "Ejecutado")
+                actualizar_orden_supabase(id_ot, "Fecha_Ejecucion", datetime.now().strftime("%Y-%m-%d"))
+            st.session_state.actividades_marcadas.clear()
+            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+            st.success(f"{len(ordenes_pendientes)} orden(es) ejecutada(s) correctamente")
+            st.balloons()
+            st.rerun()
 # ==================== PANTALLA EJECUTAR ORDEN (TECNICO) ====================
 def pantalla_ejecutar():
     df = st.session_state.df_mantenimientos
@@ -1085,7 +1298,7 @@ def pantalla_detalle():
             else:
                 st.error("Error al verificar")
 
-# ==================== PANTALLA ASIGNACION DE TECNICOS ====================
+# ==================== PANTALLA ASIGNACION DE TECNICOS - MODIFICADA ====================
 def pantalla_asignacion():
     df = st.session_state.df_mantenimientos
     st.markdown("""
@@ -1123,7 +1336,6 @@ def pantalla_asignacion():
         estado_clase = obtener_estado_visual(estado)
         prioridad = str(row.get("Prioridad_Actividad", ""))
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
-        # === NUEVO: Mostrar nodo en asignacion ===
         nodo = str(row.get("Nodo", ""))
         nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
@@ -1160,7 +1372,6 @@ def pantalla_asignacion():
                     st.rerun()
                 else:
                     st.error("Error al guardar asignacion")
-
 # ==================== PANTALLA VERIFICAR (SUPERVISOR) ====================
 def pantalla_verificar():
     df = st.session_state.df_mantenimientos
