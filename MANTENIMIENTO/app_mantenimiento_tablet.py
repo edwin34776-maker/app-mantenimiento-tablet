@@ -510,7 +510,27 @@ def pantalla_home():
                     </div>
                     """, unsafe_allow_html=True)
 
-    # === 2. FILTRAR POR ESPECIALIDAD (TODAS, ELE, MEC, LIMPIAR) ===
+    # === 2. MAQUINA / UBICACION (DROPDOWN) ===
+    maquinas = obtener_maquinas_disponibles(df)
+    index_sel = 0
+    if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
+    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key="sel_maquina_home")
+    st.session_state.filtro_maquina = maquina_sel
+
+    # === 3. FILTROS ADICIONALES — SOLO EL PRIMERO (Tecnico/Realizado por) ===
+    st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtros adicionales</div>", unsafe_allow_html=True)
+
+    # Obtener lista de tecnicos disponibles
+    tecnicos_disponibles = ["Todos"]
+    if "Tecnico_Asignado" in df.columns:
+        tecnicos_unicos = df["Tecnico_Asignado"].dropna().unique().tolist()
+        tecnicos_unicos = [t for t in tecnicos_unicos if str(t).strip() and str(t) != "nan"]
+        tecnicos_disponibles.extend(sorted(tecnicos_unicos))
+
+    filtro_tecnico = st.selectbox("Realizado por", tecnicos_disponibles, index=0, key="sel_filtro_tecnico")
+    st.session_state.filtro_tecnico = filtro_tecnico
+
+    # === 4. FILTRAR POR ESPECIALIDAD (TODAS, ELE, MEC, LIMPIAR) ===
     st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns([1,1,1,1])
     with col1:
@@ -528,12 +548,13 @@ def pantalla_home():
             st.session_state.filtro_maquina = "Todas"
             st.session_state.filtro_maquina_nodo = "Todas"
             st.session_state.filtro_subsistema_nodo = "Todos"
+            st.session_state.filtro_tecnico = "Todos"
             st.session_state.busqueda = ""
             st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # === 3. BOTONES DE ACCION — SOLO 3 CON NOMBRES MEJORADOS ===
+    # === 5. BOTONES DE ACCION — SOLO 3 CON NOMBRES MEJORADOS ===
     if perfil == "admin":
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
@@ -563,6 +584,11 @@ def pantalla_home():
         df_envio = df.copy()
         if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_envio.columns:
             df_envio = df_envio[df_envio["Especialidad"] == st.session_state.filtro_especialidad]
+        if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_envio.columns:
+            df_envio = df_envio[df_envio["Ubicacion"] == st.session_state.filtro_maquina]
+        # Aplicar filtro por tecnico al envio de correo
+        if "Tecnico_Asignado" in df_envio.columns and st.session_state.get("filtro_tecnico", "Todos") != "Todos":
+            df_envio = df_envio[df_envio["Tecnico_Asignado"] == st.session_state.filtro_tecnico]
         # Aplicar filtro por nodo al envio de correo
         if "Nodo" in df_envio.columns and st.session_state.filtro_maquina_nodo != "Todas":
             df_envio = df_envio[df_envio["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
