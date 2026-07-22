@@ -580,10 +580,28 @@ def pantalla_home():
                     st.session_state.mostrar_opciones_ordenes = False
                     st.session_state.pagina = "verificar"; st.rerun()
     elif perfil == "tecnico":
+        # === FILTRO POR TECNICO ===
+        st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Selecciona tu nombre</div>", unsafe_allow_html=True)
+
+        # Obtener lista de todos los técnicos (ELE + MEC)
+        todos_tecnicos = sorted(TECNICOS_ELE + TECNICOS_MEC)
+        tecnicos_opciones = ["Seleccionar..."] + todos_tecnicos
+
+        # Si ya hay un técnico seleccionado en session_state, usarlo
+        idx_tec = 0
+        if "tecnico_seleccionado" in st.session_state and st.session_state.tecnico_seleccionado in tecnicos_opciones:
+            idx_tec = tecnicos_opciones.index(st.session_state.tecnico_seleccionado)
+
+        tecnico_sel = st.selectbox("Tecnico", tecnicos_opciones, index=idx_tec, key="sel_tecnico_home")
+        st.session_state.tecnico_seleccionado = tecnico_sel
+
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("MIS ORDENES ASIGNADAS", use_container_width=True, type="primary", key="btn_mis_ordenes"):
-                st.session_state.pagina = "mis_ordenes"; st.rerun()
+                if tecnico_sel == "Seleccionar...":
+                    st.warning("Por favor selecciona tu nombre primero.")
+                else:
+                    st.session_state.pagina = "mis_ordenes"; st.rerun()
         with col_btn2:
             if st.button("VER TODAS LAS ORDENES", use_container_width=True, type="secondary", key="btn_ver_todas"):
                 st.session_state.pagina = "ordenes"; st.rerun()
@@ -759,23 +777,13 @@ def pantalla_mis_ordenes():
     """, unsafe_allow_html=True)
     boton_volver_inicio("mis_ordenes_top")
 
-    # === FILTRO POR TECNICO ===
-    st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Selecciona tu nombre</div>", unsafe_allow_html=True)
-
-    # Obtener lista de todos los técnicos (ELE + MEC)
-    todos_tecnicos = sorted(TECNICOS_ELE + TECNICOS_MEC)
-    tecnicos_opciones = ["Seleccionar..."] + todos_tecnicos
-
-    # Si ya hay un técnico seleccionado en session_state, usarlo
-    idx_tec = 0
-    if "tecnico_seleccionado" in st.session_state and st.session_state.tecnico_seleccionado in tecnicos_opciones:
-        idx_tec = tecnicos_opciones.index(st.session_state.tecnico_seleccionado)
-
-    tecnico_sel = st.selectbox("Tecnico", tecnicos_opciones, index=idx_tec, key="sel_tecnico_mis_ordenes")
-    st.session_state.tecnico_seleccionado = tecnico_sel
+    # === USAR TECNICO SELECCIONADO DESDE HOME ===
+    tecnico_sel = st.session_state.get("tecnico_seleccionado", "Seleccionar...")
 
     if tecnico_sel == "Seleccionar...":
-        st.info("Por favor selecciona tu nombre para ver tus ordenes asignadas.")
+        st.warning("Por favor selecciona tu nombre en la pantalla principal.")
+        if st.button("VOLVER AL INICIO", use_container_width=True, key="btn_volver_sel_tec"):
+            st.session_state.pagina = "home"; st.rerun()
         return
 
     # Filtrar ordenes por el técnico seleccionado
