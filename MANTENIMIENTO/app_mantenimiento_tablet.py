@@ -510,20 +510,7 @@ def pantalla_home():
                     </div>
                     """, unsafe_allow_html=True)
 
-    # === 2. FILTROS ADICIONALES — SOLO EL PRIMERO DE LA IZQUIERDA (Tecnico/Realizado por) ===
-    st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Tecnico</div>", unsafe_allow_html=True)
-
-    # Obtener lista de tecnicos disponibles
-    tecnicos_disponibles = ["Todos"]
-    if "Tecnico_Asignado" in df.columns:
-        tecnicos_unicos = df["Tecnico_Asignado"].dropna().unique().tolist()
-        tecnicos_unicos = [t for t in tecnicos_unicos if str(t).strip() and str(t) != "nan"]
-        tecnicos_disponibles.extend(sorted(tecnicos_unicos))
-
-    filtro_tecnico = st.selectbox("Tecnico / Realizado por", tecnicos_disponibles, index=0, key="sel_filtro_tecnico")
-    st.session_state.filtro_tecnico = filtro_tecnico
-
-    # === 3. FILTRAR POR ESPECIALIDAD (TODAS, ELE, MEC, LIMPIAR) ===
+    # === 2. FILTRAR POR ESPECIALIDAD (TODAS, ELE, MEC, LIMPIAR) ===
     st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns([1,1,1,1])
     with col1:
@@ -541,49 +528,12 @@ def pantalla_home():
             st.session_state.filtro_maquina = "Todas"
             st.session_state.filtro_maquina_nodo = "Todas"
             st.session_state.filtro_subsistema_nodo = "Todos"
-            st.session_state.filtro_tecnico = "Todos"
             st.session_state.busqueda = ""
             st.rerun()
 
-    # === 4. MAQUINA / UBICACION (DROPDOWN) ===
-    maquinas = obtener_maquinas_disponibles(df)
-    index_sel = 0
-    if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
-    maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key="sel_maquina_home")
-    st.session_state.filtro_maquina = maquina_sel
-
-    # === FILTRO POR NODO/MAQUINA (mantenido) ===
-    if "Nodo" in df.columns:
-        st.markdown("<hr style='margin: 10px 0; border: none; border-top: 1px solid #dee2e6;'>", unsafe_allow_html=True)
-
-        col_nodo1, col_nodo2 = st.columns(2)
-        with col_nodo1:
-            maquinas_nodo = obtener_maquinas_desde_nodo(df)
-            idx_maq_nodo = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
-            maquina_nodo_sel = st.selectbox("Filtrar por Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key="sel_maquina_nodo")
-            if maquina_nodo_sel != st.session_state.filtro_maquina_nodo:
-                st.session_state.filtro_maquina_nodo = maquina_nodo_sel
-                st.session_state.filtro_subsistema_nodo = "Todos"
-                st.rerun()
-        with col_nodo2:
-            subsistemas = obtener_subsistemas_desde_nodo(df, st.session_state.filtro_maquina_nodo)
-            idx_sub = subsistemas.index(st.session_state.filtro_subsistema_nodo) if st.session_state.filtro_subsistema_nodo in subsistemas else 0
-            subsistema_sel = st.selectbox("Subsistema (Codigo)", subsistemas, index=idx_sub, key="sel_subsistema_nodo")
-            st.session_state.filtro_subsistema_nodo = subsistema_sel
-
-        # Mostrar contadores de subsistemas si hay maquina seleccionada
-        if st.session_state.filtro_maquina_nodo != "Todas":
-            conteo_subs = contar_por_subsistema(df, st.session_state.filtro_maquina_nodo)
-            if conteo_subs:
-                st.markdown("<div style='font-size: 11px; color: #666; margin-bottom: 6px;'>Distribucion por subsistema:</div>", unsafe_allow_html=True)
-                sub_cols = st.columns(min(len(conteo_subs), 6))
-                for i, (sub, cant) in enumerate(conteo_subs.items()):
-                    with sub_cols[i % 6]:
-                        st.markdown(f"<div style='text-align: center;'><span class='nodo-badge-mini'>{sub}</span><br><span style='font-size: 11px; font-weight: 700; color: #1a237e;'>{cant}</span></div>", unsafe_allow_html=True)
-
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # === 5. BOTONES DE ACCION — SOLO 3 CON NOMBRES MEJORADOS ===
+    # === 3. BOTONES DE ACCION — SOLO 3 CON NOMBRES MEJORADOS ===
     if perfil == "admin":
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
@@ -613,11 +563,6 @@ def pantalla_home():
         df_envio = df.copy()
         if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_envio.columns:
             df_envio = df_envio[df_envio["Especialidad"] == st.session_state.filtro_especialidad]
-        if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_envio.columns:
-            df_envio = df_envio[df_envio["Ubicacion"] == st.session_state.filtro_maquina]
-        # Aplicar filtro por tecnico al envio de correo
-        if "Tecnico_Asignado" in df_envio.columns and st.session_state.get("filtro_tecnico", "Todos") != "Todos":
-            df_envio = df_envio[df_envio["Tecnico_Asignado"] == st.session_state.filtro_tecnico]
         # Aplicar filtro por nodo al envio de correo
         if "Nodo" in df_envio.columns and st.session_state.filtro_maquina_nodo != "Todas":
             df_envio = df_envio[df_envio["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
