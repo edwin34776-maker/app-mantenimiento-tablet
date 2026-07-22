@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -541,6 +542,72 @@ def contar_por_subsistema(df, maquina_filtro="Todas"):
         return {}
 
 
+
+# ==================== FUNCION PARA CARGAR EXCEL DE TECNICOS ====================
+@st.cache_data(ttl=300)
+def cargar_excel_tecnicos():
+    """Carga el Excel de asignacion de tecnicos por actividad/nodo."""
+    try:
+        # Intentar cargar desde varias rutas posibles
+        rutas_posibles = [
+            "tecnico.xlsx",
+            "data/tecnico.xlsx",
+            "assets/tecnico.xlsx",
+            "/mnt/data/tecnico.xlsx",
+        ]
+        for ruta in rutas_posibles:
+            try:
+                df_tec = pd.read_excel(ruta)
+                # Limpiar columnas
+                df_tec.columns = df_tec.columns.str.strip().str.upper()
+                # Renombrar columnas si es necesario
+                if "ACTIVIDAD" in df_tec.columns and "TECNICOS" in df_tec.columns:
+                    df_tec = df_tec.rename(columns={"ACTIVIDAD": "Nodo_Tecnico", "TECNICOS": "Tecnico_Nombre", "ESPE": "Especialidad_Tec"})
+                # Limpiar espacios
+                df_tec["Tecnico_Nombre"] = df_tec["Tecnico_Nombre"].astype(str).str.strip()
+                df_tec["Nodo_Tecnico"] = df_tec["Nodo_Tecnico"].astype(str).str.strip()
+                # Quitar filas vacias
+                df_tec = df_tec[df_tec["Tecnico_Nombre"] != "nan"]
+                df_tec = df_tec[df_tec["Tecnico_Nombre"] != ""]
+                return df_tec
+            except FileNotFoundError:
+                continue
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error cargando Excel de tecnicos: {e}")
+        return pd.DataFrame()
+
+def filtrar_ordenes_por_tecnico(df_ordenes, nombre_tecnico, df_tecnicos):
+    """Filtra las ordenes que le corresponden a un tecnico segun el Excel de asignacion."""
+    if df_tecnicos.empty or df_ordenes.empty:
+        return pd.DataFrame()
+
+    # Limpiar nombre del tecnico
+    nombre_limpio = str(nombre_tecnico).strip()
+
+    # Filtrar el Excel para obtener los nodos asignados a este tecnico
+    df_tec_filtrado = df_tecnicos[df_tecnicos["Tecnico_Nombre"] == nombre_limpio]
+
+    if df_tec_filtrado.empty:
+        return pd.DataFrame()
+
+    # Obtener los nodos asignados a este tecnico
+    nodos_asignados = df_tec_filtrado["Nodo_Tecnico"].unique().tolist()
+
+    # Filtrar las ordenes que coincidan con esos nodos
+    if "Nodo" in df_ordenes.columns:
+        df_resultado = df_ordenes[df_ordenes["Nodo"].astype(str).isin(nodos_asignados)].copy()
+        # Agregar la especialidad del tecnico desde el Excel
+        df_resultado = df_resultado.merge(
+            df_tec_filtrado[["Nodo_Tecnico", "Especialidad_Tec"]],
+            left_on="Nodo",
+            right_on="Nodo_Tecnico",
+            how="left"
+        )
+        return df_resultado
+    else:
+        return pd.DataFrame()
+
 # ==================== INICIALIZAR ESTADO ====================
 if "perfil" not in st.session_state: st.session_state.perfil = None
 if "pagina" not in st.session_state: st.session_state.pagina = "login"
@@ -554,6 +621,8 @@ if "filtro_estado_asig" not in st.session_state: st.session_state.filtro_estado_
 if "busqueda" not in st.session_state: st.session_state.busqueda = ""
 if "mostrar_envio_correo" not in st.session_state: st.session_state.mostrar_envio_correo = False
 if "actividades_marcadas" not in st.session_state: st.session_state.actividades_marcadas = set()
+if "df_tecnicos" not in st.session_state: st.session_state.df_tecnicos = cargar_excel_tecnicos()
+
 # === NUEVOS ESTADOS PARA FILTRO POR NODO ===
 if "filtro_maquina_nodo" not in st.session_state: st.session_state.filtro_maquina_nodo = "Todas"
 if "filtro_subsistema_nodo" not in st.session_state: st.session_state.filtro_subsistema_nodo = "Todos"
@@ -896,6 +965,8 @@ def pantalla_ordenes():
 # ==================== PANTALLA MIS ORDENES (TECNICO) - AGRUPADA ====================
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
+    df_tecnicos = st.session_state.df_tecnicos
+
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Mis Ordenes Asignadas</span>
@@ -911,22 +982,9 @@ def pantalla_mis_ordenes():
             st.session_state.pagina = "home"; st.rerun()
         return
 
-    # === FILTRO ROBUSTO POR TECNICO ===
-    df_mias = df.copy()
-    if "Tecnico_Asignado" in df_mias.columns:
-        # Limpiar espacios y comparar sin importar mayusculas
-        tecnico_limpio = str(tecnico_sel).strip()
-        df_mias["_tec_clean"] = df_mias["Tecnico_Asignado"].astype(str).str.strip().str.lower()
-        tecnico_buscar = tecnico_limpio.lower()
-        df_mias = df_mias[df_mias["_tec_clean"] == tecnico_buscar]
-        df_mias = df_mias.drop(columns=["_tec_clean"])
-    else:
-        st.error("No se encontro la columna Tecnico_Asignado en los datos.")
-        df_mias = pd.DataFrame()
-        return
-
-    # DEBUG: mostrar info de filtrado (quitar en produccion)
-    # st.write(f"DEBUG: Tecnico buscado: '{tecnico_limpio}' | Encontradas: {len(df_mias)} ordenes")
+    # === FILTRAR ORDENES POR TECNICO USANDO EL EXCEL DE ASIGNACION ===
+    # El Excel tiene: ACTIVIDAD (Nodo) | TECNICOS (nombre) | ESPE (ELE/MEC)
+    df_mias = filtrar_ordenes_por_tecnico(df, tecnico_sel, df_tecnicos)
 
     if df_mias.empty:
         st.markdown(f"""
@@ -934,6 +992,7 @@ def pantalla_mis_ordenes():
                 <div style="font-size: 3rem; margin-bottom: 12px;">&#128229;</div>
                 <h3 style="color: #1a237e; margin-bottom: 8px;">No tienes ordenes asignadas</h3>
                 <p>No se encontraron actividades para: <strong>{tecnico_sel}</strong></p>
+                <p style="font-size: 12px; color: #999;">Verifica que tu nombre este en el archivo tecnico.xlsx</p>
             </div>
         """, unsafe_allow_html=True)
         return
@@ -963,6 +1022,7 @@ def pantalla_mis_ordenes():
         equipo = str(row.get("Equipo", "Sin equipo"))
         ubicacion = str(row.get("Ubicacion", "Sin ubicacion"))
         estado = str(row.get("Estado", "Pendiente"))
+        nodo = str(row.get("Nodo", ""))
 
         # Key unica basada en el indice del DataFrame
         key_unica = f"ord_{idx}"
