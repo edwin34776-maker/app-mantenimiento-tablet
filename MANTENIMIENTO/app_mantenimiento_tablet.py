@@ -550,6 +550,7 @@ def cargar_excel_tecnicos():
     try:
         # Intentar cargar desde varias rutas posibles
         rutas_posibles = [
+            "MANTENIMIENTO/tecnico.xlsx",
             "tecnico.xlsx",
             "data/tecnico.xlsx",
             "assets/tecnico.xlsx",
