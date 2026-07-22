@@ -257,14 +257,6 @@ st.markdown("""
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
-    /* === ESTILOS NUEVOS PARA FILTRO POR MAQUINA (NODO) === */
-    .maquina-card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
-    .maquina-card:hover { border-color: #1a237e; box-shadow: 0 2px 8px rgba(26,35,158,0.15); }
-    .maquina-card.activa { border-color: #1a237e; background: linear-gradient(135deg, #e8eaf6 0%, #ffffff 100%); }
-    .maquina-nombre { font-size: 15px; font-weight: 700; color: #1a237e; }
-    .maquina-badge { background: #1a237e; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-    .filtro-nodo-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
-    .contador-maquinas { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
     .contador-maquina { background: white; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
     .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #1a237e; }
     .contador-maquina-label { font-size: 10px; color: #666; }
@@ -433,6 +425,8 @@ if "filtro_maq_asig" not in st.session_state: st.session_state.filtro_maq_asig =
 if "filtro_estado_asig" not in st.session_state: st.session_state.filtro_estado_asig = "Todos"
 if "busqueda" not in st.session_state: st.session_state.busqueda = ""
 if "mostrar_envio_correo" not in st.session_state: st.session_state.mostrar_envio_correo = False
+if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_opciones_ordenes = False
+if "tecnico_seleccionado" not in st.session_state: st.session_state.tecnico_seleccionado = "Seleccionar..."
 # === NUEVOS ESTADOS PARA FILTRO POR NODO ===
 if "filtro_maquina_nodo" not in st.session_state: st.session_state.filtro_maquina_nodo = "Todas"
 if "filtro_subsistema_nodo" not in st.session_state: st.session_state.filtro_subsistema_nodo = "Todos"
@@ -474,7 +468,7 @@ def pantalla_login():
             st.session_state.pagina = "home"
             st.rerun()
 
-# ==================== PANTALLA DE INICIO (HOME) - MODIFICADA ====================
+# ==================== PANTALLA DE INICIO (HOME) ====================
 def pantalla_home():
     perfil = st.session_state.perfil
     df = st.session_state.df_mantenimientos
@@ -510,7 +504,7 @@ def pantalla_home():
                     </div>
                     """, unsafe_allow_html=True)
 
-    # === CONTENIDO SEGÚN PERFIL ===
+    # === CONTENIDO SEGUN PERFIL ===
     if perfil == "admin":
         # === ADMIN: FILTROS COMPLETOS ===
 
@@ -558,7 +552,7 @@ def pantalla_home():
         # 5. BOTONES DE ACCION — SOLO 3: VER ORDENES (con opciones) + ASIGNAR + ENVIAR CORREO
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
-            if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key="btn_ver_ordenes_toggle"):
+            if st.button("VER ORDENES", use_container_width=True, type="primary", key="btn_ver_ordenes_toggle"):
                 st.session_state.mostrar_opciones_ordenes = not st.session_state.get("mostrar_opciones_ordenes", False)
                 st.rerun()
         with col_btn2:
@@ -574,11 +568,11 @@ def pantalla_home():
             st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
             col_op1, col_op2 = st.columns(2)
             with col_op1:
-                if st.button("📋 PREVENTIVAS", use_container_width=True, type="secondary", key="btn_ver_preventivas"):
+                if st.button("PREVENTIVAS", use_container_width=True, type="secondary", key="btn_ver_preventivas"):
                     st.session_state.mostrar_opciones_ordenes = False
                     st.session_state.pagina = "ordenes"; st.rerun()
             with col_op2:
-                if st.button("✅ EJECUTADAS", use_container_width=True, type="secondary", key="btn_ver_ejecutadas"):
+                if st.button("EJECUTADAS", use_container_width=True, type="secondary", key="btn_ver_ejecutadas"):
                     st.session_state.mostrar_opciones_ordenes = False
                     st.session_state.pagina = "verificar"; st.rerun()
 
@@ -588,11 +582,11 @@ def pantalla_home():
         # FILTRO POR TECNICO
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Selecciona tu nombre</div>", unsafe_allow_html=True)
 
-        # Obtener lista de todos los técnicos (ELE + MEC)
+        # Obtener lista de todos los tecnicos (ELE + MEC)
         todos_tecnicos = sorted(TECNICOS_ELE + TECNICOS_MEC)
         tecnicos_opciones = ["Seleccionar..."] + todos_tecnicos
 
-        # Si ya hay un técnico seleccionado en session_state, usarlo
+        # Si ya hay un tecnico seleccionado en session_state, usarlo
         idx_tec = 0
         if "tecnico_seleccionado" in st.session_state and st.session_state.tecnico_seleccionado in tecnicos_opciones:
             idx_tec = tecnicos_opciones.index(st.session_state.tecnico_seleccionado)
@@ -681,7 +675,7 @@ def pantalla_home():
                 st.session_state.mostrar_envio_correo = False
                 st.rerun()
 
-    # ESTADÍSTICAS (para ambos perfiles)
+    # ESTADISTICAS (para ambos perfiles)
     if not df.empty and "Especialidad" in df.columns:
         st.divider()
         col_a, col_b, col_c = st.columns(3)
@@ -772,7 +766,7 @@ def pantalla_ordenes():
         if st.button(f"Ver detalle", key=f"btn_ver_{idx}", use_container_width=True):
             st.session_state.orden_seleccionada = idx; st.session_state.pagina = "detalle"; st.rerun()
 
-# ==================== PANTALLA MIS ORDENES (TECNICO) - MODIFICADA ====================
+# ==================== PANTALLA MIS ORDENES (TECNICO) ====================
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
     perfil = st.session_state.perfil
@@ -783,23 +777,22 @@ def pantalla_mis_ordenes():
     """, unsafe_allow_html=True)
     boton_volver_inicio("mis_ordenes_top")
 
-    # Obtener el técnico seleccionado desde la pantalla principal
-    tecnico_sel = st.session_state.get("tecnico_seleccionado", "Seleccionar...")
-
-    if tecnico_sel == "Seleccionar...":
-        st.warning("Por favor selecciona tu nombre en la pantalla principal.")
-        if st.button("VOLVER AL INICIO", use_container_width=True, key="btn_volver_sel_tec_mis"):
-            st.session_state.pagina = "home"; st.rerun()
-        return
-
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
-        # Filtrar SOLO por el técnico seleccionado
-        df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_sel]
+        df_mias = df_mias[df_mias["Tecnico_Asignado"].notna() & (df_mias["Tecnico_Asignado"] != "")]
+        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_mias.columns:
+            df_mias = df_mias[df_mias["Especialidad"] == st.session_state.filtro_especialidad]
+        if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_mias.columns:
+            df_mias = df_mias[df_mias["Ubicacion"] == st.session_state.filtro_maquina]
+        # === NUEVO: Aplicar filtro por Nodo ===
+        if "Nodo" in df_mias.columns and st.session_state.filtro_maquina_nodo != "Todas":
+            df_mias = df_mias[df_mias["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+        if "Nodo" in df_mias.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+            df_mias = df_mias[df_mias["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
     else:
         df_mias = pd.DataFrame()
 
-    st.subheader(f"{tecnico_sel} - Tienes {len(df_mias)} orden(es) asignada(s)")
+    st.subheader(f"Tienes {len(df_mias)} orden(es) asignada(s)")
 
     if df_mias.empty:
         st.info("No tienes ordenes asignadas actualmente.")
@@ -902,6 +895,7 @@ def pantalla_ejecutar():
             st.rerun()
         else:
             st.error("Error al guardar en Supabase. Intenta de nuevo.")
+
 
 # ==================== PANTALLA DETALLE TECNICO ====================
 def pantalla_detalle_tecnico():
@@ -1085,6 +1079,7 @@ def pantalla_detalle():
             else:
                 st.error("Error al verificar")
 
+
 # ==================== PANTALLA ASIGNACION DE TECNICOS ====================
 def pantalla_asignacion():
     df = st.session_state.df_mantenimientos
@@ -1095,14 +1090,43 @@ def pantalla_asignacion():
     """, unsafe_allow_html=True)
     boton_volver_inicio("asignacion_top")
 
-    # Los filtros ya se aplican desde la pantalla principal (HOME)
+    st.subheader("Filtros de Asignacion")
+    col1, col2 = st.columns(2)
+    with col1:
+        esp_opciones = ["Todas", "ELE", "MEC"]
+        idx_esp = esp_opciones.index(st.session_state.filtro_esp_asig) if st.session_state.filtro_esp_asig in esp_opciones else 0
+        filtro_esp = st.selectbox("Especialidad", esp_opciones, index=idx_esp, key="asig_esp")
+        st.session_state.filtro_esp_asig = filtro_esp
+    with col2:
+        maquinas = obtener_maquinas_disponibles(df)
+        idx_maq = maquinas.index(st.session_state.filtro_maq_asig) if st.session_state.filtro_maq_asig in maquinas else 0
+        filtro_maq = st.selectbox("Maquina", maquinas, index=idx_maq, key="asig_maq")
+        st.session_state.filtro_maq_asig = filtro_maq
+
+    # === NUEVO: Filtro por Nodo en asignacion ===
+    if "Nodo" in df.columns:
+        col_n1, col_n2 = st.columns(2)
+        with col_n1:
+            maquinas_nodo = obtener_maquinas_desde_nodo(df)
+            idx_mn = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
+            filtro_maq_nodo = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_mn, key="asig_maq_nodo")
+            st.session_state.filtro_maquina_nodo = filtro_maq_nodo
+        with col_n2:
+            subsistemas = obtener_subsistemas_desde_nodo(df, st.session_state.filtro_maquina_nodo)
+            idx_sn = subsistemas.index(st.session_state.filtro_subsistema_nodo) if st.session_state.filtro_subsistema_nodo in subsistemas else 0
+            filtro_sub_nodo = st.selectbox("Subsistema", subsistemas, index=idx_sn, key="asig_sub_nodo")
+            st.session_state.filtro_subsistema_nodo = filtro_sub_nodo
+
     df_asig = df.copy()
-    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
-        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+    if filtro_esp != "Todas" and "Especialidad" in df_asig.columns:
+        df_asig = df_asig[df_asig["Especialidad"] == filtro_esp]
+    if filtro_maq != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == filtro_maq]
+    # === NUEVO: Aplicar filtro nodo en asignacion ===
     if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+    if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
     st.subheader(f"Ordenes sin asignar o reasignables ({len(df_asig)})")
 
