@@ -131,9 +131,7 @@ def guardar_orden_supabase(id_ot, datos):
     try:
         datos_supabase = {"id_ot": str(id_ot)}
         for key, value in datos.items():
-            key_snake = key.lower().replace(" ", "_").replace(".", "").replace("-", "_")
-            if key_snake in ["id_ot", "descripcion_de_procedimiento"]:
-                key_snake = key_snake.replace("_de_", "_").replace("__", "_")
+            key_snake = mapear_campo_supabase(key)
             datos_supabase[key_snake] = value if not pd.isna(value) else None
         supabase.table("ordenes_trabajo").upsert(datos_supabase).execute()
         return True
@@ -141,13 +139,38 @@ def guardar_orden_supabase(id_ot, datos):
         st.error(f"Error guardando orden: {e}")
         return False
 
+def mapear_campo_supabase(campo):
+    """Mapea nombres de campo del DataFrame a nombres de columna en Supabase"""
+    mapeo = {
+        "ID OT": "id_ot",
+        "Descripcion de procedimiento": "descripcion_procedimiento",
+        "Tecnico_Asignado": "tecnico_asignado",
+        "Prioridad_Actividad": "prioridad_actividad",
+        "Actividades_Hechas": "actividades_hechas",
+        "Fecha_Ejecucion": "fecha_ejecucion",
+        "Hora_Inicio": "hora_inicio",
+        "Hora_Fin": "hora_fin",
+        "Estado": "estado",
+        "Comentarios": "comentarios",
+        "Equipo": "equipo",
+        "Ubicacion": "ubicacion",
+        "Especialidad": "especialidad",
+        "Nodo": "nodo"
+    }
+    # Si está en el mapeo, usarlo
+    if campo in mapeo:
+        return mapeo[campo]
+    # Si no, aplicar transformación básica
+    campo_snake = campo.lower().replace(" ", "_").replace(".", "").replace("-", "_").replace("__", "_")
+    return campo_snake
+
 def actualizar_orden_supabase(id_ot, campo, valor):
     try:
-        campo_snake = campo.lower().replace(" ", "_").replace(".", "").replace("-", "_")
+        campo_snake = mapear_campo_supabase(campo)
         supabase.table("ordenes_trabajo").update({campo_snake: valor}).eq("id_ot", id_ot).execute()
         return True
     except Exception as e:
-        st.error(f"Error actualizando campo: {e}")
+        st.error(f"Error actualizando campo '{campo}' -> '{campo_snake}': {e}")
         return False
 
 def guardar_asignaciones_supabase(df):
