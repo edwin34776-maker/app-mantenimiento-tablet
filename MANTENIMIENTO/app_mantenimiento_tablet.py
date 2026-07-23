@@ -1171,7 +1171,7 @@ def pantalla_asignacion():
             """, unsafe_allow_html=True)
 
             # SELECTBOX CON KEY UNICA BASADA EN ID_OT (NO EN INDEX)
-            select_key = f"tec_asig_{id_ot}"
+            select_key = f"tec_asig_{idx}_{id_ot}"
             nuevo_tec = st.selectbox(
                 "Tecnico",
                 opciones_tec, 
@@ -1183,7 +1183,7 @@ def pantalla_asignacion():
                 nuevo_tec = ""
 
             # Boton ASIGNAR
-            btn_key = f"btn_asig_{id_ot}"
+            btn_key = f"btn_asig_{idx}_{id_ot}"
             if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=btn_key):
                 # Actualizar DataFrame local
                 df.at[idx, "Tecnico_Asignado"] = nuevo_tec
