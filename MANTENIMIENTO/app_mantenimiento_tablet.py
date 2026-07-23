@@ -1146,15 +1146,14 @@ def pantalla_asignacion():
         nodo = str(row.get("Nodo", ""))
         nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
 
-        # OBTENER TECNICOS FILTRADOS POR ESPECIALIDAD - COMO EL FILTRO DE ADMIN
+        # OBTENER TECNICOS FILTRADOS POR ESPECIALIDAD
         tecnicos_info = obtener_tecnicos_con_carga(df, tipo)
         opciones_tec = ["Sin asignar"] + [t["nombre"] for t in tecnicos_info]
 
-        # Encontrar indice del tecnico actual
-        try:
-            idx_tec = opciones_tec.index(tecnico_actual) if tecnico_actual in opciones_tec else 0
-        except:
-            idx_tec = 0
+        # Encontrar indice del tecnico actual (DESDE LOS DATOS ACTUALES DE SUPABASE)
+        idx_tec = 0
+        if tecnico_actual and tecnico_actual in opciones_tec:
+            idx_tec = opciones_tec.index(tecnico_actual)
 
         with st.container():
             st.markdown(f"""
@@ -1171,32 +1170,35 @@ def pantalla_asignacion():
             </div>
             """, unsafe_allow_html=True)
 
-            # SELECTBOX DE ASIGNACION - LABEL FIJO COMO EL FILTRO DE ADMIN
+            # SELECTBOX CON KEY UNICA BASADA EN ID_OT (NO EN INDEX)
+            select_key = f"tec_asig_{id_ot}"
             nuevo_tec = st.selectbox(
-                "Tecnico",  # Label fijo, igual que el filtro de admin
+                "Tecnico",
                 opciones_tec, 
                 index=idx_tec, 
-                key=gen_key("asig_select", idx, id_ot),  # Key unica con ID OT
+                key=select_key,
                 help=f"Especialidad requerida: {tipo}"
             )
             if nuevo_tec == "Sin asignar": 
                 nuevo_tec = ""
 
             # Boton ASIGNAR
-            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=gen_key("asig_btn", idx, id_ot)):
+            btn_key = f"btn_asig_{id_ot}"
+            if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=btn_key):
                 # Actualizar DataFrame local
                 df.at[idx, "Tecnico_Asignado"] = nuevo_tec
 
                 # Guardar en Supabase
                 if actualizar_orden_supabase(id_ot, "Tecnico_Asignado", nuevo_tec):
                     st.session_state.asignacion_exitosa = f"OT {id_ot} -> {nuevo_tec if nuevo_tec else 'Sin asignar'}"
-                    # Recargar datos desde Supabase para sincronizar
+                    # FORZAR RECARGA COMPLETA DESDE SUPABASE
                     st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                     st.rerun()
                 else:
                     st.error("Error al guardar asignacion en Supabase")
 
         st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px solid #e9ecef;'>", unsafe_allow_html=True)
+
 
 def pantalla_verificar():
     df = st.session_state.df_mantenimientos
