@@ -435,7 +435,8 @@ def contar_ordenes_por_tecnico(df, tecnico_nombre):
     if df.empty or "Tecnico_Asignado" not in df.columns:
         return 0
     try:
-        return len(df[(df["Tecnico_Asignado"] == tecnico_nombre) & (df["Estado"] == "Pendiente")])
+        # Contar TODAS las ordenes asignadas al tecnico (no solo pendientes)
+        return len(df[df["Tecnico_Asignado"] == tecnico_nombre])
     except Exception:
         return 0
 
@@ -830,16 +831,63 @@ def pantalla_mis_ordenes():
         if st.button("VOLVER AL INICIO", use_container_width=True, key=gen_key("btn_volver_sel_tec")):
             st.session_state.pagina = "home"; st.rerun()
         return
+
+    # FILTRO POR ESTADO
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        filtro_estado_tec = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"], 
+                                          index=0, key=gen_key("filtro_estado_tec"))
+    with col_f2:
+        busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
+
     df_mias = df.copy()
     if "Tecnico_Asignado" in df_mias.columns:
         df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_sel]
     else:
         df_mias = pd.DataFrame()
+
+    # Aplicar filtro de estado
+    if filtro_estado_tec != "Todos" and "Estado" in df_mias.columns:
+        df_mias = df_mias[df_mias["Estado"] == filtro_estado_tec]
+
+    # Aplicar busqueda
+    if busq_tec:
+        busq_lower = busq_tec.lower()
+        mask = pd.Series([False] * len(df_mias), index=df_mias.index)
+        if "ID OT" in df_mias.columns: mask |= df_mias["ID OT"].astype(str).str.contains(busq_tec, na=False)
+        if "Equipo" in df_mias.columns: mask |= df_mias["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
+        df_mias = df_mias[mask]
+
     esp_tec = obtener_especialidad_tecnico(tecnico_sel)
-    st.subheader(f"{tecnico_sel} ({esp_tec}) — {len(df_mias)} orden(es)")
+
+    # Contadores por estado
+    total_asignadas = len(df[df["Tecnico_Asignado"] == tecnico_sel]) if "Tecnico_Asignado" in df.columns else 0
+    pendientes = len(df[(df["Tecnico_Asignado"] == tecnico_sel) & (df["Estado"] == "Pendiente")]) if "Tecnico_Asignado" in df.columns else 0
+    ejecutadas = len(df[(df["Tecnico_Asignado"] == tecnico_sel) & (df["Estado"] == "Ejecutado")]) if "Tecnico_Asignado" in df.columns else 0
+
+    st.markdown(f"""
+    <div style="display: flex; gap: 10px; justify-content: center; margin: 10px 0;">
+        <div style="background: white; padding: 8px 15px; border-radius: 8px; text-align: center; border: 2px solid #1a237e;">
+            <div style="font-size: 20px; font-weight: 800; color: #1a237e;">{total_asignadas}</div>
+            <div style="font-size: 10px; color: #666;">Total Asignadas</div>
+        </div>
+        <div style="background: white; padding: 8px 15px; border-radius: 8px; text-align: center; border: 2px solid #ffc107;">
+            <div style="font-size: 20px; font-weight: 800; color: #ffc107;">{pendientes}</div>
+            <div style="font-size: 10px; color: #666;">Pendientes</div>
+        </div>
+        <div style="background: white; padding: 8px 15px; border-radius: 8px; text-align: center; border: 2px solid #28a745;">
+            <div style="font-size: 20px; font-weight: 800; color: #28a745;">{ejecutadas}</div>
+            <div style="font-size: 10px; color: #666;">Ejecutadas</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader(f"Mostrando {len(df_mias)} orden(es)")
+
     if df_mias.empty:
-        st.info("No tienes ordenes asignadas actualmente.")
+        st.info("No tienes ordenes con los filtros seleccionados.")
         return
+
     for idx, row in df_mias.iterrows():
         id_ot = str(row.get("ID OT", "")); tipo = str(row.get("Especialidad", ""))
         descripcion = str(row.get("Descripcion de procedimiento", ""))
