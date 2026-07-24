@@ -24,6 +24,21 @@ DESTINATARIOS_DEFAULT = [
     "supermantobogota@gmail.com"
 ]
 
+# ==================== FUNCION LIMPIAR NaN ====================
+def limpiar(valor, default=""):
+    """Convierte NaN, None, 'nan', 'None' en un valor por defecto legible."""
+    if valor is None:
+        return default
+    try:
+        if pd.isna(valor):
+            return default
+    except:
+        pass
+    s = str(valor).strip()
+    if s.lower() in ("nan", "none", "nat", "null"):
+        return default
+    return s
+
 def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", email_remitente=None):
     if email_remitente == "supermantobogota@gmail.com":
         email_user = st.secrets.get("EMAIL_USER_2", "")
@@ -499,7 +514,6 @@ if "mostrar_todos_tecnicos" not in st.session_state: st.session_state.mostrar_to
 if "asignacion_exitosa" not in st.session_state: st.session_state.asignacion_exitosa = None
 if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_opciones_ordenes = False
 
-
 def pantalla_login():
     st.markdown('<div class="tablet-header">App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
     st.markdown("""
@@ -532,6 +546,7 @@ def pantalla_login():
             st.session_state.perfil = "tecnico"
             st.session_state.pagina = "home"
             st.rerun()
+
 
 def pantalla_home():
     perfil = st.session_state.perfil
@@ -667,24 +682,34 @@ def pantalla_home():
             total_asignadas = len(df_mias)
             pendientes = len(df_mias[df_mias["Estado"] == "Pendiente"]) if "Estado" in df_mias.columns else 0
             ejecutadas = len(df_mias[df_mias["Estado"] == "Ejecutado"]) if "Estado" in df_mias.columns else 0
+            verificadas = len(df_mias[df_mias["Estado"] == "Verificado"]) if "Estado" in df_mias.columns else 0
+            cerradas = len(df_mias[df_mias["Estado"].isin(["Cerrada"])]) if "Estado" in df_mias.columns else 0
 
             st.markdown(f"""
             <div style="text-align: center; margin: 15px 0 8px 0;">
                 <div style="font-size: 14px; font-weight: 700; color: #1a237e;">{tecnico_actual}</div>
                 <div style="font-size: 11px; color: #666;">Especialidad: {esp_sel}</div>
             </div>
-            <div style="display: flex; gap: 10px; justify-content: center; margin: 10px 0;">
-                <div style="background: white; padding: 8px 15px; border-radius: 8px; text-align: center; border: 2px solid #1a237e;">
-                    <div style="font-size: 20px; font-weight: 800; color: #1a237e;">{total_asignadas}</div>
-                    <div style="font-size: 10px; color: #666;">Total Asignadas</div>
+            <div style="display: flex; gap: 8px; justify-content: center; margin: 10px 0; flex-wrap: wrap;">
+                <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #1a237e; min-width: 70px;">
+                    <div style="font-size: 18px; font-weight: 800; color: #1a237e;">{total_asignadas}</div>
+                    <div style="font-size: 9px; color: #666;">Total</div>
                 </div>
-                <div style="background: white; padding: 8px 15px; border-radius: 8px; text-align: center; border: 2px solid #ffc107;">
-                    <div style="font-size: 20px; font-weight: 800; color: #ffc107;">{pendientes}</div>
-                    <div style="font-size: 10px; color: #666;">Pendientes</div>
+                <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #ffc107; min-width: 70px;">
+                    <div style="font-size: 18px; font-weight: 800; color: #ffc107;">{pendientes}</div>
+                    <div style="font-size: 9px; color: #666;">Pendientes</div>
                 </div>
-                <div style="background: white; padding: 8px 15px; border-radius: 8px; text-align: center; border: 2px solid #28a745;">
-                    <div style="font-size: 20px; font-weight: 800; color: #28a745;">{ejecutadas}</div>
-                    <div style="font-size: 10px; color: #666;">Ejecutadas</div>
+                <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #28a745; min-width: 70px;">
+                    <div style="font-size: 18px; font-weight: 800; color: #28a745;">{ejecutadas}</div>
+                    <div style="font-size: 9px; color: #666;">Ejecutadas</div>
+                </div>
+                <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #007bff; min-width: 70px;">
+                    <div style="font-size: 18px; font-weight: 800; color: #007bff;">{verificadas}</div>
+                    <div style="font-size: 9px; color: #666;">Verificadas</div>
+                </div>
+                <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #6c757d; min-width: 70px;">
+                    <div style="font-size: 18px; font-weight: 800; color: #6c757d;">{cerradas}</div>
+                    <div style="font-size: 9px; color: #666;">Cerradas</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -704,26 +729,27 @@ def pantalla_home():
                 if "ID OT" in df_mias.columns: mask |= df_mias["ID OT"].astype(str).str.contains(busq_tec, na=False)
                 if "Equipo" in df_mias.columns: mask |= df_mias["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
                 if "Descripcion de procedimiento" in df_mias.columns: mask |= df_mias["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busq_lower, na=False)
+                if "Nodo" in df_mias.columns: mask |= df_mias["Nodo"].astype(str).str.lower().str.contains(busq_lower, na=False)
                 df_mias = df_mias[mask]
 
-            st.subheader(f"Mis Ordenes ({len(df_mias)})")
+            st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
 
             if df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
                 for idx, row in df_mias.iterrows():
-                    id_ot = str(row.get("ID OT", ""))
-                    internal_id = str(row.get("ID", ""))
-                    tipo = str(row.get("Especialidad", ""))
-                    descripcion = str(row.get("Descripcion de procedimiento", ""))
-                    estado = str(row.get("Estado", "Pendiente"))
+                    id_ot = limpiar(row.get("ID OT"), "SIN ID")
+                    internal_id = limpiar(row.get("ID"), "")
+                    tipo = limpiar(row.get("Especialidad"), "SIN ESP")
+                    descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion de actividad")
+                    estado = limpiar(row.get("Estado"), "Pendiente")
                     estado_clase = obtener_estado_visual(estado)
-                    desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
-                    prioridad = str(row.get("Prioridad_Actividad", ""))
+                    desc_corta = descripcion[:50] + "..." if len(descripcion) > 50 else descripcion
+                    prioridad = limpiar(row.get("Prioridad_Actividad"), "")
                     clase_prioridad = obtener_clase_css_prioridad(prioridad)
-                    nodo = str(row.get("Nodo", ""))
-                    nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo and nodo != "nan" else ""
-                    equipo = str(row.get("Equipo", ""))
+                    nodo = limpiar(row.get("Nodo"), "")
+                    nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
+                    equipo = limpiar(row.get("Equipo"), "Sin equipo")
 
                     st.markdown(f"""
                     <div class="tabla-fila {clase_prioridad}">
@@ -815,7 +841,6 @@ def pantalla_home():
     st.markdown("<br>", unsafe_allow_html=True)
     boton_cerrar_sesion()
 
-
 def pantalla_ordenes():
     df = st.session_state.df_mantenimientos
     perfil = st.session_state.perfil
@@ -862,19 +887,18 @@ def pantalla_ordenes():
     </div>
     """, unsafe_allow_html=True)
     for idx, row in df_filtrado.iterrows():
-        id_ot = str(row.get("ID OT", ""))
-        internal_id = str(row.get("ID", ""))
-        tipo = str(row.get("Especialidad", ""))
-        descripcion = str(row.get("Descripcion de procedimiento", ""))
-        estado = str(row.get("Estado", "Pendiente"))
-        tecnico = str(row.get("Tecnico_Asignado", ""))
-        if not tecnico or tecnico == "nan": tecnico = "Sin asignar"
+        id_ot = limpiar(row.get("ID OT"), "SIN ID")
+        internal_id = limpiar(row.get("ID"), "")
+        tipo = limpiar(row.get("Especialidad"), "SIN ESP")
+        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+        estado = limpiar(row.get("Estado"), "Pendiente")
+        tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
         estado_clase = obtener_estado_visual(estado)
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
-        prioridad = str(row.get("Prioridad_Actividad", ""))
+        prioridad = limpiar(row.get("Prioridad_Actividad"), "")
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
-        nodo = str(row.get("Nodo", ""))
-        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo and nodo != "nan" else ""
+        nodo = limpiar(row.get("Nodo"), "")
+        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
             <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
@@ -888,6 +912,7 @@ def pantalla_ordenes():
             st.session_state.orden_seleccionada = internal_id
             st.session_state.pagina = "detalle"
             st.rerun()
+
 
 def pantalla_mis_ordenes():
     df = st.session_state.df_mantenimientos
@@ -957,18 +982,18 @@ def pantalla_mis_ordenes():
         return
 
     for idx, row in df_mias.iterrows():
-        id_ot = str(row.get("ID OT", ""))
-        internal_id = str(row.get("ID", ""))
-        tipo = str(row.get("Especialidad", ""))
-        descripcion = str(row.get("Descripcion de procedimiento", ""))
-        estado = str(row.get("Estado", "Pendiente"))
-        tecnico = str(row.get("Tecnico_Asignado", ""))
+        id_ot = limpiar(row.get("ID OT"), "SIN ID")
+        internal_id = limpiar(row.get("ID"), "")
+        tipo = limpiar(row.get("Especialidad"), "SIN ESP")
+        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+        estado = limpiar(row.get("Estado"), "Pendiente")
+        tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
         estado_clase = obtener_estado_visual(estado)
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
-        prioridad = str(row.get("Prioridad_Actividad", ""))
+        prioridad = limpiar(row.get("Prioridad_Actividad"), "")
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
-        nodo = str(row.get("Nodo", ""))
-        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo and nodo != "nan" else ""
+        nodo = limpiar(row.get("Nodo"), "")
+        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
             <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
@@ -996,14 +1021,14 @@ def pantalla_ejecutar():
     internal_id = st.session_state.orden_seleccionada
     idx, row = get_row_by_internal_id(df, internal_id)
     if idx is None:
-        st.error("Orden no encontrada. Puede que haya sido eliminada o el ID cambio.")
+        st.error("Orden no encontrada.")
         if st.button("Volver a Mis Ordenes", use_container_width=True, key=gen_key("ejec_volver_error")):
             st.session_state.pagina = "mis_ordenes"
             st.session_state.orden_seleccionada = None
             st.rerun()
         return
 
-    id_ot = str(row.get("ID OT", ""))
+    id_ot = limpiar(row.get("ID OT"), "SIN ID")
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Ejecutar OT {id_ot}</span>
@@ -1016,24 +1041,24 @@ def pantalla_ejecutar():
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary", key=gen_key("ejec_inicio")):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
-    nodo_info = f"<strong>Nodo:</strong> {row.get('Nodo', 'N/A')}<br>" if 'Nodo' in row else ""
+    nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel">
         <div class="equipo-info">
             {nodo_info}
-            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
-            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
-            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
-            <strong>Estado actual:</strong> {row.get('Estado', 'Pendiente')}
+            <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong>Estado actual:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.subheader("Descripcion del Procedimiento")
-    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
+    st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
     st.subheader("Registro de Ejecucion")
 
-    h_ini_str = str(row.get("Hora_Inicio", ""))
-    h_fin_str = str(row.get("Hora_Fin", ""))
+    h_ini_str = limpiar(row.get("Hora_Inicio"), "")
+    h_fin_str = limpiar(row.get("Hora_Fin"), "")
     try:
         h_ini_default = datetime.strptime(h_ini_str, "%H:%M").time() if h_ini_str else datetime.now().time()
     except:
@@ -1049,10 +1074,10 @@ def pantalla_ejecutar():
     with col2:
         hora_fin = st.time_input("Hora Fin", value=h_fin_default, key=gen_key("hora_fin_ejec"))
     st.subheader("Comentarios de Ejecucion")
-    comentarios = row.get("Comentarios", "")
+    comentarios = limpiar(row.get("Comentarios"), "")
     nuevo_comentario = st.text_area("Describa lo realizado...", value=comentarios, key=gen_key("comentario_ejecucion"))
     st.subheader("Actividades Realizadas")
-    actividades = st.text_area("Liste las actividades hechas (una por linea)...", value=row.get("Actividades_Hechas", ""), key=gen_key("actividades_hechas"))
+    actividades = st.text_area("Liste las actividades hechas (una por linea)...", value=limpiar(row.get("Actividades_Hechas"), ""), key=gen_key("actividades_hechas"))
 
     hora_valida = True
     if hora_fin < hora_inicio:
@@ -1093,7 +1118,7 @@ def pantalla_detalle_tecnico():
             st.session_state.pagina = "mis_ordenes"; st.session_state.orden_seleccionada = None; st.rerun()
         return
 
-    id_ot = str(row.get("ID OT", ""))
+    id_ot = limpiar(row.get("ID OT"), "SIN ID")
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Detalle OT {id_ot}</span>
@@ -1106,35 +1131,35 @@ def pantalla_detalle_tecnico():
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary", key=gen_key("dettec_inicio")):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
-    prioridad = str(row.get("Prioridad_Actividad", ""))
+    prioridad = limpiar(row.get("Prioridad_Actividad"), "")
     info_prioridad = obtener_color_prioridad(prioridad)
     if prioridad:
         st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
-    nodo_info = f"<strong>Nodo:</strong> {row.get('Nodo', 'N/A')}<br>" if 'Nodo' in row else ""
+    nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel">
         <div class="equipo-info">
             {nodo_info}
-            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
-            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
-            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
-            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}<br>
-            <strong>Tecnico Asignado:</strong> {row.get('Tecnico_Asignado', 'Sin asignar')}
+            <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}<br>
+            <strong>Tecnico Asignado:</strong> {limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.subheader("Descripcion del Procedimiento")
-    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
+    st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
     if row.get("Actividades_Hechas"):
         st.subheader("Actividades Realizadas")
-        st.write(row.get("Actividades_Hechas"))
+        st.write(limpiar(row.get("Actividades_Hechas"), "Sin registro"))
     if row.get("Comentarios"):
         st.subheader("Comentarios")
-        st.info(row.get("Comentarios"))
+        st.info(limpiar(row.get("Comentarios"), ""))
     if row.get("Fecha_Ejecucion"):
-        st.success(f"Ejecutado el: {row.get('Fecha_Ejecucion')} | Inicio: {row.get('Hora_Inicio', 'N/A')} | Fin: {row.get('Hora_Fin', 'N/A')}")
+        st.success(f"Ejecutado el: {limpiar(row.get('Fecha_Ejecucion'), 'N/A')} | Inicio: {limpiar(row.get('Hora_Inicio'), 'N/A')} | Fin: {limpiar(row.get('Hora_Fin'), 'N/A')}")
 
-    if str(row.get("Estado", "Pendiente")) == "Pendiente":
+    if limpiar(row.get("Estado"), "Pendiente") == "Pendiente":
         if st.button("EJECUTAR ESTA ORDEN", use_container_width=True, type="primary", key=gen_key("dettec_ejecutar")):
             st.session_state.pagina = "ejecutar"
             st.rerun()
@@ -1150,7 +1175,7 @@ def pantalla_detalle():
             st.session_state.pagina = "ordenes"; st.session_state.orden_seleccionada = None; st.rerun()
         return
 
-    id_ot = str(row.get("ID OT", ""))
+    id_ot = limpiar(row.get("ID OT"), "SIN ID")
     perfil = st.session_state.perfil
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
@@ -1164,30 +1189,30 @@ def pantalla_detalle():
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary", key=gen_key("det_inicio")):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
-    prioridad = str(row.get("Prioridad_Actividad", ""))
+    prioridad = limpiar(row.get("Prioridad_Actividad"), "")
     info_prioridad = obtener_color_prioridad(prioridad)
     if prioridad:
         st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
-    nodo_info = f"<strong>Nodo:</strong> {row.get('Nodo', 'N/A')}<br>" if 'Nodo' in row else ""
+    nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel">
         <div class="equipo-info">
             {nodo_info}
-            <strong>Equipo:</strong> {row.get('Equipo', '')}<br>
-            <strong>Ubicacion:</strong> {row.get('Ubicacion', '')}<br>
-            <strong>Especialidad:</strong> {row.get('Especialidad', '')}<br>
-            <strong>Estado:</strong> {row.get('Estado', 'Pendiente')}
+            <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.subheader("Descripcion del Procedimiento")
-    st.write(row.get("Descripcion de procedimiento", "Sin descripcion"))
+    st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
     st.divider()
     st.subheader("Editar Orden")
-    especialidad = str(row.get("Especialidad", ""))
+    especialidad = limpiar(row.get("Especialidad"), "")
     tecnicos = obtener_tecnicos_por_especialidad(especialidad)
     tecnicos = [""] + tecnicos
-    tecnico_actual = str(row.get("Tecnico_Asignado", ""))
+    tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "")
     try:
         idx_tec = tecnicos.index(tecnico_actual) if tecnico_actual in tecnicos else 0
     except:
@@ -1197,7 +1222,7 @@ def pantalla_detalle():
         nuevo_tecnico = st.selectbox("Tecnico Asignado", tecnicos, index=idx_tec, key=gen_key("det_tecnico"))
     with col2:
         estados = ["Pendiente", "Ejecutado", "Verificado", "Cerrada"]
-        estado_actual = str(row.get("Estado", "Pendiente"))
+        estado_actual = limpiar(row.get("Estado"), "Pendiente")
         idx_est = estados.index(estado_actual) if estado_actual in estados else 0
         nuevo_estado = st.selectbox("Estado", estados, index=idx_est, key=gen_key("det_estado"))
     col3, col4 = st.columns(2)
@@ -1206,7 +1231,7 @@ def pantalla_detalle():
         idx_pri = prioridades.index(prioridad) if prioridad in prioridades else 0
         nueva_prioridad = st.selectbox("Prioridad", prioridades, index=idx_pri, key=gen_key("det_prioridad"))
     with col4:
-        fecha_ejec_str = str(row.get("Fecha_Ejecucion", ""))
+        fecha_ejec_str = limpiar(row.get("Fecha_Ejecucion"), "")
         try:
             fecha_default = datetime.strptime(fecha_ejec_str, "%Y-%m-%d").date() if fecha_ejec_str else datetime.now().date()
         except:
@@ -1214,21 +1239,21 @@ def pantalla_detalle():
         fecha_ejec = st.date_input("Fecha Ejecucion", value=fecha_default, key=gen_key("det_fecha"))
     col5, col6 = st.columns(2)
     with col5:
-        h_ini_str = str(row.get("Hora_Inicio", "08:00"))
+        h_ini_str = limpiar(row.get("Hora_Inicio"), "08:00")
         try:
             h_ini = datetime.strptime(h_ini_str, "%H:%M").time()
         except:
             h_ini = datetime.strptime("08:00", "%H:%M").time()
         hora_inicio = st.time_input("Hora Inicio", value=h_ini, key=gen_key("det_hini"))
     with col6:
-        h_fin_str = str(row.get("Hora_Fin", "17:00"))
+        h_fin_str = limpiar(row.get("Hora_Fin"), "17:00")
         try:
             h_fin = datetime.strptime(h_fin_str, "%H:%M").time()
         except:
             h_fin = datetime.strptime("17:00", "%H:%M").time()
         hora_fin = st.time_input("Hora Fin", value=h_fin, key=gen_key("det_hfin"))
-    comentarios = st.text_area("Comentarios", value=str(row.get("Comentarios", "")), key=gen_key("det_comentarios"))
-    actividades = st.text_area("Actividades Hechas", value=str(row.get("Actividades_Hechas", "")), key=gen_key("det_actividades"))
+    comentarios = st.text_area("Comentarios", value=limpiar(row.get("Comentarios"), ""), key=gen_key("det_comentarios"))
+    actividades = st.text_area("Actividades Hechas", value=limpiar(row.get("Actividades_Hechas"), ""), key=gen_key("det_actividades"))
     if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary", key=gen_key("det_guardar")):
         datos = {
             "Tecnico_Asignado": nuevo_tecnico,
@@ -1307,21 +1332,21 @@ def pantalla_asignacion():
         st.session_state.asignacion_exitosa = None
 
     for idx, row in df_asig.iterrows():
-        id_ot = str(row.get("ID OT", ""))
-        internal_id = str(row.get("ID", ""))
-        tipo = str(row.get("Especialidad", ""))
-        equipo = str(row.get("Equipo", ""))
-        ubicacion = str(row.get("Ubicacion", ""))
-        estado = str(row.get("Estado", "Pendiente"))
-        tecnico_actual = str(row.get("Tecnico_Asignado", ""))
-        descripcion = str(row.get("Descripcion de procedimiento", ""))
+        id_ot = limpiar(row.get("ID OT"), "SIN ID")
+        internal_id = limpiar(row.get("ID"), "")
+        tipo = limpiar(row.get("Especialidad"), "SIN ESP")
+        equipo = limpiar(row.get("Equipo"), "Sin equipo")
+        ubicacion = limpiar(row.get("Ubicacion"), "Sin ubicacion")
+        estado = limpiar(row.get("Estado"), "Pendiente")
+        tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "")
+        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
 
         estado_clase = obtener_estado_visual(estado)
-        prioridad = str(row.get("Prioridad_Actividad", ""))
+        prioridad = limpiar(row.get("Prioridad_Actividad"), "")
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
-        nodo = str(row.get("Nodo", ""))
-        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
+        nodo = limpiar(row.get("Nodo"), "")
+        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
 
         tecnicos_info = obtener_tecnicos_con_carga(df, tipo)
         opciones_tec = ["Sin asignar"] + [t["nombre"] for t in tecnicos_info]
@@ -1382,19 +1407,19 @@ def pantalla_verificar():
         st.info("No hay ordenes ejecutadas pendientes de verificacion.")
         return
     for idx, row in df_ejecutadas.iterrows():
-        internal_id = str(row.get("ID", ""))
-        id_ot = str(row.get("ID OT", ""))
-        tipo = str(row.get("Especialidad", ""))
-        equipo = str(row.get("Equipo", ""))
-        ubicacion = str(row.get("Ubicacion", ""))
-        tecnico = str(row.get("Tecnico_Asignado", "Sin asignar"))
-        descripcion = str(row.get("Descripcion de procedimiento", ""))
+        internal_id = limpiar(row.get("ID"), "")
+        id_ot = limpiar(row.get("ID OT"), "SIN ID")
+        tipo = limpiar(row.get("Especialidad"), "SIN ESP")
+        equipo = limpiar(row.get("Equipo"), "Sin equipo")
+        ubicacion = limpiar(row.get("Ubicacion"), "Sin ubicacion")
+        tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
+        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
-        fecha_ejec = str(row.get("Fecha_Ejecucion", "N/A"))
-        hora_ini = str(row.get("Hora_Inicio", "N/A"))
-        hora_fin = str(row.get("Hora_Fin", "N/A"))
-        nodo = str(row.get("Nodo", ""))
-        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo and nodo != "nan" else ""
+        fecha_ejec = limpiar(row.get("Fecha_Ejecucion"), "N/A")
+        hora_ini = limpiar(row.get("Hora_Inicio"), "N/A")
+        hora_fin = limpiar(row.get("Hora_Fin"), "N/A")
+        nodo = limpiar(row.get("Nodo"), "")
+        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
         st.markdown(f"""
         <div class="detail-panel" style="margin-bottom: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -1411,8 +1436,8 @@ def pantalla_verificar():
         """, unsafe_allow_html=True)
         with st.expander("Ver detalles y comentarios"):
             st.write(f"**Descripcion completa:** {descripcion}")
-            st.write(f"**Actividades realizadas:** {row.get('Actividades_Hechas', 'Sin registro')}")
-            st.write(f"**Comentarios:** {row.get('Comentarios', 'Sin comentarios')}")
+            st.write(f"**Actividades realizadas:** {limpiar(row.get('Actividades_Hechas'), 'Sin registro')}")
+            st.write(f"**Comentarios:** {limpiar(row.get('Comentarios'), 'Sin comentarios')}")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"VERIFICAR", use_container_width=True, type="primary", key=gen_key("verif_btn", internal_id)):
