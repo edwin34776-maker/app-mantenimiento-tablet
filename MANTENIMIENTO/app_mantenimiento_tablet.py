@@ -245,7 +245,7 @@ st.set_page_config(page_title="App Tablet Mtto Preventivo", page_icon="🔧", la
 
 st.markdown("""
 <style>
-    .stApp { background-color: #f0f2f5; max-width: 100vw; overflow-x: hidden; }
+    .stApp { background-color: #0f172a; max-width: 100vw; overflow-x: hidden; }
     .main .block-container { padding-left: 0.8rem !important; padding-right: 0.8rem !important; max-width: 100% !important; }
     div[data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
     .tablet-header {
@@ -255,9 +255,9 @@ st.markdown("""
         margin: -1rem -1rem 1rem -1rem; box-shadow: 0 4px 15px rgba(26,35,158,0.3);
         position: sticky; top: 0; z-index: 100; width: 100%; box-sizing: border-box; word-wrap: break-word;
     }
-    .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: auto; text-align: center; padding: 10px; width: 100%; box-sizing: border-box; }
-    .big-counter { font-size: 60px; font-weight: 900; color: #1a237e; line-height: 1; margin: 10px 0; word-wrap: break-word; }
-    .counter-label { font-size: 18px; color: #666; margin-bottom: 30px; }
+    .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: auto; text-align: center; padding: 10px; width: 100%; box-sizing: border-box; color: #e2e8f0; }
+    .big-counter { font-size: 60px; font-weight: 900; color: #60a5fa; line-height: 1; margin: 10px 0; word-wrap: break-word; }
+    .counter-label { font-size: 18px; color: #94a3b8; margin-bottom: 30px; }
     .estado-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; }
     .estado-ejecutado { background-color: #d4edda; color: #155724; }
     .estado-pendiente { background-color: #fff3cd; color: #856404; }
@@ -323,8 +323,8 @@ st.markdown("""
     .filtro-nodo-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
     .contador-maquinas { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
     .contador-maquina { background: white; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
-    .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #1a237e; }
-    .contador-maquina-label { font-size: 10px; color: #666; }
+    .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #60a5fa; }
+    .contador-maquina-label { font-size: 10px; color: #94a3b8; }
     .nodo-badge-mini { background: #e8eaf6; color: #1a237e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: monospace; }
     @media (max-width: 768px) {
         .big-counter { font-size: 48px; }
@@ -344,6 +344,7 @@ st.markdown("""
     }
     iframe { max-width: 100%; }
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
+    .stSelectbox label, .stTextInput label { color: #e2e8f0 !important; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
     /* === BLOQUES POR EQUIPO/UBICACION (vista tecnico) === */
