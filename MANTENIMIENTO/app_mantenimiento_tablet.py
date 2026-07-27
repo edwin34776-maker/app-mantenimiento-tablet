@@ -854,7 +854,7 @@ def pantalla_home():
             </div>
             """, unsafe_allow_html=True)
 
-            busq_tec = st.text_input("Buscar OT o equipo...", placeholder="Escribe para buscar...", key=gen_key("busq_tec_home"))
+            busq_tec = ""  # Filtro de búsqueda oculto
             if busq_tec:
                 busq_lower = busq_tec.lower()
                 mask = pd.Series([False] * len(df_mias), index=df_mias.index)
