@@ -873,13 +873,20 @@ def pantalla_home():
                 grupos = df_mias.groupby(["Equipo", "Ubicacion"])
                 for (equipo, ubicacion), grupo_df in grupos:
                     total_act = len(grupo_df)
-                    # Contar realizadas desde la BD para el header
-                    realizadas_bd = len(grupo_df[grupo_df["Estado"] == "Ejecutado"])
-                    estado_bloque = "Completado" if realizadas_bd == total_act and total_act > 0 else "Pendiente"
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-                    clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
                     bloque_key = f"{equipo}_{ubicacion}".replace(" ", "_").replace("-", "_")
+
+                    # Calcular realizadas desde session_state para barra en tiempo real
+                    realizadas_chk = 0
+                    for idx, row in grupo_df.iterrows():
+                        internal_id = limpiar(row.get("ID"), "")
+                        chk_key = gen_key("chk_eq", internal_id)
+                        if st.session_state.get(chk_key, False):
+                            realizadas_chk += 1
+                    pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
+                    estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
+                    clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
 
                     st.markdown(f"""
                     <div class="eq-bloque">
@@ -887,7 +894,10 @@ def pantalla_home():
                             <div style="flex:1; min-width:0;">
                                 <div class="eq-bloque-titulo">&#128295; {equipo} — {ubicacion}</div>
                                 <div class="eq-bloque-meta">
-                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas_bd} realizadas
+                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas_chk} realizadas
+                                </div>
+                                <div class="eq-progress-bar">
+                                    <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
                                 </div>
                             </div>
                             <span class="estado-badge {clase_est_bloque}" style="margin-left:12px; flex-shrink:0;">{estado_bloque}</span>
@@ -932,27 +942,7 @@ def pantalla_home():
                         with cols[4]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
 
-                    # Calcular progreso desde session_state (refleja checkboxes actuales)
-                    realizadas_chk = 0
-                    for idx, row in grupo_df.iterrows():
-                        internal_id = limpiar(row.get("ID"), "")
-                        chk_key = gen_key("chk_eq", internal_id)
-                        if st.session_state.get(chk_key, False):
-                            realizadas_chk += 1
-                    pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
 
-                    # Mostrar barra de progreso actualizada
-                    st.markdown(f"""
-                        <div style="margin-top:10px; margin-bottom:6px;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                <span style="font-size:11px; color:#94a3b8;">Progreso: {realizadas_chk} de {total_act}</span>
-                                <span style="font-size:11px; color:#22c55e; font-weight:700;">{pct_realizadas}%</span>
-                            </div>
-                            <div class="eq-progress-bar">
-                                <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
 
                     # Botones de acción del bloque
                     st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
