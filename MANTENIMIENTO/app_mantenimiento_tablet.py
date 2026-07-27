@@ -854,15 +854,7 @@ def pantalla_home():
             </div>
             """, unsafe_allow_html=True)
 
-            col_f1, col_f2 = st.columns(2)
-            with col_f1:
-                filtro_estado_tec = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"],
-                                                  index=0, key=gen_key("filtro_estado_tec_home"))
-            with col_f2:
-                busq_tec = st.text_input("Buscar OT o equipo...", placeholder="Escribe para buscar...", key=gen_key("busq_tec_home"))
-
-            if filtro_estado_tec != "Todos" and "Estado" in df_mias.columns:
-                df_mias = df_mias[df_mias["Estado"] == filtro_estado_tec]
+            busq_tec = st.text_input("Buscar OT o equipo...", placeholder="Escribe para buscar...", key=gen_key("busq_tec_home"), use_container_width=True)
             if busq_tec:
                 busq_lower = busq_tec.lower()
                 mask = pd.Series([False] * len(df_mias), index=df_mias.index)
