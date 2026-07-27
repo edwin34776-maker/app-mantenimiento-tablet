@@ -1,3 +1,13 @@
+# ============================================================
+# APP MANTENIMIENTO PREVENTIVO - CORREGIDO
+# Cambios clave:
+#   1. UPDATE PARCIAL: Solo se envían a Supabase los campos 
+#      que realmente cambiaron (comparando con valor original).
+#   2. Los campos no editados (cliente, equipo, fecha_programada,
+#      tipo_mantenimiento, etc.) NUNCA se tocan en la BD.
+#   3. Mejor manejo de valores vacíos vs None.
+# ============================================================
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time
@@ -125,17 +135,52 @@ def cargar_ordenes_supabase():
         st.error(f"Error cargando ordenes: {e}")
         return pd.DataFrame()
 
-def guardar_orden_supabase(id_interno, datos):
+def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
+    """
+    Solo actualiza en Supabase los campos que REALMENTE cambiaron.
+    datos_nuevos: dict con los campos del formulario (nombres en Title_Case)
+    datos_originales: dict/Series con los valores originales de la BD (opcional)
+    """
     try:
-        datos_supabase = {}
-        for key, value in datos.items():
+        datos_a_enviar = {}
+        for key, value in datos_nuevos.items():
             key_snake = mapear_campo_supabase(key)
-            datos_supabase[key_snake] = value if not pd.isna(value) else None
-        supabase.table("ordenes_trabajo").update(datos_supabase).eq("id", id_interno).execute()
+
+            # Normalizar valor nuevo
+            if pd.isna(value):
+                valor_nuevo_norm = None
+            elif isinstance(value, str) and value.strip() == "":
+                valor_nuevo_norm = None
+            else:
+                valor_nuevo_norm = value
+
+            # Si tenemos datos originales, comparar para ver si realmente cambió
+            if datos_originales is not None:
+                valor_original = datos_originales.get(key, datos_originales.get(key_snake, ""))
+                if pd.isna(valor_original) or (isinstance(valor_original, str) and valor_original.strip() == ""):
+                    valor_orig_norm = None
+                else:
+                    valor_orig_norm = valor_original
+
+                if valor_nuevo_norm != valor_orig_norm:
+                    datos_a_enviar[key_snake] = valor_nuevo_norm
+            else:
+                # Sin datos originales, enviar todo (comportamiento legacy)
+                datos_a_enviar[key_snake] = valor_nuevo_norm
+
+        if not datos_a_enviar:
+            return True  # Nada cambió, éxito silencioso
+
+        supabase.table("ordenes_trabajo").update(datos_a_enviar).eq("id", id_interno).execute()
         return True
     except Exception as e:
-        st.error(f"Error guardando orden: {e}")
+        st.error(f"Error actualizando orden: {e}")
         return False
+
+def guardar_orden_supabase(id_interno, datos):
+    """Alias legacy que delega en actualizar_campos_supabase sin comparación."""
+    return actualizar_campos_supabase(id_interno, datos)
+
 
 def mapear_campo_supabase(campo):
     mapeo = {
@@ -162,7 +207,8 @@ def mapear_campo_supabase(campo):
 def actualizar_orden_supabase(id_interno, campo, valor):
     try:
         campo_snake = mapear_campo_supabase(campo)
-        if valor == "":
+        # Solo convertir a None si realmente es string vacío
+        if isinstance(valor, str) and valor.strip() == "":
             valor = None
         supabase.table("ordenes_trabajo").update({campo_snake: valor}).eq("id", id_interno).execute()
         return True
@@ -1093,7 +1139,7 @@ def pantalla_ejecutar():
             "Hora_Inicio": hora_inicio.strftime("%H:%M"),
             "Hora_Fin": hora_fin.strftime("%H:%M")
         }
-        if guardar_orden_supabase(internal_id, datos):
+        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
             df.at[idx, "Estado"] = "Ejecutado"
             df.at[idx, "Comentarios"] = nuevo_comentario
             df.at[idx, "Actividades_Hechas"] = actividades
@@ -1265,7 +1311,7 @@ def pantalla_detalle():
             "Hora_Inicio": hora_inicio.strftime("%H:%M"),
             "Hora_Fin": hora_fin.strftime("%H:%M")
         }
-        if guardar_orden_supabase(internal_id, datos):
+        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
             for k, v in datos.items():
                 df.at[idx, k] = v
             st.success("Cambios guardados exitosamente en Supabase")
