@@ -525,6 +525,12 @@ def obtener_clase_carga(carga):
     elif carga >= 2: return "media"
     return "baja"
 
+def recargar_datos():
+    """Recarga las órdenes desde Supabase y actualiza session_state."""
+    df = cargar_excel_mantenimiento()
+    st.session_state.df_mantenimientos = df
+    return df
+
 def gen_key(base, *parts):
     perfil = st.session_state.get("perfil", "none")
     pagina = st.session_state.get("pagina", "none")
@@ -596,7 +602,8 @@ def pantalla_login():
 
 def pantalla_home():
     perfil = st.session_state.perfil
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática al entrar a home para todos los perfiles
+    df = recargar_datos()
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>App Tablet Mtto</span>
@@ -721,6 +728,8 @@ def pantalla_home():
         if st.session_state.tecnico_seleccionado != "Seleccionar tecnico...":
             tecnico_actual = st.session_state.tecnico_seleccionado
             esp_sel = obtener_especialidad_tecnico(tecnico_actual)
+            # 🔄 Recarga automática desde Supabase para ver asignaciones nuevas
+            df = recargar_datos()
             df_mias = df.copy()
             if "Tecnico_Asignado" in df_mias.columns:
                 df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_actual]
@@ -888,7 +897,8 @@ def pantalla_home():
     boton_cerrar_sesion()
 
 def pantalla_ordenes():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática al ver lista de órdenes
+    df = recargar_datos()
     perfil = st.session_state.perfil
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
@@ -961,7 +971,8 @@ def pantalla_ordenes():
 
 
 def pantalla_mis_ordenes():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática al entrar para ver asignaciones más recientes
+    df = recargar_datos()
     st.markdown(f"""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Mis Ordenes Asignadas</span>
@@ -1063,7 +1074,8 @@ def pantalla_mis_ordenes():
 
 
 def pantalla_ejecutar():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática antes de ejecutar para tener el estado más reciente
+    df = recargar_datos()
     internal_id = st.session_state.orden_seleccionada
     idx, row = get_row_by_internal_id(df, internal_id)
     if idx is None:
@@ -1155,7 +1167,8 @@ def pantalla_ejecutar():
             st.error("Error al guardar en Supabase. Intenta de nuevo.")
 
 def pantalla_detalle_tecnico():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática para ver datos actualizados
+    df = recargar_datos()
     internal_id = st.session_state.orden_seleccionada
     idx, row = get_row_by_internal_id(df, internal_id)
     if idx is None:
@@ -1212,7 +1225,8 @@ def pantalla_detalle_tecnico():
 
 
 def pantalla_detalle():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática al ver detalle
+    df = recargar_datos()
     internal_id = st.session_state.orden_seleccionada
     idx, row = get_row_by_internal_id(df, internal_id)
     if idx is None:
@@ -1330,7 +1344,8 @@ def pantalla_detalle():
                 st.error("Error al verificar")
 
 def pantalla_asignacion():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática al entrar a asignación
+    df = recargar_datos()
     st.markdown("""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Asignacion de Tecnicos</span>
@@ -1440,7 +1455,8 @@ def pantalla_asignacion():
 
 
 def pantalla_verificar():
-    df = st.session_state.df_mantenimientos
+    # 🔄 Recarga automática al verificar
+    df = recargar_datos()
     st.markdown("""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
         <span>Verificar Ordenes Ejecutadas</span>
