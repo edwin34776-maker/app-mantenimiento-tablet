@@ -407,15 +407,15 @@ st.markdown("""
     }
     .eq-tabla-fila:hover { background: #27354f; }
     .eq-tabla-fila:last-child { border-bottom: none; }
-    .eq-esp-ele { background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-align: center; display: inline-block; }
-    .eq-esp-mec { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-align: center; display: inline-block; }
-    .eq-esp-hid { background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-align: center; display: inline-block; }
-    .eq-desc { color: #e2e8f0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .eq-tec { color: #94a3b8; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .eq-estado-ej { background-color: #065f46; color: #6ee7b7; }
-    .eq-estado-pd { background-color: #92400e; color: #fcd34d; }
-    .eq-estado-vf { background-color: #1e40af; color: #93c5fd; }
-    .eq-estado-cr { background-color: #1e3a5f; color: #7dd3fc; }
+    .eq-esp-ele { background: #60a5fa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
+    .eq-esp-mec { background: #fbbf24; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
+    .eq-esp-hid { background: #a78bfa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
+    .eq-desc { color: #f8fafc; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-tec { color: #f1f5f9; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-estado-ej { background-color: #059669; color: #ffffff; font-weight: 700; }
+    .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
+    .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
+    .eq-estado-cr { background-color: #0891b2; color: #ffffff; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -862,7 +862,7 @@ def pantalla_home():
             if df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
-                # Agrupar por Equipo + Ubicacion
+                # Agrupar por Equipo + Ubicacion en bloques
                 grupos = df_mias.groupby(["Equipo", "Ubicacion"])
                 for (equipo, ubicacion), grupo_df in grupos:
                     total_act = len(grupo_df)
@@ -915,7 +915,6 @@ def pantalla_home():
                         with cols[4]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
 
-                        # Botones de acción para cada actividad
                         col1, col2 = st.columns(2)
                         with col1:
                             if st.button("Ver detalle", key=gen_key("btn_ver_tec_home", internal_id), use_container_width=True):
