@@ -872,6 +872,7 @@ def pantalla_home():
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
                     clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
+                    bloque_key = f"{equipo}_{ubicacion}".replace(" ", "_").replace("-", "_")
 
                     st.markdown(f"""
                     <div class="eq-bloque">
@@ -894,6 +895,9 @@ def pantalla_home():
                             </div>
                     """, unsafe_allow_html=True)
 
+                    # Diccionario para trackear cambios del bloque
+                    cambios_bloque = {}
+
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         esp = limpiar(row.get("Especialidad"), "")
@@ -901,12 +905,21 @@ def pantalla_home():
                         estado = limpiar(row.get("Estado"), "Pendiente")
                         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
 
+                        chk_key = gen_key("chk_eq", internal_id)
+                        ya_ejecutado = estado == "Ejecutado"
+
+                        # Inicializar session_state si no existe
+                        if chk_key not in st.session_state:
+                            st.session_state[chk_key] = ya_ejecutado
+
                         clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
                         clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-cr" if estado == "Cerrada" else "eq-estado-pd"
 
                         cols = st.columns([0.4, 0.6, 3, 0.9, 1.3])
                         with cols[0]:
-                            st.markdown("<div style='text-align:center'></div>", unsafe_allow_html=True)
+                            chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
+                            if chk_val != ya_ejecutado:
+                                cambios_bloque[internal_id] = "Ejecutado" if chk_val else "Pendiente"
                         with cols[1]:
                             st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
                         with cols[2]:
@@ -916,17 +929,55 @@ def pantalla_home():
                         with cols[4]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
 
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("Ver detalle", key=gen_key("btn_ver_tec_home", internal_id), use_container_width=True):
-                                st.session_state.orden_seleccionada = internal_id
-                                st.session_state.pagina = "detalle_tecnico"
+                    # Botones de acción del bloque
+                    st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
+                    col_marcar, col_desmarcar, col_guardar = st.columns(3)
+                    with col_marcar:
+                        if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
+                            for idx, row in grupo_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                chk_key = gen_key("chk_eq", internal_id)
+                                st.session_state[chk_key] = True
+                                cambios_bloque[internal_id] = "Ejecutado"
+                            # Guardar todos los cambios
+                            guardados = 0
+                            for iid, nuevo_est in cambios_bloque.items():
+                                if actualizar_orden_supabase(iid, "Estado", nuevo_est):
+                                    guardados += 1
+                            if guardados > 0:
+                                st.success(f"{guardados} actividades marcadas como realizadas")
                                 st.rerun()
-                        with col2:
-                            if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec_home", internal_id), use_container_width=True, type="primary"):
-                                st.session_state.orden_seleccionada = internal_id
-                                st.session_state.pagina = "ejecutar"
+                    with col_desmarcar:
+                        if st.button("&#128473; Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
+                            for idx, row in grupo_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                chk_key = gen_key("chk_eq", internal_id)
+                                st.session_state[chk_key] = False
+                                cambios_bloque[internal_id] = "Pendiente"
+                            guardados = 0
+                            for iid, nuevo_est in cambios_bloque.items():
+                                if actualizar_orden_supabase(iid, "Estado", nuevo_est):
+                                    guardados += 1
+                            if guardados > 0:
+                                st.info(f"{guardados} actividades desmarcadas")
                                 st.rerun()
+                    with col_guardar:
+                        if st.button("&#128190; Guardar cambios", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
+                            guardados = 0
+                            for idx, row in grupo_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                chk_key = gen_key("chk_eq", internal_id)
+                                chk_val = st.session_state.get(chk_key, False)
+                                estado_actual = limpiar(row.get("Estado"), "Pendiente")
+                                nuevo_est = "Ejecutado" if chk_val else "Pendiente"
+                                if nuevo_est != estado_actual:
+                                    if actualizar_orden_supabase(internal_id, "Estado", nuevo_est):
+                                        guardados += 1
+                            if guardados > 0:
+                                st.success(f"{guardados} cambios guardados en Supabase")
+                                st.rerun()
+                            else:
+                                st.info("No hay cambios para guardar")
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
 
