@@ -881,14 +881,13 @@ def pantalla_home():
                 grupos = df_mias.groupby(["Equipo", "Ubicacion"])
                 for (equipo, ubicacion), grupo_df in grupos:
                     total_act = len(grupo_df)
-                    realizadas = len(grupo_df[grupo_df["Estado"] == "Ejecutado"])
-                    estado_bloque = "Completado" if realizadas == total_act and total_act > 0 else "Pendiente"
+                    # Contar realizadas desde la BD para el header
+                    realizadas_bd = len(grupo_df[grupo_df["Estado"] == "Ejecutado"])
+                    estado_bloque = "Completado" if realizadas_bd == total_act and total_act > 0 else "Pendiente"
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
                     clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
                     bloque_key = f"{equipo}_{ubicacion}".replace(" ", "_").replace("-", "_")
-
-                    pct_realizadas = round((realizadas / total_act) * 100, 1) if total_act > 0 else 0
 
                     st.markdown(f"""
                     <div class="eq-bloque">
@@ -896,10 +895,7 @@ def pantalla_home():
                             <div style="flex:1; min-width:0;">
                                 <div class="eq-bloque-titulo">&#128295; {equipo} — {ubicacion}</div>
                                 <div class="eq-bloque-meta">
-                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas} realizadas
-                                </div>
-                                <div class="eq-progress-bar">
-                                    <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
+                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas_bd} realizadas
                                 </div>
                             </div>
                             <span class="estado-badge {clase_est_bloque}" style="margin-left:12px; flex-shrink:0;">{estado_bloque}</span>
@@ -914,9 +910,7 @@ def pantalla_home():
                             </div>
                     """, unsafe_allow_html=True)
 
-                    # Diccionario para trackear cambios del bloque
-                    cambios_bloque = {}
-
+                    # Renderizar checkboxes
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         esp = limpiar(row.get("Especialidad"), "")
@@ -936,9 +930,7 @@ def pantalla_home():
 
                         cols = st.columns([0.4, 0.6, 3, 0.9, 1.3])
                         with cols[0]:
-                            chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
-                            if chk_val != ya_ejecutado:
-                                cambios_bloque[internal_id] = "Ejecutado" if chk_val else "Pendiente"
+                            st.checkbox("", key=chk_key, label_visibility="collapsed")
                         with cols[1]:
                             st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
                         with cols[2]:
@@ -947,6 +939,28 @@ def pantalla_home():
                             st.markdown(f'<span class="estado-badge {clase_est}">{estado}</span>', unsafe_allow_html=True)
                         with cols[4]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
+
+                    # Calcular progreso desde session_state (refleja checkboxes actuales)
+                    realizadas_chk = 0
+                    for idx, row in grupo_df.iterrows():
+                        internal_id = limpiar(row.get("ID"), "")
+                        chk_key = gen_key("chk_eq", internal_id)
+                        if st.session_state.get(chk_key, False):
+                            realizadas_chk += 1
+                    pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
+
+                    # Mostrar barra de progreso actualizada
+                    st.markdown(f"""
+                        <div style="margin-top:10px; margin-bottom:6px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:11px; color:#94a3b8;">Progreso: {realizadas_chk} de {total_act}</span>
+                                <span style="font-size:11px; color:#22c55e; font-weight:700;">{pct_realizadas}%</span>
+                            </div>
+                            <div class="eq-progress-bar">
+                                <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
 
                     # Botones de acción del bloque
                     st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
@@ -957,29 +971,14 @@ def pantalla_home():
                                 internal_id = limpiar(row.get("ID"), "")
                                 chk_key = gen_key("chk_eq", internal_id)
                                 st.session_state[chk_key] = True
-                                cambios_bloque[internal_id] = "Ejecutado"
-                            # Guardar todos los cambios
-                            guardados = 0
-                            for iid, nuevo_est in cambios_bloque.items():
-                                if actualizar_orden_supabase(iid, "Estado", nuevo_est):
-                                    guardados += 1
-                            if guardados > 0:
-                                st.success(f"{guardados} actividades marcadas como realizadas")
-                                st.rerun()
+                            st.rerun()
                     with col_desmarcar:
                         if st.button("&#128473; Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
                                 chk_key = gen_key("chk_eq", internal_id)
                                 st.session_state[chk_key] = False
-                                cambios_bloque[internal_id] = "Pendiente"
-                            guardados = 0
-                            for iid, nuevo_est in cambios_bloque.items():
-                                if actualizar_orden_supabase(iid, "Estado", nuevo_est):
-                                    guardados += 1
-                            if guardados > 0:
-                                st.info(f"{guardados} actividades desmarcadas")
-                                st.rerun()
+                            st.rerun()
                     with col_guardar:
                         if st.button("&#128190; Guardar cambios", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
                             guardados = 0
