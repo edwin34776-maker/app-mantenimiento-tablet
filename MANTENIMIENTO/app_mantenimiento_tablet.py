@@ -346,18 +346,17 @@ st.markdown("""
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
-    /* === VISTA POR EQUIPO/UBICACION === */
-    .equipo-bloque {
+    /* === BLOQUES POR EQUIPO/UBICACION (vista tecnico) === */
+    .eq-bloque {
         background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
         border-radius: 16px;
-        padding: 0;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
         color: #e2e8f0;
         border: 1px solid #334155;
         overflow: hidden;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }
-    .equipo-bloque-header {
+    .eq-bloque-header {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         padding: 14px 18px;
         display: flex;
@@ -366,21 +365,21 @@ st.markdown("""
         flex-wrap: wrap;
         gap: 8px;
     }
-    .equipo-bloque-titulo {
+    .eq-bloque-titulo {
         font-size: 15px;
         font-weight: 800;
         color: #ffffff;
         letter-spacing: 0.3px;
     }
-    .equipo-bloque-meta {
+    .eq-bloque-meta {
         font-size: 11px;
         color: #cbd5e1;
         margin-top: 4px;
     }
-    .equipo-bloque-contenido {
+    .eq-bloque-contenido {
         padding: 12px 16px;
     }
-    .equipo-tabla-header {
+    .eq-tabla-header {
         display: grid;
         grid-template-columns: 36px 55px 1fr 90px 130px;
         gap: 8px;
@@ -395,7 +394,7 @@ st.markdown("""
         align-items: center;
         margin-bottom: 6px;
     }
-    .equipo-tabla-fila {
+    .eq-tabla-fila {
         display: grid;
         grid-template-columns: 36px 55px 1fr 90px 130px;
         gap: 8px;
@@ -406,60 +405,17 @@ st.markdown("""
         font-size: 12px;
         transition: background 0.2s;
     }
-    .equipo-tabla-fila:hover { background: #27354f; }
-    .equipo-tabla-fila:last-child { border-bottom: none; }
-    .esp-badge-ele {
-        background: #3b82f6;
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 700;
-        text-align: center;
-        display: inline-block;
-    }
-    .esp-badge-mec {
-        background: #f59e0b;
-        color: white;
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 700;
-        text-align: center;
-        display: inline-block;
-    }
-    .desc-text-eq {
-        color: #e2e8f0;
-        font-size: 12px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .tec-text-eq {
-        color: #94a3b8;
-        font-size: 11px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .estado-badge-eq {
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 12px;
-        font-size: 10px;
-        font-weight: 600;
-        text-align: center;
-    }
-    .eq-estado-ejecutado { background-color: #065f46; color: #6ee7b7; }
-    .eq-estado-pendiente { background-color: #92400e; color: #fcd34d; }
-    .eq-estado-verificado { background-color: #1e40af; color: #93c5fd; }
-    .eq-estado-cerrada { background-color: #1e3a5f; color: #7dd3fc; }
-    .vista-subtitle {
-        text-align: center;
-        font-size: 12px;
-        color: #64748b;
-        margin: -8px 0 16px 0;
-    }
+    .eq-tabla-fila:hover { background: #27354f; }
+    .eq-tabla-fila:last-child { border-bottom: none; }
+    .eq-esp-ele { background: #3b82f6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-align: center; display: inline-block; }
+    .eq-esp-mec { background: #f59e0b; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-align: center; display: inline-block; }
+    .eq-esp-hid { background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-align: center; display: inline-block; }
+    .eq-desc { color: #e2e8f0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-tec { color: #94a3b8; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-estado-ej { background-color: #065f46; color: #6ee7b7; }
+    .eq-estado-pd { background-color: #92400e; color: #fcd34d; }
+    .eq-estado-vf { background-color: #1e40af; color: #93c5fd; }
+    .eq-estado-cr { background-color: #1e3a5f; color: #7dd3fc; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -791,12 +747,6 @@ def pantalla_home():
             if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
-        st.markdown("<div style='margin-top:8px'></div>", unsafe_allow_html=True)
-        col_btn4, col_btn5, col_btn6 = st.columns(3)
-        with col_btn4:
-            if st.button("POR EQUIPO / UBICACION", use_container_width=True, type="primary", key=gen_key("btn_por_equipo")):
-                st.session_state.pagina = "por_equipo_ubicacion"
-                st.rerun()
         if st.session_state.get("mostrar_opciones_ordenes", False):
             st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
             col_op1, col_op2 = st.columns(2)
@@ -912,46 +862,74 @@ def pantalla_home():
             if df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
-                for idx, row in df_mias.iterrows():
-                    id_ot = limpiar(row.get("ID OT"), "SIN ID")
-                    internal_id = limpiar(row.get("ID"), "")
-                    tipo = limpiar(row.get("Especialidad"), "SIN ESP")
-                    descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion de actividad")
-                    estado = limpiar(row.get("Estado"), "Pendiente")
-                    estado_clase = obtener_estado_visual(estado)
-                    desc_corta = descripcion[:50] + "..." if len(descripcion) > 50 else descripcion
-                    prioridad = limpiar(row.get("Prioridad_Actividad"), "")
-                    clase_prioridad = obtener_clase_css_prioridad(prioridad)
-                    nodo = limpiar(row.get("Nodo"), "")
-                    nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
-                    equipo = limpiar(row.get("Equipo"), "Sin equipo")
+                # Agrupar por Equipo + Ubicacion
+                grupos = df_mias.groupby(["Equipo", "Ubicacion"])
+                for (equipo, ubicacion), grupo_df in grupos:
+                    total_act = len(grupo_df)
+                    realizadas = len(grupo_df[grupo_df["Estado"] == "Ejecutado"])
+                    estado_bloque = "Completado" if realizadas == total_act and total_act > 0 else "Pendiente"
+                    tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
+                    tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
+                    clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
 
                     st.markdown(f"""
-                    <div class="tabla-fila {clase_prioridad}">
-                        <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
-                        <div class="col-esp">{tipo}</div>
-                        <div class="col-desc" title="{descripcion}">{desc_corta}</div>
-                        <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
-                        <div class="col-tec">{equipo}</div>
-                    </div>
+                    <div class="eq-bloque">
+                        <div class="eq-bloque-header">
+                            <div>
+                                <div class="eq-bloque-titulo">&#128295; {equipo} — {ubicacion}</div>
+                                <div class="eq-bloque-meta">
+                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas} realizadas
+                                </div>
+                            </div>
+                            <span class="estado-badge {clase_est_bloque}">{estado_bloque}</span>
+                        </div>
+                        <div class="eq-bloque-contenido">
+                            <div class="eq-tabla-header">
+                                <div style="text-align:center">&#10003;</div>
+                                <div>ESP</div>
+                                <div>DESCRIPCION</div>
+                                <div style="text-align:center">ESTADO</div>
+                                <div>TECNICO</div>
+                            </div>
                     """, unsafe_allow_html=True)
 
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button(f"Ver detalle", key=gen_key("btn_ver_tec_home", internal_id), use_container_width=True):
-                            st.session_state.orden_seleccionada = internal_id
-                            st.session_state.pagina = "detalle_tecnico"
-                            st.rerun()
-                    with col2:
-                        if estado == "Pendiente" and st.button(f"Ejecutar", key=gen_key("btn_ejec_home", internal_id), use_container_width=True, type="primary"):
-                            st.session_state.orden_seleccionada = internal_id
-                            st.session_state.pagina = "ejecutar"
-                            st.rerun()
+                    for idx, row in grupo_df.iterrows():
+                        internal_id = limpiar(row.get("ID"), "")
+                        esp = limpiar(row.get("Especialidad"), "")
+                        desc = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+                        estado = limpiar(row.get("Estado"), "Pendiente")
+                        tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("POR EQUIPO / UBICACION", use_container_width=True, type="primary", key=gen_key("btn_por_equipo_tec")):
-            st.session_state.pagina = "por_equipo_ubicacion"
-            st.rerun()
+                        clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
+                        clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-cr" if estado == "Cerrada" else "eq-estado-pd"
+
+                        cols = st.columns([0.4, 0.6, 3, 0.9, 1.3])
+                        with cols[0]:
+                            st.markdown("<div style='text-align:center'></div>", unsafe_allow_html=True)
+                        with cols[1]:
+                            st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
+                        with cols[2]:
+                            st.markdown(f'<span class="eq-desc" title="{desc}">{desc}</span>', unsafe_allow_html=True)
+                        with cols[3]:
+                            st.markdown(f'<span class="estado-badge {clase_est}">{estado}</span>', unsafe_allow_html=True)
+                        with cols[4]:
+                            st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
+
+                        # Botones de acción para cada actividad
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("Ver detalle", key=gen_key("btn_ver_tec_home", internal_id), use_container_width=True):
+                                st.session_state.orden_seleccionada = internal_id
+                                st.session_state.pagina = "detalle_tecnico"
+                                st.rerun()
+                        with col2:
+                            if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec_home", internal_id), use_container_width=True, type="primary"):
+                                st.session_state.orden_seleccionada = internal_id
+                                st.session_state.pagina = "ejecutar"
+                                st.rerun()
+
+                    st.markdown("</div></div>", unsafe_allow_html=True)
+
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("VER TODAS LAS ORDENES DEL SISTEMA", use_container_width=True, type="secondary", key=gen_key("btn_ver_todas")):
             st.session_state.pagina = "ordenes"; st.rerun()
@@ -1643,124 +1621,6 @@ def pantalla_verificar():
                         st.error("Error al rechazar")
 
 
-
-
-def pantalla_por_equipo_ubicacion():
-    """Vista que agrupa órdenes por Equipo + Ubicación en bloques tipo tarjeta."""
-    df = recargar_datos()
-    perfil = st.session_state.perfil
-
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>Mantenimiento Preventivo — por Equipo / Ubicación</span>
-        <span style="font-size: 12px; opacity: 0.8;">{}</span>
-    </div>
-    """.format('&#128100; Admin' if perfil == 'admin' else '&#128295; Tecnico'), unsafe_allow_html=True)
-
-    boton_volver_inicio("por_equipo_ubicacion")
-
-    st.markdown('<div class="vista-subtitle">Cada bloque = 1 equipo en 1 ubicación. Toca el chulito &#10003; para marcar actividad como Realizado.</div>', unsafe_allow_html=True)
-
-    if df.empty or "Equipo" not in df.columns or "Ubicacion" not in df.columns:
-        st.info("No hay datos de equipo/ubicación disponibles.")
-        return
-
-    # Filtros
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-        esp_filtro = st.selectbox("Especialidad", ["Todas", "ELE", "MEC"], index=0, key=gen_key("filtro_esp_eq"))
-    with col_f2:
-        maquinas = ["Todas"] + sorted(df["Equipo"].dropna().unique().tolist())
-        maq_sel = st.selectbox("Equipo", maquinas, index=0, key=gen_key("filtro_maq_eq"))
-    with col_f3:
-        estados_eq = ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"]
-        est_sel = st.selectbox("Estado", estados_eq, index=0, key=gen_key("filtro_est_eq"))
-
-    df_vista = df.copy()
-    if esp_filtro != "Todas" and "Especialidad" in df_vista.columns:
-        df_vista = df_vista[df_vista["Especialidad"] == esp_filtro]
-    if maq_sel != "Todas" and "Equipo" in df_vista.columns:
-        df_vista = df_vista[df_vista["Equipo"] == maq_sel]
-    if est_sel != "Todos" and "Estado" in df_vista.columns:
-        df_vista = df_vista[df_vista["Estado"] == est_sel]
-
-    if df_vista.empty:
-        st.info("No hay órdenes con los filtros seleccionados.")
-        return
-
-    # Agrupar por Equipo + Ubicación
-    grupos = df_vista.groupby(["Equipo", "Ubicacion"])
-
-    for (equipo, ubicacion), grupo_df in grupos:
-        total_act = len(grupo_df)
-        realizadas = len(grupo_df[grupo_df["Estado"] == "Ejecutado"])
-        estado_bloque = "Completado" if realizadas == total_act and total_act > 0 else "Pendiente"
-        tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
-        tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-        clase_estado_bloque = "eq-estado-ejecutado" if estado_bloque == "Completado" else "eq-estado-pendiente"
-
-        # Header del bloque con título dinámico: EQUIPO — UBICACION
-        st.markdown(f"""
-        <div class="equipo-bloque">
-            <div class="equipo-bloque-header">
-                <div>
-                    <div class="equipo-bloque-titulo">&#128295; {equipo} — {ubicacion}</div>
-                    <div class="equipo-bloque-meta">
-                        &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas} realizadas
-                    </div>
-                </div>
-                <span class="estado-badge-eq {clase_estado_bloque}">{estado_bloque}</span>
-            </div>
-            <div class="equipo-bloque-contenido">
-                <div class="equipo-tabla-header">
-                    <div style="text-align:center">&#10003;</div>
-                    <div>ESP</div>
-                    <div>DESCRIPCION</div>
-                    <div style="text-align:center">ESTADO</div>
-                    <div>TECNICO</div>
-                </div>
-        """, unsafe_allow_html=True)
-
-        for idx, row in grupo_df.iterrows():
-            internal_id = limpiar(row.get("ID"), "")
-            esp = limpiar(row.get("Especialidad"), "")
-            desc = limpiar(row.get("Descripcion de procedimiento"), "Sin descripción")
-            estado = limpiar(row.get("Estado"), "Pendiente")
-            tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
-
-            chk_key = gen_key("chk_eq", internal_id)
-            ya_ejecutado = estado == "Ejecutado"
-
-            # Sincronizar: si el usuario cambió el checkbox, persistir en Supabase
-            if chk_key in st.session_state:
-                if st.session_state[chk_key] and not ya_ejecutado:
-                    if actualizar_orden_supabase(internal_id, "Estado", "Ejecutado"):
-                        st.rerun()
-                elif not st.session_state[chk_key] and ya_ejecutado:
-                    if actualizar_orden_supabase(internal_id, "Estado", "Pendiente"):
-                        st.rerun()
-
-            # Asegurar que el checkbox refleje el estado actual de la BD
-            st.session_state[chk_key] = ya_ejecutado
-
-            clase_esp = "esp-badge-ele" if esp == "ELE" else "esp-badge-mec" if esp == "MEC" else ""
-            clase_est = "eq-estado-" + obtener_estado_visual(estado).replace("estado-", "")
-
-            cols = st.columns([0.4, 0.6, 3, 0.9, 1.3])
-            with cols[0]:
-                st.checkbox("", key=chk_key, label_visibility="collapsed")
-            with cols[1]:
-                st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
-            with cols[2]:
-                st.markdown(f'<span class="desc-text-eq" title="{desc}">{desc}</span>', unsafe_allow_html=True)
-            with cols[3]:
-                st.markdown(f'<span class="estado-badge-eq {clase_est}">{estado}</span>', unsafe_allow_html=True)
-            with cols[4]:
-                st.markdown(f'<span class="tec-text-eq">{tecnico}</span>', unsafe_allow_html=True)
-
-        st.markdown("</div></div>", unsafe_allow_html=True)
-
-
 if st.session_state.pagina == "login":
     pantalla_login()
 elif st.session_state.pagina == "home":
@@ -1779,8 +1639,6 @@ elif st.session_state.pagina == "asignacion":
     pantalla_asignacion()
 elif st.session_state.pagina == "verificar":
     pantalla_verificar()
-elif st.session_state.pagina == "por_equipo_ubicacion":
-    pantalla_por_equipo_ubicacion()
 else:
     st.session_state.pagina = "login"
     st.rerun()
