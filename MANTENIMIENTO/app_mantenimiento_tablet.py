@@ -377,6 +377,20 @@ st.markdown("""
         color: #cbd5e1;
         margin-top: 4px;
     }
+    .eq-progress-bar {
+        width: 100%;
+        height: 6px;
+        background: #334155;
+        border-radius: 3px;
+        margin-top: 8px;
+        overflow: hidden;
+    }
+    .eq-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
     .eq-bloque-contenido {
         padding: 12px 16px;
     }
@@ -874,16 +888,21 @@ def pantalla_home():
                     clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
                     bloque_key = f"{equipo}_{ubicacion}".replace(" ", "_").replace("-", "_")
 
+                    pct_realizadas = round((realizadas / total_act) * 100, 1) if total_act > 0 else 0
+
                     st.markdown(f"""
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
-                            <div>
+                            <div style="flex:1; min-width:0;">
                                 <div class="eq-bloque-titulo">&#128295; {equipo} — {ubicacion}</div>
                                 <div class="eq-bloque-meta">
                                     &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas} realizadas
                                 </div>
+                                <div class="eq-progress-bar">
+                                    <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
+                                </div>
                             </div>
-                            <span class="estado-badge {clase_est_bloque}">{estado_bloque}</span>
+                            <span class="estado-badge {clase_est_bloque}" style="margin-left:12px; flex-shrink:0;">{estado_bloque}</span>
                         </div>
                         <div class="eq-bloque-contenido">
                             <div class="eq-tabla-header">
