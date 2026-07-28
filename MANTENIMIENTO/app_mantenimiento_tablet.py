@@ -63,7 +63,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         ejecutadas_pct = pendientes_pct = verificar_pct = 0.0
     else:
         ejecutadas = len(df[df["Estado"] == "Ejecutado"])
-        pendientes = len(df[df["Estado"] == "Pendiente"])
+        pendientes = len(df[df["Estado"] == "POR ASIGNAR"])
         verificar = len(df[df["Estado"] == "Verificado"])
         ejecutadas_pct = round((ejecutadas / total) * 100, 1)
         pendientes_pct = round((pendientes / total) * 100, 1)
@@ -123,7 +123,7 @@ def cargar_ordenes_supabase():
             else: columnas_mapeo[col] = col.capitalize()
         df = df.rename(columns=columnas_mapeo)
         columnas_default = {
-            "Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+            "Estado": "POR ASIGNAR", "Comentarios": "", "Tecnico_Asignado": "",
             "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
             "Hora_Fin": "", "Prioridad_Actividad": "", "ID OT": ""
         }
@@ -475,7 +475,7 @@ def calcular_progreso(df):
     return pct_ejec, pct_pdte, pct_verif
 
 def obtener_estado_visual(estado):
-    estados = {"Ejecutado": "estado-ejecutado", "Verificado": "estado-verificado", "Cerrada": "estado-cerrada", "Pendiente": "estado-pendiente"}
+    estados = {"Ejecutado": "estado-ejecutado", "Verificado": "estado-verificado", "Cerrada": "estado-cerrada", "POR ASIGNAR": "estado-pendiente"}
     return estados.get(estado, "estado-pendiente")
 
 def obtener_color_prioridad(prioridad):
@@ -824,7 +824,7 @@ def pantalla_home():
                 df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_actual]
 
             total_asignadas = len(df_mias)
-            pendientes = len(df_mias[df_mias["Estado"] == "Pendiente"]) if "Estado" in df_mias.columns else 0
+            pendientes = len(df_mias[df_mias["Estado"] == "POR ASIGNAR"]) if "Estado" in df_mias.columns else 0
             ejecutadas = len(df_mias[df_mias["Estado"] == "Ejecutado"]) if "Estado" in df_mias.columns else 0
             verificadas = len(df_mias[df_mias["Estado"] == "Verificado"]) if "Estado" in df_mias.columns else 0
             cerradas = len(df_mias[df_mias["Estado"].isin(["Cerrada"])]) if "Estado" in df_mias.columns else 0
@@ -889,7 +889,7 @@ def pantalla_home():
                         if st.session_state.get(chk_key, False):
                             realizadas_chk += 1
                     pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
-                    estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
+                    estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "POR ASIGNAR"
                     clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
 
                     st.markdown(f"""
@@ -921,7 +921,7 @@ def pantalla_home():
                         internal_id = limpiar(row.get("ID"), "")
                         esp = limpiar(row.get("Especialidad"), "")
                         desc = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
-                        estado = limpiar(row.get("Estado"), "Pendiente")
+                        estado = limpiar(row.get("Estado"), "POR ASIGNAR")
                         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
 
                         chk_key = gen_key("chk_eq", internal_id)
@@ -972,8 +972,8 @@ def pantalla_home():
                                 internal_id = limpiar(row.get("ID"), "")
                                 chk_key = gen_key("chk_eq", internal_id)
                                 chk_val = st.session_state.get(chk_key, False)
-                                estado_actual = limpiar(row.get("Estado"), "Pendiente")
-                                nuevo_est = "Ejecutado" if chk_val else "Pendiente"
+                                estado_actual = limpiar(row.get("Estado"), "POR ASIGNAR")
+                                nuevo_est = "Ejecutado" if chk_val else "POR ASIGNAR"
                                 if nuevo_est != estado_actual:
                                     if actualizar_orden_supabase(internal_id, "Estado", nuevo_est):
                                         guardados += 1
@@ -1105,7 +1105,7 @@ def pantalla_ordenes():
         internal_id = limpiar(row.get("ID"), "")
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
         descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
-        estado = limpiar(row.get("Estado"), "Pendiente")
+        estado = limpiar(row.get("Estado"), "POR ASIGNAR")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
         estado_clase = obtener_estado_visual(estado)
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
@@ -1146,7 +1146,7 @@ def pantalla_mis_ordenes():
 
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        filtro_estado_tec = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado", "Cerrada"], 
+        filtro_estado_tec = st.selectbox("Filtrar por estado", ["Todos", "POR ASIGNAR", "Ejecutado", "Verificado", "Cerrada"], 
                                           index=0, key=gen_key("filtro_estado_tec"))
     with col_f2:
         busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
@@ -1170,7 +1170,7 @@ def pantalla_mis_ordenes():
     esp_tec = obtener_especialidad_tecnico(tecnico_sel)
 
     total_asignadas = len(df[df["Tecnico_Asignado"] == tecnico_sel]) if "Tecnico_Asignado" in df.columns else 0
-    pendientes = len(df[(df["Tecnico_Asignado"] == tecnico_sel) & (df["Estado"] == "Pendiente")]) if "Tecnico_Asignado" in df.columns else 0
+    pendientes = len(df[(df["Tecnico_Asignado"] == tecnico_sel) & (df["Estado"] == "POR ASIGNAR")]) if "Tecnico_Asignado" in df.columns else 0
     ejecutadas = len(df[(df["Tecnico_Asignado"] == tecnico_sel) & (df["Estado"] == "Ejecutado")]) if "Tecnico_Asignado" in df.columns else 0
 
     st.markdown(f"""
@@ -1201,7 +1201,7 @@ def pantalla_mis_ordenes():
         internal_id = limpiar(row.get("ID"), "")
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
         descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
-        estado = limpiar(row.get("Estado"), "Pendiente")
+        estado = limpiar(row.get("Estado"), "POR ASIGNAR")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
         estado_clase = obtener_estado_visual(estado)
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
@@ -1225,7 +1225,7 @@ def pantalla_mis_ordenes():
                 st.session_state.pagina = "detalle_tecnico"
                 st.rerun()
         with col2:
-            if estado == "Pendiente" and st.button(f"Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+            if estado == "POR ASIGNAR" and st.button(f"Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
                 st.session_state.orden_seleccionada = internal_id
                 st.session_state.pagina = "ejecutar"
                 st.rerun()
@@ -1265,7 +1265,7 @@ def pantalla_ejecutar():
             <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
             <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
             <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong>Estado actual:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
+            <strong>Estado actual:</strong> {limpiar(row.get('Estado'), 'POR ASIGNAR')}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1360,7 +1360,7 @@ def pantalla_detalle_tecnico():
             <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
             <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
             <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}<br>
+            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'POR ASIGNAR')}<br>
             <strong>Tecnico Asignado:</strong> {limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}
         </div>
     </div>
@@ -1376,7 +1376,7 @@ def pantalla_detalle_tecnico():
     if row.get("Fecha_Ejecucion"):
         st.success(f"Ejecutado el: {limpiar(row.get('Fecha_Ejecucion'), 'N/A')} | Inicio: {limpiar(row.get('Hora_Inicio'), 'N/A')} | Fin: {limpiar(row.get('Hora_Fin'), 'N/A')}")
 
-    if limpiar(row.get("Estado"), "Pendiente") == "Pendiente":
+    if limpiar(row.get("Estado"), "POR ASIGNAR") == "POR ASIGNAR":
         if st.button("EJECUTAR ESTA ORDEN", use_container_width=True, type="primary", key=gen_key("dettec_ejecutar")):
             st.session_state.pagina = "ejecutar"
             st.rerun()
@@ -1419,7 +1419,7 @@ def pantalla_detalle():
             <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
             <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
             <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
+            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'POR ASIGNAR')}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1439,8 +1439,8 @@ def pantalla_detalle():
     with col1:
         nuevo_tecnico = st.selectbox("Tecnico Asignado", tecnicos, index=idx_tec, key=gen_key("det_tecnico"))
     with col2:
-        estados = ["Pendiente", "Ejecutado", "Verificado", "Cerrada"]
-        estado_actual = limpiar(row.get("Estado"), "Pendiente")
+        estados = ["POR ASIGNAR", "Ejecutado", "Verificado", "Cerrada"]
+        estado_actual = limpiar(row.get("Estado"), "POR ASIGNAR")
         idx_est = estados.index(estado_actual) if estado_actual in estados else 0
         nuevo_estado = st.selectbox("Estado", estados, index=idx_est, key=gen_key("det_estado"))
     col3, col4 = st.columns(2)
@@ -1523,7 +1523,7 @@ def pantalla_asignacion():
 
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        estados_filtro = ["Todos", "Pendiente", "Ejecutado", "Verificado"]
+        estados_filtro = ["Todos", "POR ASIGNAR", "Ejecutado", "Verificado"]
         idx_est = estados_filtro.index(st.session_state.filtro_estado_asig) if st.session_state.filtro_estado_asig in estados_filtro else 0
         estado_sel = st.selectbox("Filtrar por Estado", estados_filtro, index=idx_est, key=gen_key("sel_estado_asig"))
         st.session_state.filtro_estado_asig = estado_sel
@@ -1556,7 +1556,7 @@ def pantalla_asignacion():
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
         equipo = limpiar(row.get("Equipo"), "Sin equipo")
         ubicacion = limpiar(row.get("Ubicacion"), "Sin ubicacion")
-        estado = limpiar(row.get("Estado"), "Pendiente")
+        estado = limpiar(row.get("Estado"), "POR ASIGNAR")
         tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "")
         descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
@@ -1669,7 +1669,7 @@ def pantalla_verificar():
                         st.error("Error al verificar")
             with col2:
                 if st.button(f"RECHAZAR", use_container_width=True, type="secondary", key=gen_key("rech_btn", internal_id)):
-                    if actualizar_orden_supabase(internal_id, "Estado", "Pendiente"):
+                    if actualizar_orden_supabase(internal_id, "Estado", "POR ASIGNAR"):
                         st.warning(f"OT {id_ot} devuelta a Pendiente")
                         st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
