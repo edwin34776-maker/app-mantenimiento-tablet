@@ -616,6 +616,14 @@ def recargar_datos():
     st.session_state.df_mantenimientos = df
     return df
 
+
+
+def toggle_detalle(idx):
+    """Alterna la visibilidad del detalle de una actividad."""
+    if st.session_state.actividad_expandida == idx:
+        st.session_state.actividad_expandida = None
+    else:
+        st.session_state.actividad_expandida = idx
 def gen_key(base, *parts):
     perfil = st.session_state.get("perfil", "none")
     pagina = st.session_state.get("pagina", "none")
@@ -650,6 +658,7 @@ if "tecnico_filtro_especialidad" not in st.session_state: st.session_state.tecni
 if "mostrar_todos_tecnicos" not in st.session_state: st.session_state.mostrar_todos_tecnicos = False
 if "asignacion_exitosa" not in st.session_state: st.session_state.asignacion_exitosa = None
 if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_opciones_ordenes = False
+if "actividad_expandida" not in st.session_state: st.session_state.actividad_expandida = None
 
 def pantalla_login():
     st.markdown('<div class="tablet-header">App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
@@ -912,7 +921,7 @@ def pantalla_home():
                             </div>
                     """, unsafe_allow_html=True)
 
-                    # Renderizar checkboxes
+                    # Renderizar checkboxes con detalle clickeable
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         esp = limpiar(row.get("Especialidad"), "")
@@ -936,11 +945,94 @@ def pantalla_home():
                         with cols[1]:
                             st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
                         with cols[2]:
-                            st.markdown(f'<span class="eq-desc" title="{desc}">{desc}</span>', unsafe_allow_html=True)
+                            # DESCRIPCIÓN COMO BOTÓN QUE ABRE DETALLE
+                            desc_btn_key = gen_key("btn_desc", internal_id)
+                            if st.button(
+                                desc,
+                                key=desc_btn_key,
+                                use_container_width=True,
+                                type="secondary"
+                            ):
+                                toggle_detalle(internal_id)
+                                st.rerun()
                         with cols[3]:
                             st.markdown(f'<span class="estado-badge {clase_est}">{estado}</span>', unsafe_allow_html=True)
                         with cols[4]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
+
+                        # ─── PANEL DE DETALLE (se muestra si esta actividad está expandida) ───
+                        if st.session_state.actividad_expandida == internal_id:
+                            with st.container():
+                                st.markdown(f"""
+                                <div style="background: #1e293b; border-left: 4px solid #3b82f6; 
+                                            padding: 16px; border-radius: 0 12px 12px 0; margin: 8px 0 16px 4px;
+                                            border-top: 1px solid #334155; border-right: 1px solid #334155; border-bottom: 1px solid #334155;">
+                                """, unsafe_allow_html=True)
+
+                                st.markdown(f"<h4 style='color:#60a5fa; margin:0 0 12px 0; font-size:15px;'>📋 Detalle de Actividad</h4>", unsafe_allow_html=True)
+
+                                det_col1, det_col2, det_col3 = st.columns(3)
+
+                                with det_col1:
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px;'>🔄 Frecuencia</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{limpiar(row.get('Frecuencia', ''), 'Mensual')}</span>", unsafe_allow_html=True)
+
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:8px; display:block;'>📅 Último mantenimiento</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{limpiar(row.get('Ultimo_Mantenimiento', ''), '—')}</span>", unsafe_allow_html=True)
+
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:8px; display:block;'>⏱️ Tiempo estimado</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{limpiar(row.get('Tiempo_Estimado', ''), '—')}</span>", unsafe_allow_html=True)
+
+                                with det_col2:
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px;'>📆 Próxima fecha</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{limpiar(row.get('Proxima_Fecha', ''), '—')}</span>", unsafe_allow_html=True)
+
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:8px; display:block;'>⚠️ Criticidad</span>", unsafe_allow_html=True)
+                                    criticidad = limpiar(row.get('Criticidad', ''), 'Media')
+                                    color_crit = {"Baja": "🟢", "Media": "🟡", "Alta": "🔴", "Critica": "🔴"}.get(criticidad, "🟡")
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{color_crit} {criticidad}</span>", unsafe_allow_html=True)
+
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:8px; display:block;'>🔧 Especialidad</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{esp}</span>", unsafe_allow_html=True)
+
+                                with det_col3:
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px;'>🛠️ Herramientas</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{limpiar(row.get('Herramientas', ''), '—')}</span>", unsafe_allow_html=True)
+
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:8px; display:block;'>📦 Repuestos</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px;'>{limpiar(row.get('Repuestos', ''), '—')}</span>", unsafe_allow_html=True)
+
+                                    st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:8px; display:block;'>📋 ID OT</span>", unsafe_allow_html=True)
+                                    st.markdown(f"<span style='color:#e2e8f0; font-size:13px; font-family:monospace;'>{limpiar(row.get('ID OT', ''), '—')}</span>", unsafe_allow_html=True)
+
+                                st.markdown("<span style='color:#94a3b8; font-size:11px; margin-top:12px; display:block;'>📝 Observaciones / Notas</span>", unsafe_allow_html=True)
+                                obs_key = gen_key("obs_det", internal_id)
+                                if obs_key not in st.session_state:
+                                    st.session_state[obs_key] = limpiar(row.get("Comentarios", ""), "")
+
+                                nueva_obs = st.text_area(
+                                    "", 
+                                    value=st.session_state[obs_key],
+                                    key=obs_key,
+                                    label_visibility="collapsed",
+                                    placeholder="Escribe observaciones de esta actividad..."
+                                )
+
+                                # Botones de acción en el detalle
+                                det_btn1, det_btn2 = st.columns(2)
+                                with det_btn1:
+                                    if st.button("✕ Cerrar detalle", key=gen_key("cerrar_det", internal_id), use_container_width=True):
+                                        st.session_state.actividad_expandida = None
+                                        st.rerun()
+                                with det_btn2:
+                                    if st.button("💾 Guardar observación", key=gen_key("guardar_obs", internal_id), type="primary", use_container_width=True):
+                                        if actualizar_orden_supabase(internal_id, "Comentarios", nueva_obs):
+                                            st.success("Observación guardada")
+                                            st.rerun()
+                                        else:
+                                            st.error("Error al guardar")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
 
 
 
