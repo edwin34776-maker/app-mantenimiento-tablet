@@ -1471,7 +1471,6 @@ def pantalla_detalle():
     fecha_ejec = limpiar(row.get("Fecha_Ejecucion"), "—")
     h_ini = limpiar(row.get("Hora_Inicio"), "—")
     h_fin = limpiar(row.get("Hora_Fin"), "—")
-    comentarios = limpiar(row.get("Comentarios"), "Sin comentarios")
     duracion = calcular_duracion(h_ini, h_fin) if h_ini != "—" and h_fin != "—" else None
 
     # Color de prioridad
@@ -1515,10 +1514,7 @@ def pantalla_detalle():
             </div>
         </div>
         {duracion_html}
-        <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; margin-top: 12px; border-left: 3px solid #f59e0b;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128172; Comentarios</div>
-            <div style="color:#e2e8f0; font-size:12px; margin-top:4px; line-height:1.4;">{comentarios}</div>
-        </div>
+
     </div>
     """, unsafe_allow_html=True)
 
