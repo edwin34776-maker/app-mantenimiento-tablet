@@ -932,20 +932,13 @@ def pantalla_home():
 
                     # Botones de acción del bloque
                     st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
-                    col_marcar, col_desmarcar, col_guardar = st.columns(3)
+                    col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
                                 chk_key = gen_key("chk_eq", internal_id)
                                 st.session_state[chk_key] = True
-                            st.rerun()
-                    with col_desmarcar:
-                        if st.button("&#128473; Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
-                            for idx, row in grupo_df.iterrows():
-                                internal_id = limpiar(row.get("ID"), "")
-                                chk_key = gen_key("chk_eq", internal_id)
-                                st.session_state[chk_key] = False
                             st.rerun()
                     with col_guardar:
                         if st.button("&#128190; Guardar cambios", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
