@@ -981,9 +981,13 @@ def pantalla_home():
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
 
+
+    # Botón ver todas las ordenes - SOLO PARA ADMIN
+    if perfil == "admin":
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("VER TODAS LAS ORDENES DEL SISTEMA", use_container_width=True, type="secondary", key=gen_key("btn_ver_todas")):
             st.session_state.pagina = "ordenes"; st.rerun()
+
     if perfil == "admin" and st.session_state.mostrar_envio_correo:
         st.divider()
         st.subheader("Enviar Resumen por Correo")
