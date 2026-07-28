@@ -695,14 +695,16 @@ def pantalla_home():
         <span style="font-size: 12px; opacity: 0.8;">{'&#128100; Admin' if perfil == 'admin' else '&#128295; Tecnico'}</span>
     </div>
     """, unsafe_allow_html=True)
-    total_ordenes = len(df)
-    st.markdown(f"""
-    <div class="home-screen">
-        <div class="counter-label">ORDENES PREVENTIVAS</div>
-        <div class="big-counter">{total_ordenes}</div>
-        <div class="counter-label">Total de ordenes activas</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Contador grande de ordenes - SOLO PARA ADMIN
+    if perfil == "admin":
+        total_ordenes = len(df)
+        st.markdown(f"""
+        <div class="home-screen">
+            <div class="counter-label">ORDENES PREVENTIVAS</div>
+            <div class="big-counter">{total_ordenes}</div>
+            <div class="counter-label">Total de ordenes activas</div>
+        </div>
+        """, unsafe_allow_html=True)
     # Ordenes por Maquina - SOLO PARA ADMIN
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
@@ -1042,7 +1044,8 @@ def pantalla_home():
             if st.button("CANCELAR", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_correo")):
                 st.session_state.mostrar_envio_correo = False
                 st.rerun()
-    if not df.empty and "Especialidad" in df.columns:
+    # Stats ELE/MEC/Cerradas - SOLO PARA ADMIN
+    if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
         st.divider()
         col_a, col_b, col_c = st.columns(3)
         with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
