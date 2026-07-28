@@ -396,7 +396,7 @@ st.markdown("""
     }
     .eq-tabla-header {
         display: grid;
-        grid-template-columns: 36px 55px 1fr 90px 130px;
+        grid-template-columns: 36px 55px 1fr 80px 80px 130px;
         gap: 8px;
         padding: 8px 12px;
         background: #334155;
@@ -411,7 +411,7 @@ st.markdown("""
     }
     .eq-tabla-fila {
         display: grid;
-        grid-template-columns: 36px 55px 1fr 90px 130px;
+        grid-template-columns: 36px 55px 1fr 80px 80px 130px;
         gap: 8px;
         padding: 8px 12px;
         background: #1e293b;
