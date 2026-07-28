@@ -703,10 +703,11 @@ def pantalla_home():
         <div class="counter-label">Total de ordenes activas</div>
     </div>
     """, unsafe_allow_html=True)
-    if "Nodo" in df.columns:
+    # Ordenes por Maquina - SOLO PARA ADMIN
+    if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
-            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #666; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #94a3b8; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
             cols = st.columns(min(len(conteo_maquinas), 4))
             for i, (maq, cant) in enumerate(conteo_maquinas.items()):
                 with cols[i % 4]:
@@ -716,6 +717,7 @@ def pantalla_home():
                         <div class="contador-maquina-label">{maq}</div>
                     </div>
                     """, unsafe_allow_html=True)
+
     if perfil == "admin":
         maquinas = obtener_maquinas_disponibles(df)
         index_sel = 0
