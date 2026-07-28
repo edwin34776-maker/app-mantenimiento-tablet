@@ -220,7 +220,7 @@ def guardar_asignaciones_supabase(df):
     try:
         columnas_editables = [
             "Tecnico_Asignado", "Estado", "Prioridad_Actividad",
-            "Comentarios", "Fecha_Ejecucion",
+            "Comentarios", "Actividades_Hechas", "Fecha_Ejecucion",
             "Hora_Inicio", "Hora_Fin"
         ]
         exitosos = 0
@@ -1337,6 +1337,9 @@ def pantalla_ejecutar():
     st.subheader("Comentarios de Ejecucion")
     comentarios = limpiar(row.get("Comentarios"), "")
     nuevo_comentario = st.text_area("Describa lo realizado...", value=comentarios, key=gen_key("comentario_ejecucion"))
+    st.subheader("Actividades Realizadas")
+    actividades = st.text_area("Liste las actividades hechas (una por linea)...", value=limpiar(row.get("Actividades_Hechas"), ""), key=gen_key("actividades_hechas"))
+
     hora_valida = True
     if hora_fin < hora_inicio:
         st.warning("⚠️ La hora de fin es anterior a la hora de inicio. Por favor verifica.")
@@ -1346,6 +1349,7 @@ def pantalla_ejecutar():
         datos = {
             "Estado": "Ejecutado",
             "Comentarios": nuevo_comentario,
+            "Actividades_Hechas": actividades,
             "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d"),
             "Hora_Inicio": hora_inicio.strftime("%H:%M"),
             "Hora_Fin": hora_fin.strftime("%H:%M")
@@ -1353,6 +1357,7 @@ def pantalla_ejecutar():
         if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
             df.at[idx, "Estado"] = "Ejecutado"
             df.at[idx, "Comentarios"] = nuevo_comentario
+            df.at[idx, "Actividades_Hechas"] = actividades
             df.at[idx, "Fecha_Ejecucion"] = datos["Fecha_Ejecucion"]
             df.at[idx, "Hora_Inicio"] = datos["Hora_Inicio"]
             df.at[idx, "Hora_Fin"] = datos["Hora_Fin"]
@@ -1407,7 +1412,9 @@ def pantalla_detalle_tecnico():
     """, unsafe_allow_html=True)
     st.subheader("Descripcion del Procedimiento")
     st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
-
+    if row.get("Actividades_Hechas"):
+        st.subheader("Actividades Realizadas")
+        st.write(limpiar(row.get("Actividades_Hechas"), "Sin registro"))
     if row.get("Comentarios"):
         st.subheader("Comentarios")
         st.info(limpiar(row.get("Comentarios"), ""))
@@ -1464,68 +1471,71 @@ def pantalla_detalle():
     st.subheader("Descripcion del Procedimiento")
     st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
     st.divider()
-    st.subheader("&#128203; Informacion de la Orden")
-
-    estado_actual = limpiar(row.get("Estado"), "Pendiente")
-    tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
-    fecha_ejec = limpiar(row.get("Fecha_Ejecucion"), "—")
-    h_ini = limpiar(row.get("Hora_Inicio"), "—")
-    h_fin = limpiar(row.get("Hora_Fin"), "—")
-    comentarios = limpiar(row.get("Comentarios"), "Sin comentarios")
-    duracion = calcular_duracion(h_ini, h_fin) if h_ini != "—" and h_fin != "—" else None
-
-    # Color de prioridad
-    pri_color = {"Rojo": "#ef4444", "Amarillo": "#f59e0b", "Verde": "#22c55e", "": "#64748b"}.get(prioridad, "#64748b")
-    pri_label = obtener_color_prioridad(prioridad)["label"] if prioridad else "SIN CLASIFICAR"
-
-    # Color de estado
-    est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado_actual, "#64748b")
-
-    # Construir HTML de duración si existe
-    duracion_html = ""
-    if duracion:
-        duracion_html = f"""<div style="background: #064e3b; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>"""
-
-    st.markdown(f"""
-    <div style="background: #162032; border-radius: 12px; padding: 16px; border: 1px solid #1e3a5f; margin-bottom: 12px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
-                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128100; Tecnico</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{tecnico_actual}</div>
-            </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {est_color};">
-                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128308; Estado</div>
-                <div style="color:{est_color}; font-size:13px; font-weight:700; margin-top:4px;">{estado_actual}</div>
-            </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {pri_color};">
-                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9888; Prioridad</div>
-                <div style="color:{pri_color}; font-size:13px; font-weight:700; margin-top:4px;">{pri_label}</div>
-            </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #a78bfa;">
-                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128197; Fecha Ejecucion</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{fecha_ejec}</div>
-            </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #60a5fa;">
-                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9200; Hora Inicio</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_ini}</div>
-            </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #f472b6;">
-                <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9201; Hora Fin</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_fin}</div>
-            </div>
-        </div>
-        {duracion_html}
-        <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; margin-top: 12px; border-left: 3px solid #f59e0b;">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128172; Comentarios</div>
-            <div style="color:#e2e8f0; font-size:12px; margin-top:4px; line-height:1.4;">{comentarios}</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Botón para ir a editar en asignaciones
-    if st.button("&#9998; EDITAR EN ASIGNACIONES", use_container_width=True, type="secondary", key=gen_key("det_ir_asignar")):
-        st.session_state.pagina = "asignacion"
-        st.rerun()
+    st.subheader("Editar Orden")
+    especialidad = limpiar(row.get("Especialidad"), "")
+    tecnicos = obtener_tecnicos_por_especialidad(especialidad)
+    tecnicos = [""] + tecnicos
+    tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "")
+    try:
+        idx_tec = tecnicos.index(tecnico_actual) if tecnico_actual in tecnicos else 0
+    except:
+        idx_tec = 0
+    col1, col2 = st.columns(2)
+    with col1:
+        nuevo_tecnico = st.selectbox("Tecnico Asignado", tecnicos, index=idx_tec, key=gen_key("det_tecnico"))
+    with col2:
+        estados = ["Pendiente", "Ejecutado", "Verificado"]
+        estado_actual = limpiar(row.get("Estado"), "Pendiente")
+        idx_est = estados.index(estado_actual) if estado_actual in estados else 0
+        nuevo_estado = st.selectbox("Estado", estados, index=idx_est, key=gen_key("det_estado"))
+    col3, col4 = st.columns(2)
+    with col3:
+        prioridades = ["", "Rojo", "Amarillo", "Verde"]
+        idx_pri = prioridades.index(prioridad) if prioridad in prioridades else 0
+        nueva_prioridad = st.selectbox("Prioridad", prioridades, index=idx_pri, key=gen_key("det_prioridad"))
+    with col4:
+        fecha_ejec_str = limpiar(row.get("Fecha_Ejecucion"), "")
+        try:
+            fecha_default = datetime.strptime(fecha_ejec_str, "%Y-%m-%d").date() if fecha_ejec_str else datetime.now().date()
+        except:
+            fecha_default = datetime.now().date()
+        fecha_ejec = st.date_input("Fecha Ejecucion", value=fecha_default, key=gen_key("det_fecha"))
+    col5, col6 = st.columns(2)
+    with col5:
+        h_ini_str = limpiar(row.get("Hora_Inicio"), "08:00")
+        try:
+            h_ini = datetime.strptime(h_ini_str, "%H:%M").time()
+        except:
+            h_ini = datetime.strptime("08:00", "%H:%M").time()
+        hora_inicio = st.time_input("Hora Inicio", value=h_ini, key=gen_key("det_hini"))
+    with col6:
+        h_fin_str = limpiar(row.get("Hora_Fin"), "17:00")
+        try:
+            h_fin = datetime.strptime(h_fin_str, "%H:%M").time()
+        except:
+            h_fin = datetime.strptime("17:00", "%H:%M").time()
+        hora_fin = st.time_input("Hora Fin", value=h_fin, key=gen_key("det_hfin"))
+    comentarios = st.text_area("Comentarios", value=limpiar(row.get("Comentarios"), ""), key=gen_key("det_comentarios"))
+    actividades = st.text_area("Actividades Hechas", value=limpiar(row.get("Actividades_Hechas"), ""), key=gen_key("det_actividades"))
+    if st.button("GUARDAR CAMBIOS", use_container_width=True, type="primary", key=gen_key("det_guardar")):
+        datos = {
+            "Tecnico_Asignado": nuevo_tecnico,
+            "Estado": nuevo_estado,
+            "Prioridad_Actividad": nueva_prioridad,
+            "Comentarios": comentarios,
+            "Actividades_Hechas": actividades,
+            "Fecha_Ejecucion": fecha_ejec.strftime("%Y-%m-%d"),
+            "Hora_Inicio": hora_inicio.strftime("%H:%M"),
+            "Hora_Fin": hora_fin.strftime("%H:%M")
+        }
+        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+            for k, v in datos.items():
+                df.at[idx, k] = v
+            st.success("Cambios guardados exitosamente en Supabase")
+            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+            st.rerun()
+        else:
+            st.error("Error al guardar en Supabase")
     if perfil in ["admin", "supervisor"] and estado_actual == "Ejecutado":
         if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key=gen_key("det_verificar")):
             if actualizar_orden_supabase(internal_id, "Estado", "Verificado"):
@@ -1714,7 +1724,7 @@ def pantalla_verificar():
         """, unsafe_allow_html=True)
         with st.expander("Ver detalles y comentarios"):
             st.write(f"**Descripcion completa:** {descripcion}")
-
+            st.write(f"**Actividades realizadas:** {limpiar(row.get('Actividades_Hechas'), 'Sin registro')}")
             st.write(f"**Comentarios:** {limpiar(row.get('Comentarios'), 'Sin comentarios')}")
             col1, col2 = st.columns(2)
             with col1:
