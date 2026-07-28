@@ -64,7 +64,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
     else:
         ejecutadas = len(df[df["Estado"] == "Ejecutado"])
         pendientes = len(df[df["Estado"] == "POR ASIGNAR"])
-        verificar = len(df[df["Estado"] == "Verificado"])
+        verificar = len(df[df["Estado"] == "VERIFICAR"])
         ejecutadas_pct = round((ejecutadas / total) * 100, 1)
         pendientes_pct = round((pendientes / total) * 100, 1)
         verificar_pct = round((verificar / total) * 100, 1)
@@ -468,7 +468,7 @@ def calcular_progreso(df):
     total = len(df)
     if total == 0: return 0, 0, 0
     ejecutado = len(df[df["Estado"] == "Ejecutado"])
-    verificado = len(df[df["Estado"] == "Verificado"])
+    verificado = len(df[df["Estado"] == "VERIFICAR"])
     pct_ejec = round((ejecutado / total) * 100, 1)
     pct_verif = round((verificado / total) * 100, 1)
     pct_pdte = round(100 - pct_ejec - pct_verif, 1)
@@ -826,7 +826,7 @@ def pantalla_home():
             total_asignadas = len(df_mias)
             pendientes = len(df_mias[df_mias["Estado"] == "POR ASIGNAR"]) if "Estado" in df_mias.columns else 0
             ejecutadas = len(df_mias[df_mias["Estado"] == "Ejecutado"]) if "Estado" in df_mias.columns else 0
-            verificadas = len(df_mias[df_mias["Estado"] == "Verificado"]) if "Estado" in df_mias.columns else 0
+            verificadas = len(df_mias[df_mias["Estado"] == "VERIFICAR"]) if "Estado" in df_mias.columns else 0
             cerradas = len(df_mias[df_mias["Estado"].isin(["Cerrada"])]) if "Estado" in df_mias.columns else 0
 
             st.markdown(f"""
@@ -932,7 +932,7 @@ def pantalla_home():
                             st.session_state[chk_key] = ya_ejecutado
 
                         clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
-                        clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-cr" if estado == "Cerrada" else "eq-estado-pd"
+                        clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "VERIFICAR" else "eq-estado-pd"
 
                         cols = st.columns([0.4, 0.6, 3, 0.9, 1.3])
                         with cols[0]:
@@ -1050,7 +1050,7 @@ def pantalla_home():
         col_a, col_b, col_c = st.columns(3)
         with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
         with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
-        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Cerrada", "Verificado"])]))
+        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["VERIFICAR"])]))
     st.markdown("<br>", unsafe_allow_html=True)
     boton_cerrar_sesion()
 
@@ -1146,7 +1146,7 @@ def pantalla_mis_ordenes():
 
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        filtro_estado_tec = st.selectbox("Filtrar por estado", ["Todos", "POR ASIGNAR", "Ejecutado", "Verificado", "Cerrada"], 
+        filtro_estado_tec = st.selectbox("Filtrar por estado", ["Todos", "Ejecutado", "VERIFICAR"], 
                                           index=0, key=gen_key("filtro_estado_tec"))
     with col_f2:
         busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
@@ -1439,7 +1439,7 @@ def pantalla_detalle():
     with col1:
         nuevo_tecnico = st.selectbox("Tecnico Asignado", tecnicos, index=idx_tec, key=gen_key("det_tecnico"))
     with col2:
-        estados = ["POR ASIGNAR", "Ejecutado", "Verificado", "Cerrada"]
+        estados = ["Ejecutado", "VERIFICAR"]
         estado_actual = limpiar(row.get("Estado"), "POR ASIGNAR")
         idx_est = estados.index(estado_actual) if estado_actual in estados else 0
         nuevo_estado = st.selectbox("Estado", estados, index=idx_est, key=gen_key("det_estado"))
@@ -1523,7 +1523,7 @@ def pantalla_asignacion():
 
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        estados_filtro = ["Todos", "POR ASIGNAR", "Ejecutado", "Verificado"]
+        estados_filtro = ["Todos", "Ejecutado", "VERIFICAR"]
         idx_est = estados_filtro.index(st.session_state.filtro_estado_asig) if st.session_state.filtro_estado_asig in estados_filtro else 0
         estado_sel = st.selectbox("Filtrar por Estado", estados_filtro, index=idx_est, key=gen_key("sel_estado_asig"))
         st.session_state.filtro_estado_asig = estado_sel
