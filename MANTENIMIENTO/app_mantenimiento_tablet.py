@@ -573,6 +573,26 @@ def contar_por_subsistema(df, maquina_filtro="Todas"):
     except Exception:
         return {}
 
+
+def calcular_duracion(hora_inicio, hora_fin):
+    """Calcula la duración entre dos horas en formato HH:MM."""
+    try:
+        if not hora_inicio or not hora_fin:
+            return None
+        fmt = "%H:%M"
+        hi = datetime.strptime(str(hora_inicio).strip(), fmt)
+        hf = datetime.strptime(str(hora_fin).strip(), fmt)
+        diff = hf - hi
+        total_min = int(diff.total_seconds() / 60)
+        if total_min < 0:
+            total_min += 24 * 60
+        horas = total_min // 60
+        mins = total_min % 60
+        if horas > 0:
+            return f"{horas}h {mins}m"
+        return f"{mins} min"
+    except Exception:
+        return None
 def obtener_especialidad_tecnico(nombre_tecnico):
     if nombre_tecnico in TECNICOS_ELE:
         return "ELE"
@@ -896,6 +916,7 @@ def pantalla_home():
                                 <div>ESP</div>
                                 <div>DESCRIPCION</div>
                                 <div style="text-align:center">ESTADO</div>
+                                <div style="text-align:center">TIEMPO</div>
                                 <div>TECNICO</div>
                             </div>
                     """, unsafe_allow_html=True)
@@ -918,9 +939,21 @@ def pantalla_home():
                         clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
                         clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-pd"
 
-                        cols = st.columns([0.4, 0.6, 3, 0.9, 1.3])
+                        # ── COLUMNA DE TIEMPO / DURACIÓN ──
+                        h_ini = limpiar(row.get("Hora_Inicio"), "")
+                        h_fin = limpiar(row.get("Hora_Fin"), "")
+                        duracion = calcular_duracion(h_ini, h_fin)
+
+                        cols = st.columns([0.4, 0.6, 2.6, 0.8, 1.1, 1.2])
                         with cols[0]:
-                            st.checkbox("", key=chk_key, label_visibility="collapsed")
+                            chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
+                            # Detección automática: si acaba de marcar, guardar hora de inicio
+                            prev_key = f"prev_{chk_key}"
+                            prev_val = st.session_state.get(prev_key, False)
+                            if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
+                                # Primera vez que marca en esta sesión → guardar hora inicio automática
+                                st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+                            st.session_state[prev_key] = chk_val
                         with cols[1]:
                             st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
                         with cols[2]:
@@ -928,7 +961,20 @@ def pantalla_home():
                         with cols[3]:
                             st.markdown(f'<span class="estado-badge {clase_est}">{estado}</span>', unsafe_allow_html=True)
                         with cols[4]:
+                            # Mostrar tiempo automático
+                            hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
+                            if estado == "Ejecutado" and duracion:
+                                st.markdown(f'<div style="text-align:center; background:#064e3b; color:#34d399; padding:3px 6px; border-radius:6px; font-size:11px; font-weight:700; border:1px solid #059669;">&#9989; {duracion}</div>', unsafe_allow_html=True)
+                            elif hora_ini_auto and estado not in ["Ejecutado", "Verificado"]:
+                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:3px 6px; border-radius:6px; font-size:10px; font-weight:600; border:1px solid #3b82f6;">&#9201; {hora_ini_auto}</div>', unsafe_allow_html=True)
+                            elif h_ini and not h_fin:
+                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:3px 6px; border-radius:6px; font-size:10px; font-weight:600; border:1px solid #3b82f6;">&#9201; {h_ini}</div>', unsafe_allow_html=True)
+                            else:
+                                st.markdown(f'<div style="text-align:center; color:#475569; font-size:11px;">—</div>', unsafe_allow_html=True)
+                        with cols[5]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
+
+
 
                     # Botones de acción del bloque
                     st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
@@ -948,10 +994,30 @@ def pantalla_home():
                                 chk_key = gen_key("chk_eq", internal_id)
                                 chk_val = st.session_state.get(chk_key, False)
                                 estado_actual = limpiar(row.get("Estado"), "Pendiente")
-                                nuevo_est = "Ejecutado" if chk_val else "Pendiente"
-                                if nuevo_est != estado_actual:
-                                    if actualizar_orden_supabase(internal_id, "Estado", nuevo_est):
+                                h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
+                                h_fin_bd = limpiar(row.get("Hora_Fin"), "")
+                                hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
+
+                                if chk_val and estado_actual not in ["Ejecutado", "Verificado"]:
+                                    # Marcar como ejecutado con tiempo automático
+                                    hora_fin = datetime.now().strftime("%H:%M")
+                                    hora_ini = hora_ini_auto if hora_ini_auto else (h_ini_bd if h_ini_bd else hora_fin)
+                                    datos = {
+                                        "Estado": "Ejecutado",
+                                        "Hora_Inicio": hora_ini,
+                                        "Hora_Fin": hora_fin,
+                                        "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
+                                    }
+                                    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
+                                        # Limpiar session_state de inicio automático
+                                        if f"hora_ini_auto_{internal_id}" in st.session_state:
+                                            del st.session_state[f"hora_ini_auto_{internal_id}"]
+                                elif not chk_val and estado_actual == "Ejecutado":
+                                    # Desmarcar: volver a pendiente, mantener Hora_Inicio como histórico
+                                    if actualizar_orden_supabase(internal_id, "Estado", "Pendiente"):
+                                        guardados += 1
+
                             if guardados > 0:
                                 st.success(f"{guardados} cambios guardados en Supabase")
                                 st.rerun()
@@ -1579,10 +1645,33 @@ def pantalla_asignacion():
             if nuevo_tec == "Sin asignar": 
                 nuevo_tec = ""
 
+            # Selectbox de prioridad
+            prioridad_actual = limpiar(row.get("Prioridad_Actividad"), "")
+            prioridades = ["", "Rojo", "Amarillo", "Verde"]
+            idx_pri = prioridades.index(prioridad_actual) if prioridad_actual in prioridades else 0
+            pri_key = gen_key("pri_asig", internal_id)
+            nueva_prioridad = st.selectbox(
+                "Prioridad",
+                prioridades,
+                index=idx_pri,
+                key=pri_key,
+                help="Rojo=CRITICO | Amarillo=SECUNDARIO | Verde=ESTANDAR"
+            )
+
             btn_key = gen_key("btn_asig", internal_id)
             if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=btn_key):
-                if actualizar_orden_supabase(internal_id, "Tecnico_Asignado", nuevo_tec):
-                    st.session_state.asignacion_exitosa = f"OT {id_ot} -> {nuevo_tec if nuevo_tec else 'Sin asignar'}"
+                datos = {}
+                if nuevo_tec != tecnico_actual:
+                    datos["Tecnico_Asignado"] = nuevo_tec
+                if nueva_prioridad != prioridad_actual:
+                    datos["Prioridad_Actividad"] = nueva_prioridad
+
+                exito = True
+                if datos:
+                    exito = actualizar_campos_supabase(internal_id, datos, row.to_dict())
+
+                if exito:
+                    st.session_state.asignacion_exitosa = f"OT {id_ot} -> {nuevo_tec if nuevo_tec else 'Sin asignar'} | Prioridad: {nueva_prioridad if nueva_prioridad else 'Sin clasificar'}"
                     st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                     st.rerun()
                 else:
