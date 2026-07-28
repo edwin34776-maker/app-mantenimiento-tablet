@@ -1484,6 +1484,11 @@ def pantalla_detalle():
     # Color de estado
     est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado_actual, "#64748b")
 
+    # Construir HTML de duración si existe
+    duracion_html = ""
+    if duracion:
+        duracion_html = f"""<div style="background: #064e3b; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>"""
+
     st.markdown(f"""
     <div style="background: #162032; border-radius: 12px; padding: 16px; border: 1px solid #1e3a5f; margin-bottom: 12px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
@@ -1512,7 +1517,7 @@ def pantalla_detalle():
                 <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_fin}</div>
             </div>
         </div>
-        {f'<div style="background: #064e3b; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>' if duracion else ''}
+        {duracion_html}
         <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; margin-top: 12px; border-left: 3px solid #f59e0b;">
             <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128172; Comentarios</div>
             <div style="color:#e2e8f0; font-size:12px; margin-top:4px; line-height:1.4;">{comentarios}</div>
