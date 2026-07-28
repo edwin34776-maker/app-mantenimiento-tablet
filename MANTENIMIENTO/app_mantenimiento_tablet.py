@@ -245,19 +245,19 @@ st.set_page_config(page_title="App Tablet Mtto Preventivo", page_icon="🔧", la
 
 st.markdown("""
 <style>
-    .stApp { background-color: #0f172a; max-width: 100vw; overflow-x: hidden; }
+    .stApp { background-color: #020617; max-width: 100vw; overflow-x: hidden; }
     .main .block-container { padding-left: 0.8rem !important; padding-right: 0.8rem !important; max-width: 100% !important; }
     div[data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
     .tablet-header {
-        background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+        background: linear-gradient(135deg, #0284C7 0%, #0EA5E9 100%);
         color: white; padding: 12px 16px; border-radius: 0 0 16px 16px;
         text-align: center; font-size: 18px; font-weight: 700;
         margin: -1rem -1rem 1rem -1rem; box-shadow: 0 4px 15px rgba(26,35,158,0.3);
         position: sticky; top: 0; z-index: 100; width: 100%; box-sizing: border-box; word-wrap: break-word;
     }
-    .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: auto; text-align: center; padding: 10px; width: 100%; box-sizing: border-box; color: #e2e8f0; }
+    .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: auto; text-align: center; padding: 10px; width: 100%; box-sizing: border-box; color: #E0F2FE; }
     .big-counter { font-size: 60px; font-weight: 900; color: #60a5fa; line-height: 1; margin: 10px 0; word-wrap: break-word; }
-    .counter-label { font-size: 18px; color: #94a3b8; margin-bottom: 30px; }
+    .counter-label { font-size: 18px; color: #7DD3FC; margin-bottom: 30px; }
     .estado-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; }
     .estado-ejecutado { background-color: #d4edda; color: #155724; }
     .estado-pendiente { background-color: #fff3cd; color: #856404; }
@@ -274,21 +274,21 @@ st.markdown("""
     .prioridad-critico { border-left: 4px solid #dc3545 !important; background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%) !important; }
     .prioridad-secundario { border-left: 4px solid #ffc107 !important; background: linear-gradient(90deg, #fffbea 0%, #ffffff 100%) !important; }
     .prioridad-estandar { border-left: 4px solid #28a745 !important; background: linear-gradient(90deg, #f0fff4 0%, #ffffff 100%) !important; }
-    .tabla-header { display: grid; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 700; font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
-    .tabla-fila { display: grid; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; transition: all 0.2s; }
-    .tabla-fila:hover { background: #f8f9fa; border-color: #adb5bd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .tabla-header { display: grid; background: #0C4A6E; color: #7DD3FC; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 700; font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
+    .tabla-fila { display: grid; background: #0C4A6E; border-color: #0EA5E9; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; transition: all 0.2s; }
+    .tabla-fila:hover { background: #075985; border-color: #adb5bd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .tabla-fila .col-id { font-family: monospace; font-size: 11px; color: #495057; }
     .tabla-fila .col-esp { font-weight: 600; font-size: 11px; color: #1a237e; }
     .tabla-fila .col-desc { font-size: 11px; color: #212529; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tabla-fila .col-estado { text-align: center; }
     .tabla-fila .col-tec { font-size: 10px; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tabla-fila-asig { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; margin-bottom: 4px; }
+    .tabla-fila-asig { display: grid; background: #0C4A6E; border-color: #0EA5E9; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; margin-bottom: 4px; }
     .asig-info { min-width: 0; overflow: hidden; }
     .asig-ot { font-size: 12px; color: #212529; margin-bottom: 2px; }
     .asig-esp { color: #1a237e; font-weight: 600; font-size: 11px; }
     .asig-equipo { font-size: 10px; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .asig-estado { text-align: right; flex-shrink: 0; }
-    .perfil-card { background: white; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; border: 3px solid transparent; }
+    .perfil-card { background: #0C4A6E; border-color: #0EA5E9; color: #E0F2FE; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; border: 3px solid transparent; }
     .perfil-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
     .perfil-admin { border-color: #dc3545; }
     .perfil-tecnico { border-color: #28a745; }
@@ -302,7 +302,7 @@ st.markdown("""
         display: flex; align-items: center; justify-content: space-between;
     }
     .tecnico-card:hover { border-color: #1a237e; box-shadow: 0 2px 8px rgba(26,35,158,0.15); }
-    .tecnico-card.activa { border-color: #1a237e; background: linear-gradient(135deg, #e8eaf6 0%, #ffffff 100%); }
+    .tecnico-card.activa { border-color: #0EA5E9; background: linear-gradient(135deg, #075985 0%, #0C4A6E 100%); }
     .tecnico-nombre { font-size: 14px; font-weight: 700; color: #1a237e; }
     .tecnico-esp { font-size: 11px; color: #666; }
     .tecnico-badge {
@@ -315,16 +315,16 @@ st.markdown("""
     .tecnico-badge.baja { background: #28a745; }
     .grupo-ele { border-left: 4px solid #ffc107 !important; }
     .grupo-mec { border-left: 4px solid #28a745 !important; }
-    .maquina-card { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
+    .maquina-card { background: #0C4A6E; border-color: #0EA5E9; color: #E0F2FE; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
     .maquina-card:hover { border-color: #1a237e; box-shadow: 0 2px 8px rgba(26,35,158,0.15); }
-    .maquina-card.activa { border-color: #1a237e; background: linear-gradient(135deg, #e8eaf6 0%, #ffffff 100%); }
+    .maquina-card.activa { border-color: #0EA5E9; background: linear-gradient(135deg, #075985 0%, #0C4A6E 100%); }
     .maquina-nombre { font-size: 15px; font-weight: 700; color: #1a237e; }
     .maquina-badge { background: #1a237e; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
     .filtro-nodo-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
     .contador-maquinas { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
-    .contador-maquina { background: white; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
+    .contador-maquina { background: #0C4A6E; border-color: #0EA5E9; color: #E0F2FE; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
     .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #60a5fa; }
-    .contador-maquina-label { font-size: 10px; color: #94a3b8; }
+    .contador-maquina-label { font-size: 10px; color: #7DD3FC; }
     .nodo-badge-mini { background: #e8eaf6; color: #1a237e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: monospace; }
     @media (max-width: 768px) {
         .big-counter { font-size: 48px; }
@@ -344,21 +344,21 @@ st.markdown("""
     }
     iframe { max-width: 100%; }
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
-    .stSelectbox label, .stTextInput label { color: #e2e8f0 !important; }
+    .stSelectbox label, .stTextInput label { color: #7DD3FC !important; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
     /* === BLOQUES POR EQUIPO/UBICACION (vista tecnico) === */
     .eq-bloque {
-        background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        background: linear-gradient(180deg, #0C4A6E 0%, #020617 100%);
         border-radius: 16px;
         margin-bottom: 20px;
-        color: #e2e8f0;
-        border: 1px solid #334155;
+        color: #E0F2FE;
+        border: 1px solid #0EA5E9;
         overflow: hidden;
         box-shadow: 0 8px 32px rgba(0,0,0,0.25);
     }
     .eq-bloque-header {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        background: linear-gradient(135deg, #0284C7 0%, #0EA5E9 100%);
         padding: 14px 18px;
         display: flex;
         align-items: center;
@@ -374,20 +374,20 @@ st.markdown("""
     }
     .eq-bloque-meta {
         font-size: 11px;
-        color: #cbd5e1;
+        color: #7DD3FC;
         margin-top: 4px;
     }
     .eq-progress-bar {
         width: 100%;
         height: 6px;
-        background: #334155;
+        background: #0C4A6E;
         border-radius: 3px;
         margin-top: 8px;
         overflow: hidden;
     }
     .eq-progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%);
+        background: linear-gradient(90deg, #0EA5E9 0%, #0284C7 100%);
         border-radius: 3px;
         transition: width 0.3s ease;
     }
@@ -399,11 +399,11 @@ st.markdown("""
         grid-template-columns: 36px 55px 1fr 80px 80px 130px;
         gap: 8px;
         padding: 8px 12px;
-        background: #334155;
+        background: #0C4A6E;
         border-radius: 8px;
         font-weight: 700;
         font-size: 10px;
-        color: #94a3b8;
+        color: #7DD3FC;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         align-items: center;
@@ -414,19 +414,19 @@ st.markdown("""
         grid-template-columns: 36px 55px 1fr 80px 80px 130px;
         gap: 8px;
         padding: 8px 12px;
-        background: #1e293b;
+        background: #0C4A6E;
         border-bottom: 1px solid #334155;
         align-items: center;
         font-size: 12px;
         transition: background 0.2s;
     }
-    .eq-tabla-fila:hover { background: #27354f; }
+    .eq-tabla-fila:hover { background: #075985; }
     .eq-tabla-fila:last-child { border-bottom: none; }
     .eq-esp-ele { background: #60a5fa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
     .eq-esp-mec { background: #fbbf24; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
     .eq-esp-hid { background: #a78bfa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
-    .eq-desc { color: #f8fafc; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .eq-tec { color: #f1f5f9; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-desc { color: #E0F2FE; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-tec { color: #E0F2FE; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .eq-estado-ej { background-color: #059669; color: #ffffff; font-weight: 700; }
     .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
     .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
@@ -729,16 +729,16 @@ def pantalla_home():
         total_ordenes = len(df)
         st.markdown(f"""
         <div class="home-screen">
-            <div class="counter-label">ORDENES PREVENTIVAS</div>
-            <div class="big-counter">{total_ordenes}</div>
-            <div class="counter-label">Total de ordenes activas</div>
+            <div class="counter-label" style="color:#7DD3FC;">ORDENES PREVENTIVAS</div>
+            <div class="big-counter" style="color:#0EA5E9;">{total_ordenes}</div>
+            <div class="counter-label" style="color:#7DD3FC;">Total de ordenes activas</div>
         </div>
         """, unsafe_allow_html=True)
     # Ordenes por Maquina - SOLO PARA ADMIN
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
-            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #94a3b8; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #7DD3FC; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
             cols = st.columns(min(len(conteo_maquinas), 4))
             for i, (maq, cant) in enumerate(conteo_maquinas.items()):
                 with cols[i % 4]:
@@ -1115,9 +1115,9 @@ def pantalla_ordenes():
     pct_ejec, pct_pdte, pct_verif = calcular_progreso(df)
     st.markdown(f"""
     <div class="progress-bar-container">
-        <div class="progress-item"><div class="progress-value" style="color:#28a745">{pct_ejec}%</div><div class="progress-label">Ejecutado</div></div>
-        <div class="progress-item"><div class="progress-value" style="color:#dc3545">{pct_pdte}%</div><div class="progress-label">Pendiente</div></div>
-        <div class="progress-item"><div class="progress-value" style="color:#007bff">{pct_verif}%</div><div class="progress-label">Verificado</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#22c55e">{pct_ejec}%</div><div class="progress-label">Ejecutado</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#f87171">{pct_pdte}%</div><div class="progress-label">Pendiente</div></div>
+        <div class="progress-item"><div class="progress-value" style="color:#38bdf8">{pct_verif}%</div><div class="progress-label">Verificado</div></div>
     </div>
     """, unsafe_allow_html=True)
     df_filtrado = df.copy()
@@ -1304,8 +1304,8 @@ def pantalla_ejecutar():
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
-    <div class="detail-panel">
-        <div class="equipo-info">
+    <div class="detail-panel" style="background: #0C4A6E; border: 1px solid #0EA5E9;">
+        <div class="equipo-info" style="background: #075985; color: #E0F2FE;">
             {nodo_info}
             <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
             <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
@@ -1356,7 +1356,11 @@ def pantalla_ejecutar():
             df.at[idx, "Fecha_Ejecucion"] = datos["Fecha_Ejecucion"]
             df.at[idx, "Hora_Inicio"] = datos["Hora_Inicio"]
             df.at[idx, "Hora_Fin"] = datos["Hora_Fin"]
-            st.success("Orden marcada como EJECUTADA y guardada en Supabase")
+            st.markdown("""
+            <div style="background: #064e3b; color: #34d399; padding: 12px; border-radius: 8px; text-align: center; font-weight: 700; border: 1px solid #059669; margin: 12px 0;">
+                ✅ Orden marcada como EJECUTADA y guardada en Supabase
+            </div>
+            """, unsafe_allow_html=True)
             st.balloons()
             st.session_state.pagina = "mis_ordenes"
             st.session_state.orden_seleccionada = None
@@ -1391,11 +1395,15 @@ def pantalla_detalle_tecnico():
     prioridad = limpiar(row.get("Prioridad_Actividad"), "")
     info_prioridad = obtener_color_prioridad(prioridad)
     if prioridad:
-        st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
+        st.markdown(f"""
+        <div style="background: #0C4A6E; color: #7DD3FC; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #0EA5E9; margin-bottom: 16px; font-size: 13px;">
+            <strong>Prioridad: {info_prioridad['label']}</strong> — {info_prioridad['desc']}
+        </div>
+        """, unsafe_allow_html=True)
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
-    <div class="detail-panel">
-        <div class="equipo-info">
+    <div class="detail-panel" style="background: #0C4A6E; border: 1px solid #0EA5E9;">
+        <div class="equipo-info" style="background: #075985; color: #E0F2FE;">
             {nodo_info}
             <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
             <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
@@ -1448,11 +1456,15 @@ def pantalla_detalle():
     prioridad = limpiar(row.get("Prioridad_Actividad"), "")
     info_prioridad = obtener_color_prioridad(prioridad)
     if prioridad:
-        st.info(f"**Prioridad: {info_prioridad['label']}** — {info_prioridad['desc']}")
+        st.markdown(f"""
+        <div style="background: #0C4A6E; color: #7DD3FC; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #0EA5E9; margin-bottom: 16px; font-size: 13px;">
+            <strong>Prioridad: {info_prioridad['label']}</strong> — {info_prioridad['desc']}
+        </div>
+        """, unsafe_allow_html=True)
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
-    <div class="detail-panel">
-        <div class="equipo-info">
+    <div class="detail-panel" style="background: #0C4A6E; border: 1px solid #0EA5E9;">
+        <div class="equipo-info" style="background: #075985; color: #E0F2FE;">
             {nodo_info}
             <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
             <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
