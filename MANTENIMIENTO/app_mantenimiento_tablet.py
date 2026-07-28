@@ -1337,9 +1337,6 @@ def pantalla_ejecutar():
     st.subheader("Comentarios de Ejecucion")
     comentarios = limpiar(row.get("Comentarios"), "")
     nuevo_comentario = st.text_area("Describa lo realizado...", value=comentarios, key=gen_key("comentario_ejecucion"))
-    st.subheader("Actividades Realizadas")
-    actividades = st.text_area("Liste las actividades hechas (una por linea)...", value=limpiar(row.get("Actividades_Hechas"), ""), key=gen_key("actividades_hechas"))
-
     hora_valida = True
     if hora_fin < hora_inicio:
         st.warning("⚠️ La hora de fin es anterior a la hora de inicio. Por favor verifica.")
@@ -1349,7 +1346,6 @@ def pantalla_ejecutar():
         datos = {
             "Estado": "Ejecutado",
             "Comentarios": nuevo_comentario,
-            "Actividades_Hechas": actividades,
             "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d"),
             "Hora_Inicio": hora_inicio.strftime("%H:%M"),
             "Hora_Fin": hora_fin.strftime("%H:%M")
