@@ -827,7 +827,7 @@ def pantalla_home():
             pendientes = len(df_mias[df_mias["Estado"] == "Pendiente"]) if "Estado" in df_mias.columns else 0
             ejecutadas = len(df_mias[df_mias["Estado"] == "Ejecutado"]) if "Estado" in df_mias.columns else 0
             verificadas = len(df_mias[df_mias["Estado"] == "Verificado"]) if "Estado" in df_mias.columns else 0
-            cerradas = len(df_mias[df_mias["Estado"].isin(["Cerrada"])]) if "Estado" in df_mias.columns else 0
+
 
             st.markdown(f"""
             <div style="text-align: center; margin: 15px 0 8px 0;">
@@ -850,10 +850,6 @@ def pantalla_home():
                 <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #007bff; min-width: 70px;">
                     <div style="font-size: 18px; font-weight: 800; color: #007bff;">{verificadas}</div>
                     <div style="font-size: 9px; color: #666;">Verificadas</div>
-                </div>
-                <div style="background: white; padding: 6px 12px; border-radius: 8px; text-align: center; border: 2px solid #6c757d; min-width: 70px;">
-                    <div style="font-size: 18px; font-weight: 800; color: #6c757d;">{cerradas}</div>
-                    <div style="font-size: 9px; color: #666;">Cerradas</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
