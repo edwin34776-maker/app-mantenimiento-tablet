@@ -1474,253 +1474,364 @@ def pantalla_asignacion():
     render_top_bar("Asignación de Técnicos")
     boton_volver_inicio("asignacion")
 
-    # ========== FILTROS ==========
+    if "ubicacion_asig_seleccionada" not in st.session_state:
+        st.session_state.ubicacion_asig_seleccionada = None
+
+    # ========== VISTA DETALLE DE UNA UBICACIÓN ==========
+    if st.session_state.ubicacion_asig_seleccionada is not None:
+        ubic_sel = st.session_state.ubicacion_asig_seleccionada
+        df_ubi = df[df["Ubicacion"] == ubic_sel].copy() if "Ubicacion" in df.columns else pd.DataFrame()
+
+        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_ubi.columns:
+            df_ubi = df_ubi[df_ubi["Especialidad"] == st.session_state.filtro_especialidad]
+
+        total_ubi = len(df_ubi)
+        sin_asig = len(df_ubi[df_ubi["Tecnico_Asignado"].fillna("") == ""]) if "Tecnico_Asignado" in df_ubi.columns else 0
+        asig_ubi = total_ubi - sin_asig
+        pendientes = len(df_ubi[df_ubi["Estado"] == "Pendiente"]) if "Estado" in df_ubi.columns else 0
+        pct_asig = round((asig_ubi / total_ubi) * 100, 1) if total_ubi > 0 else 0
+
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #1f2937 0%, #374151 100%); border-radius: 16px; padding: 20px 24px; margin-bottom: 20px; color: white;">
+            <div style="font-size: 20px; font-weight: 800; margin-bottom: 4px;">📍 {ubic_sel}</div>
+            <div style="font-size: 13px; color: #d1d5db;">
+                {total_ubi} actividades • {asig_ubi} asignadas ({pct_asig}%) • {sin_asig} sin asignar • {pendientes} pendientes
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_back, _ = st.columns([1, 3])
+        with col_back:
+            if st.button("← VOLVER A UBICACIONES", use_container_width=True, type="secondary", key=gen_key("btn_volver_ubic2")):
+                st.session_state.ubicacion_asig_seleccionada = None
+                st.rerun()
+
+        if df_ubi.empty:
+            st.info("No hay actividades en esta ubicación con los filtros actuales.")
+            return
+
+        st.markdown("""
+        <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; margin: 12px 0;">
+            <div style="font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                ⚡ Asignar técnico a todas las actividades de esta ubicación
+            </div>
+        """, unsafe_allow_html=True)
+        col_m1, col_m2, col_m3 = st.columns([2, 1.2, 1.2])
+        with col_m1:
+            tecnicos_todos = obtener_tecnicos_con_carga(df, "Todas")
+            opciones_tec = ["Seleccionar técnico..."] + [t["nombre"] for t in tecnicos_todos]
+            tec_masivo = st.selectbox("Técnico", opciones_tec, index=0, key=gen_key("tec_masivo_ubi2"), label_visibility="collapsed")
+        with col_m2:
+            pri_masivo = st.selectbox("Prioridad", ["Mantener actual", "Rojo", "Amarillo", "Verde"], key=gen_key("pri_masivo_ubi2"), label_visibility="collapsed")
+        with col_m3:
+            st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+            if st.button("APLICAR A TODAS", use_container_width=True, type="primary", key=gen_key("btn_aplicar_ubi2")):
+                aplicados = 0
+                for idx, row in df_ubi.iterrows():
+                    internal_id = limpiar(row.get("ID"), "")
+                    datos = {}
+                    if tec_masivo != "Seleccionar técnico...":
+                        datos["Tecnico_Asignado"] = tec_masivo
+                    if pri_masivo != "Mantener actual":
+                        datos["Prioridad_Actividad"] = pri_masivo
+                    if datos:
+                        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+                            aplicados += 1
+                if aplicados > 0:
+                    st.success(f"✅ {aplicados} actividades actualizadas.")
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="display: grid; grid-template-columns: 70px 50px 1fr 90px 100px 180px; gap: 8px; padding: 10px 14px; background: #f3f4f6; border-radius: 8px 8px 0 0; border-bottom: 2px solid #e5e7eb; font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; align-items: center;">
+            <div>ID OT</div>
+            <div style="text-align:center">ESP</div>
+            <div>DESCRIPCIÓN</div>
+            <div style="text-align:center">ESTADO</div>
+            <div style="text-align:center">PRIORIDAD</div>
+            <div>TÉCNICO</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        cambios_ubi = []
+        for idx, row in df_ubi.iterrows():
+            internal_id = limpiar(row.get("ID"), "")
+            id_ot = limpiar(row.get("ID OT"), "SIN ID")
+            tipo = limpiar(row.get("Especialidad"), "SIN")
+            desc = limpiar(row.get("Descripcion de procedimiento"), "Sin descripción")
+            estado = limpiar(row.get("Estado"), "Pendiente")
+            tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "")
+            prioridad_actual = limpiar(row.get("Prioridad_Actividad"), "")
+
+            clase_esp = "eq-esp-ele" if tipo == "ELE" else "eq-esp-mec" if tipo == "MEC" else "eq-esp-hid" if tipo == "HID" else ""
+            estado_clase = obtener_estado_visual(estado)
+            clase_pri = obtener_clase_css_prioridad(prioridad_actual)
+            pri_info = obtener_color_prioridad(prioridad_actual)
+            pri_label = pri_info["label"] if prioridad_actual else "—"
+
+            tec_key = gen_key("tec_act2", internal_id)
+            pri_key = gen_key("pri_act2", internal_id)
+
+            if tec_key not in st.session_state:
+                st.session_state[tec_key] = tecnico_actual if tecnico_actual else "Sin asignar"
+            if pri_key not in st.session_state:
+                st.session_state[pri_key] = prioridad_actual if prioridad_actual else ""
+
+            tec_sel = st.session_state.get(tec_key, "Sin asignar")
+            pri_sel = st.session_state.get(pri_key, "")
+            tec_valor = "" if tec_sel == "Sin asignar" else tec_sel
+            hay_cambio = (tec_valor != tecnico_actual) or (pri_sel != prioridad_actual)
+            if hay_cambio:
+                cambios_ubi.append({
+                    "internal_id": internal_id,
+                    "tec_nuevo": tec_valor,
+                    "pri_nueva": pri_sel,
+                    "tec_actual": tecnico_actual,
+                    "pri_actual": prioridad_actual,
+                    "row": row
+                })
+
+            bg = "#fefce8" if hay_cambio else "#ffffff"
+            st.markdown(f"""
+            <div style="display: grid; grid-template-columns: 70px 50px 1fr 90px 100px 180px; gap: 8px; padding: 10px 14px; background: {bg}; border-bottom: 1px solid #f3f4f6; align-items: center; font-size: 12px;">
+                <div style="font-family: monospace; font-weight: 700; color: #374151; font-size: 11px;">{id_ot}</div>
+                <div style="text-align:center"><span class="{clase_esp}">{tipo}</span></div>
+                <div style="font-weight: 500; color: #111827; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{desc}">{desc}</div>
+                <div style="text-align:center"><span class="badge {estado_clase}">{estado}</span></div>
+                <div style="text-align:center"><span class="badge {clase_pri}">{pri_label}</span></div>
+                <div id="tec_slot_{internal_id}"></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            cols = st.columns([3.5, 1.5])
+            with cols[1]:
+                tecnicos_info = obtener_tecnicos_con_carga(df, tipo if tipo in ["ELE", "MEC", "HID"] else "Todas")
+                opciones_tec = ["Sin asignar"] + [t["nombre"] for t in tecnicos_info]
+                idx_tec = opciones_tec.index(st.session_state.get(tec_key, "Sin asignar")) if st.session_state.get(tec_key, "Sin asignar") in opciones_tec else 0
+                st.selectbox("", opciones_tec, index=idx_tec, key=tec_key, label_visibility="collapsed")
+
+        st.markdown("<div style='height: 4px; background: #f3f4f6; border-radius: 0 0 8px 8px; margin-bottom: 16px;'></div>", unsafe_allow_html=True)
+
+        if cambios_ubi:
+            col_c1, col_c2 = st.columns([1, 2])
+            with col_c1:
+                st.markdown(f"""
+                <div style="background: #fefce8; border: 1px solid #facc15; border-radius: 8px; padding: 10px 14px; text-align: center;">
+                    <div style="font-size: 20px; font-weight: 800; color: #a16207;">{len(cambios_ubi)}</div>
+                    <div style="font-size: 10px; color: #6b7280; font-weight: 600;">Cambios pendientes</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with col_c2:
+                c1, c2 = st.columns(2)
+                with c1:
+                    if st.button("🗑️ DESCARTAR", use_container_width=True, type="secondary", key=gen_key("btn_descartar_ubi2")):
+                        for c in cambios_ubi:
+                            iid = c["internal_id"]
+                            st.session_state[gen_key("tec_act2", iid)] = c["tec_actual"] if c["tec_actual"] else "Sin asignar"
+                            st.session_state[gen_key("pri_act2", iid)] = c["pri_actual"]
+                        st.rerun()
+                with c2:
+                    if st.button(f"💾 GUARDAR {len(cambios_ubi)} CAMBIOS", use_container_width=True, type="primary", key=gen_key("btn_guardar_ubi2")):
+                        exitosos = 0
+                        with st.spinner("Guardando..."):
+                            for c in cambios_ubi:
+                                datos = {}
+                                if c["tec_nuevo"] != c["tec_actual"]:
+                                    datos["Tecnico_Asignado"] = c["tec_nuevo"]
+                                if c["pri_nueva"] != c["pri_actual"]:
+                                    datos["Prioridad_Actividad"] = c["pri_nueva"]
+                                if datos:
+                                    if actualizar_campos_supabase(c["internal_id"], datos, c["row"].to_dict()):
+                                        exitosos += 1
+                        if exitosos > 0:
+                            st.success(f"✅ {exitosos} cambios guardados.")
+                            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                            st.rerun()
+        return
+
+    # ========== VISTA PRINCIPAL: DASHBOARD DE ASIGNACIÓN + UBICACIONES ==========
     df_asig = df.copy()
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
     if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
     if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
-    col_f1, col_f2, col_f3 = st.columns([1, 1, 2])
+    col_f1, col_f2 = st.columns([1, 3])
     with col_f1:
         estados_filtro = ["Todos", "Pendiente", "Ejecutado", "Verificado"]
         idx_est = estados_filtro.index(st.session_state.filtro_estado_asig) if st.session_state.filtro_estado_asig in estados_filtro else 0
-        estado_sel = st.selectbox("Filtrar por Estado", estados_filtro, index=idx_est, key=gen_key("sel_estado_asig3"))
+        estado_sel = st.selectbox("Estado", estados_filtro, index=idx_est, key=gen_key("sel_estado_asig5"))
         st.session_state.filtro_estado_asig = estado_sel
     with col_f2:
-        busq_asig = st.text_input("Buscar OT, equipo o descripción...", placeholder="Escribe para filtrar...", key=gen_key("txt_busq_asig3"))
-    with col_f3:
-        st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
-        if st.button("🔄 Recargar datos", use_container_width=True, type="secondary", key=gen_key("btn_reload_asig3")):
-            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-            st.rerun()
+        busq_asig = st.text_input("Buscar ubicación o equipo...", placeholder="Escribe para filtrar...", key=gen_key("txt_busq_asig5"))
 
     if estado_sel != "Todos" and "Estado" in df_asig.columns:
         df_asig = df_asig[df_asig["Estado"] == estado_sel]
     if busq_asig:
         busq_lower = busq_asig.lower()
         mask = pd.Series([False] * len(df_asig), index=df_asig.index)
-        if "ID OT" in df_asig.columns: mask |= df_asig["ID OT"].astype(str).str.contains(busq_asig, na=False)
+        if "Ubicacion" in df_asig.columns: mask |= df_asig["Ubicacion"].astype(str).str.lower().str.contains(busq_lower, na=False)
         if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
         if "Descripcion de procedimiento" in df_asig.columns: mask |= df_asig["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busq_lower, na=False)
-        if "Ubicacion" in df_asig.columns: mask |= df_asig["Ubicacion"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
 
+    # ===== KPIs DE ASIGNACIÓN =====
+    total_asig = len(df_asig)
+    con_tecnico = len(df_asig[df_asig["Tecnico_Asignado"].fillna("") != ""]) if "Tecnico_Asignado" in df_asig.columns else 0
+    sin_tecnico = total_asig - con_tecnico
+    pct_asignado = round((con_tecnico / total_asig) * 100, 1) if total_asig > 0 else 0
+    pct_sin = round((sin_tecnico / total_asig) * 100, 1) if total_asig > 0 else 0
+    ele_asig = len(df_asig[df_asig["Especialidad"] == "ELE"]) if "Especialidad" in df_asig.columns else 0
+    mec_asig = len(df_asig[df_asig["Especialidad"] == "MEC"]) if "Especialidad" in df_asig.columns else 0
+    pend_asig = len(df_asig[df_asig["Estado"] == "Pendiente"]) if "Estado" in df_asig.columns else 0
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Total Órdenes</div>
+            <div class="kpi-value">{total_asig}</div>
+            <div class="kpi-delta" style="color:#6b7280">{ele_asig} ELE • {mec_asig} MEC</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Sin Asignar</div>
+            <div class="kpi-value" style="color:#dc2626">{sin_tecnico}</div>
+            <div class="kpi-delta" style="color:#dc2626">{pct_sin}% del total</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Asignadas</div>
+            <div class="kpi-value" style="color:#22c55e">{con_tecnico}</div>
+            <div class="kpi-delta" style="color:#22c55e">{pct_asignado}% del total</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-label">Pendientes</div>
+            <div class="kpi-value" style="color:#f59e0b">{pend_asig}</div>
+            <div class="kpi-delta" style="color:#f59e0b">Por asignar técnico</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ===== GRÁFICAS DE ASIGNACIÓN =====
+    g1, g2 = st.columns(2)
+    with g1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">Estado de Asignación</div>', unsafe_allow_html=True)
+        if total_asig > 0:
+            asig_data = pd.DataFrame({
+                "Estado": ["Asignadas", "Sin Asignar"],
+                "Cantidad": [con_tecnico, sin_tecnico]
+            })
+            fig = px.pie(asig_data, values="Cantidad", names="Estado", hole=0.55,
+                         color="Estado", color_discrete_map={"Asignadas": "#22c55e", "Sin Asignar": "#dc2626"})
+            fig.update_layout(showlegend=True, margin=dict(t=0,b=0,l=0,r=0), height=260,
+                              paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                              font=dict(family="Inter", size=12))
+            st.plotly_chart(fig, use_container_width=True, key="chart_asig_estado")
+        else:
+            st.info("Sin datos")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with g2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">Asignación por Especialidad</div>', unsafe_allow_html=True)
+        if "Especialidad" in df_asig.columns and not df_asig.empty:
+            esp_asig = df_asig.groupby("Especialidad").apply(
+                lambda x: pd.Series({
+                    "Asignadas": len(x[x["Tecnico_Asignado"].fillna("") != ""]),
+                    "Sin Asignar": len(x[x["Tecnico_Asignado"].fillna("") == ""])
+                })
+            ).reset_index()
+            esp_melt = esp_asig.melt(id_vars=["Especialidad"], var_name="Estado", value_name="Cantidad")
+            fig2 = px.bar(esp_melt, x="Especialidad", y="Cantidad", color="Estado",
+                          barmode="group",
+                          color_discrete_map={"Asignadas": "#22c55e", "Sin Asignar": "#dc2626"},
+                          text="Cantidad")
+            fig2.update_layout(showlegend=True, margin=dict(t=0,b=0,l=0,r=0), height=260,
+                               paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                               font=dict(family="Inter", size=12),
+                               xaxis=dict(showgrid=False),
+                               yaxis=dict(showgrid=True, gridcolor='#f3f4f6'))
+            st.plotly_chart(fig2, use_container_width=True, key="chart_asig_esp")
+        else:
+            st.info("Sin datos")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ===== GRID DE UBICACIONES =====
+    if "Ubicacion" not in df_asig.columns or df_asig.empty:
+        st.info("No hay órdenes con los filtros seleccionados.")
+        return
+
+    ubicaciones = df_asig["Ubicacion"].dropna().unique()
+    if len(ubicaciones) == 0:
+        st.info("No hay ubicaciones disponibles.")
+        return
+
     st.markdown(f"""
-    <div style="margin: 8px 0 12px 0;">
+    <div style="margin: 8px 0 16px 0;">
         <span style="font-size: 13px; color: #6b7280; font-weight: 600;">
-            📋 Mostrando <strong style="color: #111827;">{len(df_asig)}</strong> orden(es)
+            📍 <strong style="color: #111827;">{len(ubicaciones)}</strong> ubicación(es) • <strong style="color: #111827;">{total_asig}</strong> actividades
         </span>
     </div>
     """, unsafe_allow_html=True)
 
-    if df_asig.empty:
-        st.info("No hay órdenes con los filtros seleccionados.")
-        return
+    cols_por_fila = 3
+    for i in range(0, len(ubicaciones), cols_por_fila):
+        cols = st.columns(cols_por_fila)
+        for j, col in enumerate(cols):
+            idx = i + j
+            if idx >= len(ubicaciones):
+                break
+            ubi = ubicaciones[idx]
+            df_ubi = df_asig[df_asig["Ubicacion"] == ubi]
+            total = len(df_ubi)
+            sin_asig = len(df_ubi[df_ubi["Tecnico_Asignado"].fillna("") == ""]) if "Tecnico_Asignado" in df_ubi.columns else 0
+            asig = total - sin_asig
+            pct = round((asig / total) * 100, 1) if total > 0 else 0
+            ele = len(df_ubi[df_ubi["Especialidad"] == "ELE"]) if "Especialidad" in df_ubi.columns else 0
+            mec = len(df_ubi[df_ubi["Especialidad"] == "MEC"]) if "Especialidad" in df_ubi.columns else 0
+            pend = len(df_ubi[df_ubi["Estado"] == "Pendiente"]) if "Estado" in df_ubi.columns else 0
 
-    # ========== ASIGNACIÓN MASIVA RÁPIDA ==========
-    st.markdown("""
-    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;">
-        <div style="font-size: 11px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
-            ⚡ Asignación Masiva Rápida
-        </div>
-    """, unsafe_allow_html=True)
+            with col:
+                color_barra = "#dc2626" if sin_asig > 0 else "#22c55e"
+                badge = f'<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;">{sin_asig} sin asignar</span>' if sin_asig > 0 else '<span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;">✓ Asignado</span>'
 
-    col_m1, col_m2, col_m3 = st.columns([2, 1.2, 1.2])
-    with col_m1:
-        tecnicos_todos = obtener_tecnicos_con_carga(df, "Todas")
-        opciones_tec_masivo = ["Seleccionar técnico..."] + [t["nombre"] for t in tecnicos_todos]
-        tec_masivo = st.selectbox("Técnico", opciones_tec_masivo, index=0, key=gen_key("tec_masivo2"), label_visibility="collapsed")
-    with col_m2:
-        pri_masivo = st.selectbox("Prioridad", ["Mantener actual", "Rojo", "Amarillo", "Verde"], key=gen_key("pri_masivo2"), label_visibility="collapsed")
-    with col_m3:
-        st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
-        if st.button("APLICAR A FILTRADAS", use_container_width=True, type="primary", key=gen_key("btn_aplicar_filtradas")):
-            if tec_masivo == "Seleccionar técnico..." and pri_masivo == "Mantener actual":
-                st.warning("Selecciona un técnico o prioridad para aplicar.")
-            else:
-                aplicados = 0
-                for idx, row in df_asig.iterrows():
-                    internal_id = limpiar(row.get("ID"), "")
-                    if tec_masivo != "Seleccionar técnico...":
-                        st.session_state[gen_key("tec_ed", internal_id)] = tec_masivo
-                    if pri_masivo != "Mantener actual":
-                        st.session_state[gen_key("pri_ed", internal_id)] = pri_masivo
-                    aplicados += 1
-                if aplicados > 0:
-                    st.success(f"✅ {aplicados} órdenes preparadas. Presiona **Guardar** abajo.")
-                st.rerun()
+                st.markdown(f"""
+                <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                    <div style="width: 100%; height: 4px; background: {color_barra}; border-radius: 2px; margin-bottom: 10px;"></div>
+                    <div style="font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{ubi}">{ubi}</div>
+                    <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                        {badge}
+                        <span style="background: #f3f4f6; color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600;">{total} act.</span>
+                    </div>
+                    <div style="font-size: 11px; color: #6b7280; line-height: 1.5; margin-bottom: 8px;">
+                        {f"🔌 {ele} ELE • " if ele > 0 else ""}{f"🔧 {mec} MEC • " if mec > 0 else ""}{f"⏳ {pend} pend." if pend > 0 else ""}
+                    </div>
+                    <div style="width: 100%; height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden;">
+                        <div style="width: {pct}%; height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 3px;"></div>
+                    </div>
+                    <div style="font-size: 10px; color: #6b7280; text-align: right; margin-top: 4px;">{pct}% asignado</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # ========== TABLA COMPACTA CON DATA EDITOR ==========
-    # Preparar columnas visibles
-    cols_vis = []
-    for c in ["ID", "ID OT", "Especialidad", "Descripcion de procedimiento", "Equipo", "Ubicacion", "Nodo", "Estado", "Prioridad_Actividad", "Tecnico_Asignado"]:
-        if c in df_asig.columns:
-            cols_vis.append(c)
-
-    df_show = df_asig[cols_vis].copy()
-
-    # Normalizar valores vacíos para que el selectbox no se queje
-    if "Tecnico_Asignado" in df_show.columns:
-        df_show["Tecnico_Asignado"] = df_show["Tecnico_Asignado"].fillna("").replace("", "Sin asignar")
-    if "Prioridad_Actividad" not in df_show.columns:
-        df_show["Prioridad_Actividad"] = ""
-    df_show["Prioridad_Actividad"] = df_show["Prioridad_Actividad"].fillna("")
-
-    # Opciones
-    todos_tecnicos = ["Sin asignar"] + TECNICOS_ELE + TECNICOS_MEC
-    prioridades = ["", "Rojo", "Amarillo", "Verde"]
-
-    # Configuración de columnas
-    col_config = {
-        "ID": st.column_config.NumberColumn("ID", disabled=True, width="small"),
-        "ID OT": st.column_config.TextColumn("ID OT", disabled=True, width="medium"),
-        "Especialidad": st.column_config.TextColumn("ESP", disabled=True, width="small"),
-        "Descripcion de procedimiento": st.column_config.TextColumn("Descripción", disabled=True, width="large"),
-        "Equipo": st.column_config.TextColumn("Equipo", disabled=True, width="medium"),
-        "Ubicacion": st.column_config.TextColumn("Ubicación", disabled=True, width="medium"),
-        "Nodo": st.column_config.TextColumn("Nodo", disabled=True, width="medium"),
-        "Estado": st.column_config.TextColumn("Estado", disabled=True, width="small"),
-        "Prioridad_Actividad": st.column_config.SelectboxColumn("Prioridad", options=prioridades, width="small"),
-        "Tecnico_Asignado": st.column_config.SelectboxColumn("Técnico", options=todos_tecnicos, width="large"),
-    }
-
-    # Solo incluir config para columnas que existen
-    col_config_filtrado = {k: v for k, v in col_config.items() if k in df_show.columns}
-    cols_disabled = [c for c in df_show.columns if c not in ["Prioridad_Actividad", "Tecnico_Asignado"]]
-
-    editor_key = gen_key("editor_asig")
-
-    edited_df = st.data_editor(
-        df_show,
-        column_config=col_config_filtrado,
-        disabled=cols_disabled,
-        hide_index=True,
-        use_container_width=True,
-        num_rows="fixed",
-        key=editor_key
-    )
-
-    # ========== DETECTAR CAMBIOS Y GUARDAR ==========
-    cambios = []
-    for idx_pos, idx_original in enumerate(df_show.index):
-        row_orig = df_show.loc[idx_original]
-        row_edit = edited_df.loc[idx_original]
-
-        internal_id = limpiar(row_orig.get("ID"), "")
-        id_ot = limpiar(row_orig.get("ID OT"), "SIN ID")
-
-        tec_orig = limpiar(row_orig.get("Tecnico_Asignado"), "")
-        if tec_orig == "Sin asignar":
-            tec_orig = ""
-        pri_orig = limpiar(row_orig.get("Prioridad_Actividad"), "")
-
-        tec_new = limpiar(row_edit.get("Tecnico_Asignado"), "")
-        if tec_new == "Sin asignar":
-            tec_new = ""
-        pri_new = limpiar(row_edit.get("Prioridad_Actividad"), "")
-
-        if tec_new != tec_orig or pri_new != pri_orig:
-            cambios.append({
-                "internal_id": internal_id,
-                "id_ot": id_ot,
-                "tec_nuevo": tec_new,
-                "pri_nueva": pri_new,
-                "tec_actual": tec_orig,
-                "pri_actual": pri_orig,
-                "row": df_asig.loc[idx_original]
-            })
-
-    # También aplicar cambios de session_state (asignación masiva previa)
-    for idx, row in df_asig.iterrows():
-        internal_id = limpiar(row.get("ID"), "")
-        tec_key = gen_key("tec_ed", internal_id)
-        pri_key = gen_key("pri_ed", internal_id)
-
-        tec_from_session = st.session_state.get(tec_key)
-        pri_from_session = st.session_state.get(pri_key)
-
-        if tec_from_session or pri_from_session:
-            # Verificar si ya está en cambios
-            ya_existe = any(c["internal_id"] == internal_id for c in cambios)
-            if not ya_existe:
-                tec_orig = limpiar(row.get("Tecnico_Asignado"), "")
-                pri_orig = limpiar(row.get("Prioridad_Actividad"), "")
-                tec_new = tec_from_session if tec_from_session else tec_orig
-                pri_new = pri_from_session if pri_from_session else pri_orig
-                if tec_new != tec_orig or pri_new != pri_orig:
-                    cambios.append({
-                        "internal_id": internal_id,
-                        "id_ot": limpiar(row.get("ID OT"), "SIN ID"),
-                        "tec_nuevo": tec_new,
-                        "pri_nueva": pri_new,
-                        "tec_actual": tec_orig,
-                        "pri_actual": pri_orig,
-                        "row": row
-                    })
-
-    st.markdown("<hr style='margin: 16px 0; border: none; border-top: 1px solid #e5e7eb;'>", unsafe_allow_html=True)
-
-    col_g1, col_g2 = st.columns([1, 3])
-    with col_g1:
-        st.markdown(f"""
-        <div style="background: {'#fefce8' if cambios else '#f3f4f6'}; border: 1px solid {'#facc15' if cambios else '#e5e7eb'}; border-radius: 8px; padding: 10px 14px; text-align: center;">
-            <div style="font-size: 20px; font-weight: 800; color: {'#a16207' if cambios else '#9ca3af'};">{len(cambios)}</div>
-            <div style="font-size: 10px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Cambios</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_g2:
-        c1, c2 = st.columns(2)
-        with c1:
-            if cambios and st.button("🗑️ DESCARTAR", use_container_width=True, type="secondary", key=gen_key("btn_descartar_ed")):
-                for c in cambios:
-                    iid = c["internal_id"]
-                    for k in [gen_key("tec_ed", iid), gen_key("pri_ed", iid)]:
-                        if k in st.session_state:
-                            del st.session_state[k]
-                st.rerun()
-        with c2:
-            btn_guardar = st.button(
-                f"💾 GUARDAR {len(cambios)} CAMBIOS" if cambios else "SIN CAMBIOS",
-                use_container_width=True,
-                type="primary",
-                key=gen_key("btn_guardar_ed"),
-                disabled=(len(cambios) == 0)
-            )
-
-    if btn_guardar and cambios:
-        exitosos = 0
-        errores = []
-        with st.spinner(f"Guardando {len(cambios)} cambios en Supabase..."):
-            for c in cambios:
-                datos = {}
-                if c["tec_nuevo"] != c["tec_actual"]:
-                    datos["Tecnico_Asignado"] = c["tec_nuevo"]
-                if c["pri_nueva"] != c["pri_actual"]:
-                    datos["Prioridad_Actividad"] = c["pri_nueva"]
-                if datos:
-                    if actualizar_campos_supabase(c["internal_id"], datos, c["row"].to_dict()):
-                        exitosos += 1
-                    else:
-                        errores.append(c["id_ot"])
-                # Limpiar session_state
-                iid = c["internal_id"]
-                for k in [gen_key("tec_ed", iid), gen_key("pri_ed", iid)]:
-                    if k in st.session_state:
-                        del st.session_state[k]
-
-        if exitosos > 0:
-            st.success(f"✅ {exitosos} de {len(cambios)} órdenes actualizadas.")
-            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-            st.rerun()
-        if errores:
-            st.error(f"❌ Error en: {', '.join(errores)}")
+                btn_key = gen_key("btn_ubi2", ubi.replace(" ", "_").replace("-", "_"))
+                if st.button(f"VER ACTIVIDADES →", use_container_width=True, type="primary", key=btn_key):
+                    st.session_state.ubicacion_asig_seleccionada = ubi
+                    st.rerun()
 def pantalla_verificar():
     df = recargar_datos()
     render_top_bar("Verificar Órdenes Ejecutadas")
@@ -1805,3 +1916,4 @@ elif st.session_state.pagina == "verificar":
 else:
     st.session_state.pagina = "login"
     st.rerun()
+    
