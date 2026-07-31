@@ -1,6 +1,8 @@
 # ============================================================
 # APP MANTENIMIENTO PREVENTIVO - VERSION TABLET CON NAVEGACION POR MAQUINAS
-# Botones enormes, 2 niveles: Tecnico -> Maquinas -> Actividades
+# Botones enormes, 2 niveles para TECNICO y ADMIN
+# Tecnico: Maquinas -> Marcar actividades
+# Admin: Maquinas -> Asignar tecnicos
 # ============================================================
 
 import streamlit as st
@@ -98,7 +100,6 @@ st.markdown("""
 <style>
     .stApp { background-color: #0B1120; }
     .main .block-container { padding: 0.5rem !important; max-width: 100% !important; }
-    /* BOTONES ENORMES */
     .stButton>button {
         font-size: 22px !important;
         font-weight: 700 !important;
@@ -106,24 +107,19 @@ st.markdown("""
         border-radius: 16px !important;
         min-height: 70px !important;
     }
-    /* SELECTBOX GRANDE */
     .stSelectbox label { font-size: 18px !important; color: #E0F2FE !important; font-weight: 700 !important; }
     .stSelectbox div[data-baseweb="select"] { font-size: 18px !important; }
-    /* TEXTO GRANDE */
     h1 { font-size: 32px !important; color: #E0F2FE !important; }
     h2 { font-size: 26px !important; color: #E0F2FE !important; }
     h3 { font-size: 22px !important; color: #E0F2FE !important; }
     p, div { font-size: 16px !important; color: #E0F2FE !important; }
-    /* CHECKBOX GRANDE */
     .stCheckbox label { font-size: 18px !important; color: #E0F2FE !important; }
     .stCheckbox label p { font-size: 18px !important; }
-    /* HEADER */
     .tablet-header {
         background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
         color: white; padding: 20px; text-align: center; font-size: 28px; font-weight: 800;
         border-radius: 0 0 20px 20px; margin: -1rem -1rem 1rem -1rem;
     }
-    /* TARJETA DE ACTIVIDAD */
     .actividad-card {
         background: #1E293B;
         border: 2px solid #334155;
@@ -170,6 +166,9 @@ if "df" not in st.session_state: st.session_state.df = cargar_datos()
 if "guardado_ok" not in st.session_state: st.session_state.guardado_ok = False
 if "maquina_sel" not in st.session_state: st.session_state.maquina_sel = None
 if "cambios" not in st.session_state: st.session_state.cambios = {}
+# Admin
+if "admin_maquina_sel" not in st.session_state: st.session_state.admin_maquina_sel = None
+if "admin_cambios" not in st.session_state: st.session_state.admin_cambios = {}
 
 # ============ LOGIN ============
 def pantalla_login():
@@ -182,12 +181,14 @@ def pantalla_login():
             st.session_state.perfil = "tecnico"
             st.session_state.pagina = "home"
             st.session_state.maquina_sel = None
+            st.session_state.admin_maquina_sel = None
             st.rerun()
     with col2:
         if st.button("👤 SOY ADMIN", use_container_width=True, type="primary"):
             st.session_state.perfil = "admin"
             st.session_state.pagina = "home"
             st.session_state.maquina_sel = None
+            st.session_state.admin_maquina_sel = None
             st.rerun()
 
 # ============ TECNICO ============
@@ -197,7 +198,6 @@ def pantalla_tecnico():
 
     st.markdown('<div class="tablet-header">👷 TÉCNICO</div>', unsafe_allow_html=True)
 
-    # Seleccionar nombre
     todos_tecnicos = sorted(TECNICOS_ELE + TECNICOS_MEC)
     idx = 0
     if st.session_state.tecnico and st.session_state.tecnico in todos_tecnicos:
@@ -210,7 +210,6 @@ def pantalla_tecnico():
         st.info("Selecciona tu nombre para ver tus actividades")
         return
 
-    # Filtrar actividades del tecnico
     df_mio = df[df["Tecnico"] == tecnico].copy() if "Tecnico" in df.columns else pd.DataFrame()
 
     if df_mio.empty:
@@ -219,7 +218,6 @@ def pantalla_tecnico():
             st.rerun()
         return
 
-    # Contadores globales
     total = len(df_mio)
     hechas = len(df_mio[df_mio["Ejecutado"] == True]) if "Ejecutado" in df_mio.columns else 0
     faltan = total - hechas
@@ -227,37 +225,20 @@ def pantalla_tecnico():
 
     st.markdown(f"""
     <div style="display: flex; gap: 16px; justify-content: center; margin: 16px 0;">
-        <div style="text-align: center;">
-            <div class="contador-grande">{total}</div>
-            <div class="contador-texto">TOTAL</div>
-        </div>
-        <div style="text-align: center;">
-            <div class="contador-grande" style="color: #22c55e;">{hechas}</div>
-            <div class="contador-texto">HECHAS</div>
-        </div>
-        <div style="text-align: center;">
-            <div class="contador-grande" style="color: #f59e0b;">{faltan}</div>
-            <div class="contador-texto">FALTAN</div>
-        </div>
+        <div style="text-align: center;"><div class="contador-grande">{total}</div><div class="contador-texto">TOTAL</div></div>
+        <div style="text-align: center;"><div class="contador-grande" style="color: #22c55e;">{hechas}</div><div class="contador-texto">HECHAS</div></div>
+        <div style="text-align: center;"><div class="contador-grande" style="color: #f59e0b;">{faltan}</div><div class="contador-texto">FALTAN</div></div>
     </div>
-    <div class="barra-progreso">
-        <div class="barra-progreso-fill" style="width: {pct}%;"></div>
-    </div>
+    <div class="barra-progreso"><div class="barra-progreso-fill" style="width: {pct}%;"></div></div>
     <div style="text-align: center; margin-top: 4px; font-size: 14px; color: #7DD3FC;">{pct}% completado</div>
     """, unsafe_allow_html=True)
 
-    # Mensaje de guardado
     if st.session_state.guardado_ok:
         st.success("✅ CAMBIOS GUARDADOS CORRECTAMENTE")
         st.session_state.guardado_ok = False
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ============================================================
-    # NAVEGACION POR MAQUINAS - 2 NIVELES
-    # ============================================================
-
-    # Agrupar por Equipo + Ubicacion
     grupos = df_mio.groupby(["Equipo", "Ubicacion"])
 
     # --- NIVEL 1: GRID DE MAQUINAS ---
@@ -272,10 +253,8 @@ def pantalla_tecnico():
                     (equipo, ubicacion), grupo = grupos_list[i + j]
                     total_g = len(grupo)
                     hechas_g = len(grupo[grupo["Ejecutado"] == True]) if "Ejecutado" in grupo.columns else 0
-                    faltan_g = total_g - hechas_g
                     pct_g = round((hechas_g / total_g) * 100, 0) if total_g > 0 else 0
 
-                    # Color segun progreso
                     if pct_g == 100:
                         btn_type = "secondary"
                         icono = "🟢"
@@ -287,7 +266,6 @@ def pantalla_tecnico():
                         icono = "🔴"
 
                     with cols[j]:
-                        # SIN saltos de linea - Streamlit buttons no los soportan bien
                         label = f"{icono} {equipo} | {ubicacion} | ✅ {hechas_g}/{total_g}"
                         if st.button(label, use_container_width=True, type=btn_type,
                                      key=gen_key("maq", equipo, ubicacion)):
@@ -300,14 +278,11 @@ def pantalla_tecnico():
             if st.button("🔄 ACTUALIZAR DATOS", use_container_width=True, key=gen_key("btn_refresh_tec2")):
                 st.rerun()
 
-    # --- NIVEL 2: ACTIVIDADES DE LA MAQUINA ---
+    # --- NIVEL 2: ACTIVIDADES ---
     else:
         equipo_sel, ubicacion_sel = st.session_state.maquina_sel
-
-        # Filtrar solo esa maquina
         df_maquina = df_mio[(df_mio["Equipo"] == equipo_sel) & (df_mio["Ubicacion"] == ubicacion_sel)].copy()
 
-        # Boton VOLVER + Titulo
         col_v1, col_v2 = st.columns([1, 4])
         with col_v1:
             if st.button("⬅️ VOLVER", use_container_width=True, key=gen_key("btn_volver")):
@@ -324,26 +299,22 @@ def pantalla_tecnico():
             </div>
             """, unsafe_allow_html=True)
 
-        # Mostrar actividades de esta maquina
         for idx, row in df_maquina.iterrows():
             internal_id = limpiar(row.get("ID"), "")
             desc = limpiar(row.get("Descripcion"), "Sin descripcion")
             esp = limpiar(row.get("Especialidad"), "")
             ejecutado = bool(row.get("Ejecutado", False))
 
-            # Si hay cambio pendiente, usar ese valor; si no, el original
             if internal_id in st.session_state.cambios:
                 valor_checkbox = st.session_state.cambios[internal_id]
             else:
                 valor_checkbox = ejecutado
 
             chk_key = gen_key("chk", internal_id, equipo_sel, ubicacion_sel)
-
             clase_card = "actividad-hecha" if valor_checkbox else ""
             badge = f'<span class="badge-{esp.lower()}">{esp}</span>' if esp else ""
 
             st.markdown(f'<div class="actividad-card {clase_card}">', unsafe_allow_html=True)
-
             col1, col2 = st.columns([0.15, 0.85])
             with col1:
                 nuevo_valor = st.checkbox("", value=valor_checkbox, key=chk_key, label_visibility="collapsed")
@@ -352,18 +323,14 @@ def pantalla_tecnico():
                 <div style="font-size: 18px; font-weight: 600; color: #E0F2FE;">{desc}</div>
                 <div style="margin-top: 6px;">{badge}</div>
                 """, unsafe_allow_html=True)
-
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Registrar cambio temporal
             if nuevo_valor != ejecutado:
                 st.session_state.cambios[internal_id] = nuevo_valor
             elif internal_id in st.session_state.cambios and nuevo_valor == ejecutado:
                 del st.session_state.cambios[internal_id]
 
         st.markdown("<br>", unsafe_allow_html=True)
-
-        # Boton GUARDAR
         hay_cambios = len(st.session_state.cambios) > 0
         col_g1, col_g2, col_g3 = st.columns([1, 3, 1])
         with col_g2:
@@ -379,12 +346,10 @@ def pantalla_tecnico():
                             guardar_campo(internal_id, "hora_fin", datetime.now().strftime("%H:%M"))
                         else:
                             guardar_campo(internal_id, "estado", "Pendiente")
-
                 st.session_state.cambios = {}
                 if guardados > 0:
                     st.session_state.guardado_ok = True
                 st.rerun()
-
             if not hay_cambios:
                 st.caption("No hay cambios para guardar")
 
@@ -416,28 +381,27 @@ def pantalla_admin():
     st.markdown(f"""
     <div style="display: flex; gap: 16px; justify-content: center; margin: 16px 0; flex-wrap: wrap;">
         <div style="text-align: center; background: #1E293B; padding: 12px 20px; border-radius: 12px;">
-            <div class="contador-grande">{total}</div>
-            <div class="contador-texto">TOTAL ACTIVIDADES</div>
+            <div class="contador-grande">{total}</div><div class="contador-texto">TOTAL ACTIVIDADES</div>
         </div>
         <div style="text-align: center; background: #1E293B; padding: 12px 20px; border-radius: 12px;">
-            <div class="contador-grande" style="color: #fbbf24;">{ele}</div>
-            <div class="contador-texto">ELE</div>
+            <div class="contador-grande" style="color: #fbbf24;">{ele}</div><div class="contador-texto">ELE</div>
         </div>
         <div style="text-align: center; background: #1E293B; padding: 12px 20px; border-radius: 12px;">
-            <div class="contador-grande" style="color: #22c55e;">{mec}</div>
-            <div class="contador-texto">MEC</div>
+            <div class="contador-grande" style="color: #22c55e;">{mec}</div><div class="contador-texto">MEC</div>
         </div>
         <div style="text-align: center; background: #1E293B; padding: 12px 20px; border-radius: 12px;">
-            <div class="contador-grande" style="color: #34d399;">{hechas}</div>
-            <div class="contador-texto">REALIZADAS</div>
+            <div class="contador-grande" style="color: #34d399;">{hechas}</div><div class="contador-texto">REALIZADAS</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
+    if st.session_state.guardado_ok:
+        st.success("✅ CAMBIOS GUARDADOS CORRECTAMENTE")
+        st.session_state.guardado_ok = False
+
     st.markdown("<br>", unsafe_allow_html=True)
 
-    st.subheader("📋 ASIGNAR TÉCNICOS")
-
+    # Filtros globales para admin
     col_f1, col_f2 = st.columns(2)
     with col_f1:
         filtro_esp = st.selectbox("ESPECIALIDAD:", ["Todas", "ELE", "MEC"], key=gen_key("filtro_esp_admin"))
@@ -450,54 +414,143 @@ def pantalla_admin():
     if buscar and "ID OT" in df_asig.columns:
         df_asig = df_asig[df_asig["ID OT"].astype(str).str.contains(buscar, na=False)]
 
-    st.write(f"Mostrando {len(df_asig)} actividades")
+    if df_asig.empty:
+        st.info("No hay actividades con esos filtros.")
+        return
 
-    for idx, row in df_asig.head(50).iterrows():
-        internal_id = limpiar(row.get("ID"), "")
-        id_ot = limpiar(row.get("ID OT"), "SIN ID")
-        desc = limpiar(row.get("Descripcion"), "Sin descripcion")
-        esp = limpiar(row.get("Especialidad"), "")
-        equipo = limpiar(row.get("Equipo"), "")
-        ubicacion = limpiar(row.get("Ubicacion"), "")
-        tecnico_actual = limpiar(row.get("Tecnico"), "")
-        ejecutado = bool(row.get("Ejecutado", False))
+    # Agrupar por maquina
+    grupos = df_asig.groupby(["Equipo", "Ubicacion"])
 
-        badge = f'<span class="badge-{esp.lower()}">{esp}</span>' if esp else ""
-        estado_color = "#22c55e" if ejecutado else "#f59e0b"
-        estado_texto = "✅ HECHA" if ejecutado else "⏳ PENDIENTE"
+    # --- NIVEL 1: GRID DE MAQUINAS (ADMIN) ---
+    if st.session_state.admin_maquina_sel is None:
+        st.subheader(f"🏭 MAQUINAS ({len(df_asig)} actividades)")
 
-        st.markdown(f"""
-        <div class="actividad-card">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="font-size: 18px; font-weight: 700;">OT {id_ot}</div>
-                <div style="color: {estado_color}; font-weight: 700;">{estado_texto}</div>
+        grupos_list = list(grupos)
+        for i in range(0, len(grupos_list), 2):
+            cols = st.columns(2)
+            for j in range(2):
+                if i + j < len(grupos_list):
+                    (equipo, ubicacion), grupo = grupos_list[i + j]
+                    total_g = len(grupo)
+                    hechas_g = len(grupo[grupo["Ejecutado"] == True]) if "Ejecutado" in grupo.columns else 0
+                    asignadas_g = len(grupo[grupo["Tecnico"] != ""]) if "Tecnico" in grupo.columns else 0
+                    pct_g = round((hechas_g / total_g) * 100, 0) if total_g > 0 else 0
+
+                    if pct_g == 100:
+                        btn_type = "secondary"
+                        icono = "🟢"
+                    elif pct_g > 0:
+                        btn_type = "primary"
+                        icono = "🟡"
+                    else:
+                        btn_type = "primary"
+                        icono = "🔴"
+
+                    with cols[j]:
+                        label = f"{icono} {equipo} | {ubicacion} | ✅ {hechas_g}/{total_g} | 👤 {asignadas_g}"
+                        if st.button(label, use_container_width=True, type=btn_type,
+                                     key=gen_key("adm_maq", equipo, ubicacion)):
+                            st.session_state.admin_maquina_sel = (equipo, ubicacion)
+                            st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_r1, col_r2, col_r3 = st.columns([1, 2, 1])
+        with col_r2:
+            if st.button("🔄 ACTUALIZAR DATOS", use_container_width=True, key=gen_key("btn_refresh_admin")):
+                st.rerun()
+
+    # --- NIVEL 2: ACTIVIDADES DE LA MAQUINA (ADMIN) ---
+    else:
+        equipo_sel, ubicacion_sel = st.session_state.admin_maquina_sel
+        df_maquina = df_asig[(df_asig["Equipo"] == equipo_sel) & (df_asig["Ubicacion"] == ubicacion_sel)].copy()
+
+        col_v1, col_v2 = st.columns([1, 4])
+        with col_v1:
+            if st.button("⬅️ VOLVER", use_container_width=True, key=gen_key("btn_volver_admin")):
+                st.session_state.admin_maquina_sel = None
+                st.session_state.admin_cambios = {}
+                st.rerun()
+        with col_v2:
+            total_m = len(df_maquina)
+            hechas_m = len(df_maquina[df_maquina["Ejecutado"] == True]) if "Ejecutado" in df_maquina.columns else 0
+            st.markdown(f"""
+            <div class="equipo-titulo" style="margin-top: 0;">
+                🔧 {equipo_sel} — {ubicacion_sel}<br>
+                <span style="font-size: 14px; font-weight: 400;">✅ {hechas_m}/{total_m} actividades</span>
             </div>
-            <div style="font-size: 16px; margin: 8px 0;">{desc}</div>
-            <div style="font-size: 14px; color: #94a3b8;">{equipo} — {ubicacion}</div>
-            <div style="margin-top: 8px;">{badge}</div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
         todos_tecnicos = sorted(TECNICOS_ELE + TECNICOS_MEC)
-        opciones = ["Sin asignar"] + todos_tecnicos
-        idx_tec = opciones.index(tecnico_actual) if tecnico_actual in opciones else 0
+        opciones_tec = ["Sin asignar"] + todos_tecnicos
 
-        nuevo_tec = st.selectbox("TÉCNICO:", opciones, index=idx_tec, key=gen_key("asig", internal_id))
+        for idx, row in df_maquina.iterrows():
+            internal_id = limpiar(row.get("ID"), "")
+            id_ot = limpiar(row.get("ID OT"), "SIN ID")
+            desc = limpiar(row.get("Descripcion"), "Sin descripcion")
+            esp = limpiar(row.get("Especialidad"), "")
+            tecnico_actual = limpiar(row.get("Tecnico"), "")
+            ejecutado = bool(row.get("Ejecutado", False))
 
-        if nuevo_tec != tecnico_actual and nuevo_tec != "Sin asignar":
-            if guardar_campo(internal_id, "tecnico_asignado", nuevo_tec):
-                st.success(f"✅ Asignado a {nuevo_tec}")
+            # Si hay cambio pendiente, usar ese
+            if internal_id in st.session_state.admin_cambios:
+                valor_tec = st.session_state.admin_cambios[internal_id]
+            else:
+                valor_tec = tecnico_actual
+
+            sel_key = gen_key("adm_sel", internal_id, equipo_sel, ubicacion_sel)
+
+            badge = f'<span class="badge-{esp.lower()}">{esp}</span>' if esp else ""
+            estado_color = "#22c55e" if ejecutado else "#f59e0b"
+            estado_texto = "✅ HECHA" if ejecutado else "⏳ PENDIENTE"
+
+            st.markdown(f"""
+            <div class="actividad-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="font-size: 18px; font-weight: 700;">OT {id_ot}</div>
+                    <div style="color: {estado_color}; font-weight: 700;">{estado_texto}</div>
+                </div>
+                <div style="font-size: 16px; margin: 8px 0;">{desc}</div>
+                <div style="margin-top: 4px;">{badge}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            idx_tec = opciones_tec.index(valor_tec) if valor_tec in opciones_tec else 0
+            nuevo_tec = st.selectbox("TÉCNICO:", opciones_tec, index=idx_tec, key=sel_key)
+
+            if nuevo_tec != tecnico_actual:
+                st.session_state.admin_cambios[internal_id] = nuevo_tec
+            elif internal_id in st.session_state.admin_cambios and nuevo_tec == tecnico_actual:
+                del st.session_state.admin_cambios[internal_id]
+
+            st.markdown("<hr style='border-color: #334155; margin: 12px 0;'>", unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        hay_cambios = len(st.session_state.admin_cambios) > 0
+        col_g1, col_g2, col_g3 = st.columns([1, 3, 1])
+        with col_g2:
+            if st.button("💾 GUARDAR ASIGNACIONES", use_container_width=True, type="primary",
+                         key=gen_key("btn_guardar_admin"), disabled=not hay_cambios):
+                guardados = 0
+                for internal_id, nuevo_tec in list(st.session_state.admin_cambios.items()):
+                    if nuevo_tec == "Sin asignar":
+                        if guardar_campo(internal_id, "tecnico_asignado", None):
+                            guardados += 1
+                    else:
+                        if guardar_campo(internal_id, "tecnico_asignado", nuevo_tec):
+                            guardados += 1
+                st.session_state.admin_cambios = {}
+                if guardados > 0:
+                    st.session_state.guardado_ok = True
                 st.rerun()
-        elif nuevo_tec == "Sin asignar" and tecnico_actual:
-            if guardar_campo(internal_id, "tecnico_asignado", None):
-                st.rerun()
-
-        st.markdown("<hr style='border-color: #334155; margin: 12px 0;'>", unsafe_allow_html=True)
+            if not hay_cambios:
+                st.caption("No hay cambios para guardar")
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🚪 CERRAR SESIÓN", use_container_width=True, type="secondary", key=gen_key("btn_salir_admin")):
         st.session_state.perfil = None
         st.session_state.pagina = "login"
+        st.session_state.admin_maquina_sel = None
+        st.session_state.admin_cambios = {}
         st.rerun()
 
 # ============ ROUTER ============
