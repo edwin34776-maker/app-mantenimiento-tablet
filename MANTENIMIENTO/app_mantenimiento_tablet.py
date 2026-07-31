@@ -609,26 +609,11 @@ def pantalla_login():
         </div>
         """, unsafe_allow_html=True)
 
-        if st.session_state.admin_autenticado:
-            if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
-                st.session_state.perfil = "admin"
-                st.session_state.pagina = "home"
-                st.rerun()
-        else:
-            with st.container():
-                st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
-                password = st.text_input("Contrasena Admin", type="password", key=gen_key("login_admin_pass"))
-                col_login, _ = st.columns(2)
-                with col_login:
-                    if st.button("ENTRAR", use_container_width=True, type="primary", key=gen_key("login_admin_btn")):
-                        ok, msg = autenticar_admin(password)
-                        if ok:
-                            st.session_state.perfil = "admin"
-                            st.session_state.admin_autenticado = True
-                            st.session_state.pagina = "home"
-                            st.rerun()
-                        else:
-                            st.error(msg)
+        if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
+            st.session_state.perfil = "admin"
+            st.session_state.admin_autenticado = True
+            st.session_state.pagina = "home"
+            st.rerun()
 
     with col2:
         st.markdown("""
