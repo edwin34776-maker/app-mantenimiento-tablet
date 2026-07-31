@@ -636,12 +636,17 @@ def pantalla_home():
     render_top_bar("Dashboard")
 
     if perfil == "admin":
+        # ========== KPIs DE ASIGNACIÓN (PRINCIPAL) ==========
         total = len(df)
-        ejecutadas = len(df[df["Estado"] == "Ejecutado"]) if "Estado" in df.columns else 0
-        pendientes = len(df[df["Estado"] == "Pendiente"]) if "Estado" in df.columns else 0
-        verificadas = len(df[df["Estado"] == "Verificado"]) if "Estado" in df.columns else 0
+        con_tecnico = len(df[df["Tecnico_Asignado"].fillna("") != ""]) if "Tecnico_Asignado" in df.columns else 0
+        sin_tecnico = total - con_tecnico
+        pct_asignado = round((con_tecnico / total) * 100, 1) if total > 0 else 0
+        pct_sin = round((sin_tecnico / total) * 100, 1) if total > 0 else 0
         ele_count = len(df[df["Especialidad"] == "ELE"]) if "Especialidad" in df.columns else 0
         mec_count = len(df[df["Especialidad"] == "MEC"]) if "Especialidad" in df.columns else 0
+        pendientes = len(df[df["Estado"] == "Pendiente"]) if "Estado" in df.columns else 0
+        ejecutadas = len(df[df["Estado"] == "Ejecutado"]) if "Estado" in df.columns else 0
+        verificadas = len(df[df["Estado"] == "Verificado"]) if "Estado" in df.columns else 0
 
         c1, c2, c3, c4 = st.columns(4)
         with c1:
@@ -655,44 +660,46 @@ def pantalla_home():
         with c2:
             st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-label">Pendientes</div>
-                <div class="kpi-value" style="color:#f59e0b">{pendientes}</div>
-                <div class="kpi-delta" style="color:#f59e0b">{round(pendientes/total*100,1) if total else 0}% del total</div>
+                <div class="kpi-label">Sin Asignar</div>
+                <div class="kpi-value" style="color:#dc2626">{sin_tecnico}</div>
+                <div class="kpi-delta" style="color:#dc2626">{pct_sin}% del total</div>
             </div>
             """, unsafe_allow_html=True)
         with c3:
             st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-label">Ejecutadas</div>
-                <div class="kpi-value" style="color:#10b981">{ejecutadas}</div>
-                <div class="kpi-delta" style="color:#10b981">{round(ejecutadas/total*100,1) if total else 0}% del total</div>
+                <div class="kpi-label">Asignadas</div>
+                <div class="kpi-value" style="color:#22c55e">{con_tecnico}</div>
+                <div class="kpi-delta" style="color:#22c55e">{pct_asignado}% del total</div>
             </div>
             """, unsafe_allow_html=True)
         with c4:
             st.markdown(f"""
             <div class="kpi-card">
-                <div class="kpi-label">Verificadas</div>
-                <div class="kpi-value" style="color:#3b82f6">{verificadas}</div>
-                <div class="kpi-delta" style="color:#3b82f6">{round(verificadas/total*100,1) if total else 0}% del total</div>
+                <div class="kpi-label">Pendientes</div>
+                <div class="kpi-value" style="color:#f59e0b">{pendientes}</div>
+                <div class="kpi-delta" style="color:#f59e0b">Por ejecutar</div>
             </div>
             """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
+        # ========== GRÁFICAS DE ASIGNACIÓN ==========
         g1, g2 = st.columns(2)
         with g1:
             st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Órdenes por Especialidad</div>', unsafe_allow_html=True)
-            if "Especialidad" in df.columns and not df.empty:
-                esp_counts = df["Especialidad"].value_counts().reset_index()
-                esp_counts.columns = ["Especialidad", "Cantidad"]
-                colors = {"ELE": "#f59e0b", "MEC": "#10b981", "HID": "#8b5cf6"}
-                fig = px.pie(esp_counts, values="Cantidad", names="Especialidad", hole=0.55,
-                             color="Especialidad", color_discrete_map=colors)
-                fig.update_layout(showlegend=True, margin=dict(t=0,b=0,l=0,r=0), height=280,
+            st.markdown('<div class="card-header">Estado de Asignación</div>', unsafe_allow_html=True)
+            if total > 0:
+                asig_data = pd.DataFrame({
+                    "Estado": ["Asignadas", "Sin Asignar"],
+                    "Cantidad": [con_tecnico, sin_tecnico]
+                })
+                fig = px.pie(asig_data, values="Cantidad", names="Estado", hole=0.55,
+                             color="Estado", color_discrete_map={"Asignadas": "#22c55e", "Sin Asignar": "#dc2626"})
+                fig.update_layout(showlegend=True, margin=dict(t=0,b=0,l=0,r=0), height=260,
                                   paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                                   font=dict(family="Inter", size=12))
-                st.plotly_chart(fig, use_container_width=True, key="chart_esp")
+                st.plotly_chart(fig, use_container_width=True, key="home_chart_asig")
             else:
                 st.info("Sin datos")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -706,85 +713,94 @@ def pantalla_home():
                 color_map = {"Pendiente": "#f59e0b", "Ejecutado": "#10b981", "Verificado": "#3b82f6"}
                 fig2 = px.bar(est_counts, x="Estado", y="Cantidad", color="Estado",
                               color_discrete_map=color_map, text="Cantidad")
-                fig2.update_layout(showlegend=False, margin=dict(t=0,b=0,l=0,r=0), height=280,
+                fig2.update_layout(showlegend=False, margin=dict(t=0,b=0,l=0,r=0), height=260,
                                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
                                    font=dict(family="Inter", size=12),
                                    xaxis=dict(showgrid=False),
                                    yaxis=dict(showgrid=True, gridcolor='#f3f4f6'))
-                st.plotly_chart(fig2, use_container_width=True, key="chart_est")
+                st.plotly_chart(fig2, use_container_width=True, key="home_chart_est")
             else:
                 st.info("Sin datos")
             st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        g3, g4 = st.columns(2)
-        with g3:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Órdenes por Máquina</div>', unsafe_allow_html=True)
-            if "Nodo" in df.columns and not df.empty:
-                df["Maquina"] = df["Nodo"].apply(extraer_maquina_nodo)
-                maq_counts = df[df["Maquina"] != "SIN_NODO"]["Maquina"].value_counts().head(8).reset_index()
-                maq_counts.columns = ["Máquina", "Cantidad"]
-                fig3 = px.bar(maq_counts, x="Cantidad", y="Máquina", orientation='h', text="Cantidad",
-                              color_discrete_sequence=['#dc2626'])
-                fig3.update_layout(showlegend=False, margin=dict(t=0,b=0,l=0,r=0), height=300,
-                                   paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                   font=dict(family="Inter", size=12),
-                                   xaxis=dict(showgrid=True, gridcolor='#f3f4f6'),
-                                   yaxis=dict(showgrid=False))
-                st.plotly_chart(fig3, use_container_width=True, key="chart_maq")
-            else:
-                st.info("Sin datos")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with g4:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
-            st.markdown('<div class="card-header">Análisis por Técnico (Top 10)</div>', unsafe_allow_html=True)
-            if "Tecnico_Asignado" in df.columns and not df.empty:
-                tec_counts = df[df["Tecnico_Asignado"] != ""]["Tecnico_Asignado"].value_counts().head(10).reset_index()
-                tec_counts.columns = ["Técnico", "Órdenes"]
-                fig4 = px.bar(tec_counts, x="Órdenes", y="Técnico", orientation='h', text="Órdenes",
-                              color_discrete_sequence=['#3b82f6'])
-                fig4.update_layout(showlegend=False, margin=dict(t=0,b=0,l=0,r=0), height=300,
-                                   paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-                                   font=dict(family="Inter", size=11),
-                                   xaxis=dict(showgrid=True, gridcolor='#f3f4f6'),
-                                   yaxis=dict(showgrid=False))
-                st.plotly_chart(fig4, use_container_width=True, key="chart_tec")
-            else:
-                st.info("Sin datos")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
+        # ========== GRID DE UBICACIONES PARA ASIGNAR RÁPIDO ==========
         st.markdown('<div class="card">', unsafe_allow_html=True)
-        st.markdown('<div class="card-header">Órdenes Recientes</div>', unsafe_allow_html=True)
+        st.markdown('<div class="card-header">📍 Ubicaciones — Click para asignar técnicos</div>', unsafe_allow_html=True)
 
-        df_recientes = df.copy()
-        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_recientes.columns:
-            df_recientes = df_recientes[df_recientes["Especialidad"] == st.session_state.filtro_especialidad]
-        if st.session_state.filtro_maquina_nodo != "Todas" and "Nodo" in df_recientes.columns:
-            df_recientes = df_recientes[df_recientes["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+        df_ubic = df.copy()
+        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_ubic.columns:
+            df_ubic = df_ubic[df_ubic["Especialidad"] == st.session_state.filtro_especialidad]
+        if st.session_state.filtro_maquina_nodo != "Todas" and "Nodo" in df_ubic.columns:
+            df_ubic = df_ubic[df_ubic["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
 
-        cols_mostrar = ["ID OT", "Equipo", "Ubicacion", "Especialidad", "Estado", "Tecnico_Asignado", "Prioridad_Actividad"]
-        cols_existentes = [c for c in cols_mostrar if c in df_recientes.columns]
-        if cols_existentes:
-            st.dataframe(df_recientes[cols_existentes].head(20), use_container_width=True, hide_index=True)
+        if "Ubicacion" not in df_ubic.columns or df_ubic.empty:
+            st.info("No hay ubicaciones disponibles.")
+        else:
+            ubicaciones = df_ubic["Ubicacion"].dropna().unique()
+            if len(ubicaciones) == 0:
+                st.info("No hay ubicaciones disponibles.")
+            else:
+                cols_por_fila = 3
+                for i in range(0, len(ubicaciones), cols_por_fila):
+                    cols = st.columns(cols_por_fila)
+                    for j, col in enumerate(cols):
+                        idx = i + j
+                        if idx >= len(ubicaciones):
+                            break
+                        ubi = ubicaciones[idx]
+                        df_u = df_ubic[df_ubic["Ubicacion"] == ubi]
+                        total_u = len(df_u)
+                        sin_a = len(df_u[df_u["Tecnico_Asignado"].fillna("") == ""]) if "Tecnico_Asignado" in df_u.columns else 0
+                        asig_u = total_u - sin_a
+                        pct_u = round((asig_u / total_u) * 100, 1) if total_u > 0 else 0
+                        ele_u = len(df_u[df_u["Especialidad"] == "ELE"]) if "Especialidad" in df_u.columns else 0
+                        mec_u = len(df_u[df_u["Especialidad"] == "MEC"]) if "Especialidad" in df_u.columns else 0
+                        pend_u = len(df_u[df_u["Estado"] == "Pendiente"]) if "Estado" in df_u.columns else 0
+
+                        with col:
+                            color_barra = "#dc2626" if sin_a > 0 else "#22c55e"
+                            badge = f'<span style="background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;">{sin_a} sin asignar</span>' if sin_a > 0 else '<span style="background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 700;">✓ Asignado</span>'
+                            st.markdown(f"""
+                            <div style="background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                <div style="width: 100%; height: 4px; background: {color_barra}; border-radius: 2px; margin-bottom: 10px;"></div>
+                                <div style="font-size: 14px; font-weight: 700; color: #111827; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{ubi}">{ubi}</div>
+                                <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+                                    {badge}
+                                    <span style="background: #f3f4f6; color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600;">{total_u} act.</span>
+                                </div>
+                                <div style="font-size: 11px; color: #6b7280; line-height: 1.5; margin-bottom: 8px;">
+                                    {f"🔌 {ele_u} ELE • " if ele_u > 0 else ""}{f"🔧 {mec_u} MEC • " if mec_u > 0 else ""}{f"⏳ {pend_u} pend." if pend_u > 0 else ""}
+                                </div>
+                                <div style="width: 100%; height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden;">
+                                    <div style="width: {pct_u}%; height: 100%; background: linear-gradient(90deg, #22c55e, #16a34a); border-radius: 3px;"></div>
+                                </div>
+                                <div style="font-size: 10px; color: #6b7280; text-align: right; margin-top: 4px;">{pct_u}% asignado</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            btn_key = gen_key("btn_home_ubi", ubi.replace(" ", "_").replace("-", "_"))
+                            if st.button(f"ASIGNAR TÉCNICOS →", use_container_width=True, type="primary", key=btn_key):
+                                st.session_state.ubicacion_asig_seleccionada = ubi
+                                st.session_state.pagina = "asignacion"
+                                st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
+
+        # ========== ACCIONES RÁPIDAS ==========
         st.markdown('<div class="card">', unsafe_allow_html=True)
         st.markdown('<div class="card-header">Acciones Rápidas</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
-            if st.button("📋 Ver Todas las Órdenes", use_container_width=True, type="primary", key=gen_key("btn_ver_todas")):
+            if st.button("📋 Ver Todas las Órdenes", use_container_width=True, type="primary", key=gen_key("btn_ver_todas_home")):
                 st.session_state.pagina = "ordenes"; st.rerun()
         with c2:
-            if st.button("👷 Asignar Técnicos", use_container_width=True, type="primary", key=gen_key("btn_asignacion")):
+            if st.button("👷 Ir a Asignación", use_container_width=True, type="primary", key=gen_key("btn_asignacion_home")):
+                st.session_state.ubicacion_asig_seleccionada = None
                 st.session_state.pagina = "asignacion"; st.rerun()
         with c3:
-            if st.button("📧 Enviar Reporte", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
+            if st.button("📧 Enviar Reporte", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo_home")):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
@@ -811,19 +827,19 @@ def pantalla_home():
                 cuenta = st.radio("Cuenta de envio:", [
                     "mantobogota@gmail.com",
                     "supermantobogota@gmail.com"
-                ], key=gen_key("radio_cuenta_correo"))
+                ], key=gen_key("radio_cuenta_correo_home"))
             with col_c2:
-                area = st.text_input("Area / Proyecto", value="INY4 MEC", key=gen_key("txt_area_correo"))
-            asunto = st.text_input("Asunto del correo", value=f"Ordenes preventivas {area}", key=gen_key("txt_asunto_correo"))
+                area = st.text_input("Area / Proyecto", value="INY4 MEC", key=gen_key("txt_area_correo_home"))
+            asunto = st.text_input("Asunto del correo", value=f"Ordenes preventivas {area}", key=gen_key("txt_asunto_correo_home"))
             destinatarios_text = st.text_area(
                 "Destinatarios:",
                 value="\n".join(DESTINATARIOS_DEFAULT),
                 disabled=True,
-                key=gen_key("txt_destinatarios")
+                key=gen_key("txt_destinatarios_home")
             )
             col_env1, col_env2 = st.columns(2)
             with col_env1:
-                if st.button("ENVIAR CORREO AHORA", use_container_width=True, type="primary", key=gen_key("btn_enviar_correo")):
+                if st.button("ENVIAR CORREO AHORA", use_container_width=True, type="primary", key=gen_key("btn_enviar_correo_home")):
                     if len(df_envio) == 0:
                         st.error("No hay ordenes para enviar con el filtro actual")
                     else:
@@ -841,7 +857,7 @@ def pantalla_home():
                         else:
                             st.error(mensaje)
             with col_env2:
-                if st.button("CANCELAR", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_correo")):
+                if st.button("CANCELAR", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_correo_home")):
                     st.session_state.mostrar_envio_correo = False
                     st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -856,7 +872,7 @@ def pantalla_home():
                     idx_tec = i + 1
                     break
 
-        tecnico_sel = st.selectbox("Selecciona tu nombre:", opciones_tec, index=idx_tec, key=gen_key("sel_tecnico_home"))
+        tecnico_sel = st.selectbox("Selecciona tu nombre:", opciones_tec, index=idx_tec, key=gen_key("sel_tecnico_home2"))
         if tecnico_sel != "Seleccionar tecnico...":
             st.session_state.tecnico_seleccionado = tecnico_sel
         else:
@@ -1054,7 +1070,6 @@ def pantalla_home():
                             st.info("No hay cambios para guardar")
 
                 st.markdown("</div></div>", unsafe_allow_html=True)
-
 def pantalla_ordenes():
     df = recargar_datos()
     perfil = st.session_state.perfil
@@ -1916,4 +1931,3 @@ elif st.session_state.pagina == "verificar":
 else:
     st.session_state.pagina = "login"
     st.rerun()
-    
