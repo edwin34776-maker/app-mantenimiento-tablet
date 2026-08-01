@@ -670,10 +670,7 @@ def pantalla_home():
         maquinas_nodo = obtener_maquinas_desde_nodo(df)
         idx_maq_nodo = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
         maquina_nodo_sel = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key=gen_key("sel_filtro_nodo"))
-        if maquina_nodo_sel != st.session_state.filtro_maquina_nodo:
-            st.session_state.filtro_maquina_nodo = maquina_nodo_sel
-            st.session_state.filtro_subsistema_nodo = "Todos"
-            st.rerun()
+        st.session_state.filtro_maquina_nodo = maquina_nodo_sel
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns([1,1,1,1])
         with col1:
