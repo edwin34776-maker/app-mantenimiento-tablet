@@ -640,6 +640,18 @@ def pantalla_home():
     """, unsafe_allow_html=True)
     # Contador de ordenes movido a pantalla_ordenes
     pass
+    if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
+        st.divider()
+        col_a, col_b, col_c = st.columns(3)
+        with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
+        with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
+        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Verizado"])]))
+    if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
+        st.divider()
+        col_a, col_b, col_c = st.columns(3)
+        with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
+        with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
+        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Verizado"])]))
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
@@ -1001,12 +1013,6 @@ def pantalla_home():
             if st.button("CANCELAR", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_correo")):
                 st.session_state.mostrar_envio_correo = False
                 st.rerun()
-    if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
-        st.divider()
-        col_a, col_b, col_c = st.columns(3)
-        with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
-        with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
-        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Verizado"])]))
     st.markdown("<br>", unsafe_allow_html=True)
     boton_cerrar_sesion()
 
