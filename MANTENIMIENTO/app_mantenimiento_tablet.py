@@ -1609,8 +1609,13 @@ def pantalla_asignacion():
             btn_key = gen_key("btn_asig", internal_id)
             if st.button(f"ASIGNAR", use_container_width=True, type="primary", key=btn_key):
                 datos = {}
+                estado_actual_asig = limpiar(row.get("Estado"), "Pendiente")
+
                 if nuevo_tec != tecnico_actual:
                     datos["Tecnico_Asignado"] = nuevo_tec
+                    # Si se quita el tecnico, volver estado a Pendiente
+                    if nuevo_tec == "" and estado_actual_asig != "Pendiente":
+                        datos["Estado"] = "Pendiente"
                 if nueva_prioridad != prioridad_actual:
                     datos["Prioridad_Actividad"] = nueva_prioridad
 
