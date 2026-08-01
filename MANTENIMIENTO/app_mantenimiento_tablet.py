@@ -1110,6 +1110,9 @@ def pantalla_ordenes():
         descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
+        # Sin técnico = no puede estar ejecutada ni verificada
+        if tecnico == "Sin asignar" and estado in ["Ejecutado", "Verificado"]:
+            estado = "Pendiente"
         estado_clase = obtener_estado_visual(estado)
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
         prioridad = limpiar(row.get("Prioridad_Actividad"), "")
@@ -1207,6 +1210,9 @@ def pantalla_mis_ordenes():
         descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
+        # Sin técnico = no puede estar ejecutada ni verificada
+        if tecnico == "Sin asignar" and estado in ["Ejecutado", "Verificado"]:
+            estado = "Pendiente"
         estado_clase = obtener_estado_visual(estado)
         desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
         prioridad = limpiar(row.get("Prioridad_Actividad"), "")
@@ -1617,8 +1623,15 @@ def pantalla_asignacion():
 
                 if nuevo_tec != tecnico_actual:
                     datos["Tecnico_Asignado"] = nuevo_tec
-                    # Si se quita el tecnico, volver estado a Pendiente
-                    if nuevo_tec == "" and estado_actual_asig != "Pendiente":
+                    # Si se cambia o quita el tecnico, resetear estado a Pendiente
+                    # para que el nuevo tecnico no herede una ejecucion que no hizo
+                    if estado_actual_asig in ["Ejecutado", "Verificado"]:
+                        datos["Estado"] = "Pendiente"
+                        datos["Hora_Inicio"] = None
+                        datos["Hora_Fin"] = None
+                        datos["Fecha_Ejecucion"] = None
+                        datos["Comentarios"] = None
+                    elif nuevo_tec == "" and estado_actual_asig != "Pendiente":
                         datos["Estado"] = "Pendiente"
                 if nueva_prioridad != prioridad_actual:
                     datos["Prioridad_Actividad"] = nueva_prioridad
