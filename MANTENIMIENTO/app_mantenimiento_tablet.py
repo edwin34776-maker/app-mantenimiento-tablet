@@ -641,11 +641,25 @@ def pantalla_home():
     # Contador de ordenes movido a pantalla_ordenes
     pass
     if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
-        st.divider()
-        col_a, col_b, col_c = st.columns(3)
-        with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
-        with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
-        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Verizado"])]))
+        ele_count = len(df[df["Especialidad"] == "ELE"])
+        mec_count = len(df[df["Especialidad"] == "MEC"])
+        cerr_count = len(df[df["Estado"].isin(["Verificado"])])
+        st.markdown(f"""
+        <div style="display:flex; gap:12px; justify-content:center; margin:16px 0;">
+            <div style="flex:1; text-align:center; padding:14px; background:#FFFFFF; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+                <div style="font-size:11px; color:#64748B; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">ELE</div>
+                <div style="font-size:32px; font-weight:800; color:#0F172A; margin-top:4px;">{ele_count}</div>
+            </div>
+            <div style="flex:1; text-align:center; padding:14px; background:#FFFFFF; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+                <div style="font-size:11px; color:#64748B; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">MEC</div>
+                <div style="font-size:32px; font-weight:800; color:#0F172A; margin-top:4px;">{mec_count}</div>
+            </div>
+            <div style="flex:1; text-align:center; padding:14px; background:#FFFFFF; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+                <div style="font-size:11px; color:#64748B; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Cerradas</div>
+                <div style="font-size:32px; font-weight:800; color:#0F172A; margin-top:4px;">{cerr_count}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
