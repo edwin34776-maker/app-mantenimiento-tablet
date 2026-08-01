@@ -228,9 +228,9 @@ st.markdown("""
         margin: -1rem -1rem 1rem -1rem; box-shadow: 0 4px 15px rgba(26,35,158,0.3);
         position: sticky; top: 0; z-index: 100; width: 100%; box-sizing: border-box; word-wrap: break-word;
     }
-    .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: auto; text-align: center; padding: 10px; width: 100%; box-sizing: border-box; color: #E0F2FE; }
+    .home-screen { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: auto; text-align: center; padding: 10px; width: 100%; box-sizing: border-box; color: #0F172A; }
     .big-counter { font-size: 60px; font-weight: 900; color: #60a5fa; line-height: 1; margin: 10px 0; word-wrap: break-word; }
-    .counter-label { font-size: 18px; color: #7DD3FC; margin-bottom: 30px; }
+    .counter-label { font-size: 18px; color: #475569; margin-bottom: 30px; }
     .estado-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-align: center; white-space: nowrap; }
     .estado-ejecutado { background-color: #d4edda; color: #155724; }
     .estado-pendiente { background-color: #fff3cd; color: #856404; }
@@ -241,27 +241,27 @@ st.markdown("""
     .progress-value { font-size: 22px; font-weight: 800; }
     .progress-label { font-size: 11px; color: #666; }
     .detail-panel { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-top: 10px; }
-    .equipo-info { background: #f5f5f5; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
-    .equipo-info strong { color: #E0F2FE; }
+    .equipo-info { background: #F8FAFC; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+    .equipo-info strong { color: #0F172A; }
     .stButton>button { border-radius: 6px; font-weight: 600; font-size: 12px !important; padding: 4px 12px !important; }
     .prioridad-critico { border-left: 4px solid #dc3545 !important; background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%) !important; }
     .prioridad-secundario { border-left: 4px solid #ffc107 !important; background: linear-gradient(90deg, #fffbea 0%, #ffffff 100%) !important; }
     .prioridad-estandar { border-left: 4px solid #28a745 !important; background: linear-gradient(90deg, #f0fff4 0%, #ffffff 100%) !important; }
-    .tabla-header { display: grid; background: #1E293B; color: #7DD3FC; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 700; font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
-    .tabla-fila { display: grid; background: #1E293B; border-color: #0EA5E9; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; transition: all 0.2s; }
+    .tabla-header { display: grid; background: #FFFFFF; color: #475569; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 700; font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
+    .tabla-fila { display: grid; background: #FFFFFF; border-color: #0EA5E9; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; transition: all 0.2s; }
     .tabla-fila:hover { background: #f8f9fa; border-color: #adb5bd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .tabla-fila .col-id { font-family: monospace; font-size: 11px; color: #495057; }
     .tabla-fila .col-esp { font-weight: 600; font-size: 11px; color: #1a237e; }
     .tabla-fila .col-desc { font-size: 11px; color: #212529; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tabla-fila .col-estado { text-align: center; }
     .tabla-fila .col-tec { font-size: 10px; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .tabla-fila-asig { display: grid; background: #1E293B; border-color: #0EA5E9; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; margin-bottom: 4px; }
+    .tabla-fila-asig { display: grid; background: #FFFFFF; border-color: #0EA5E9; grid-template-columns: 1fr auto; gap: 10px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; margin-bottom: 4px; }
     .asig-info { min-width: 0; overflow: hidden; }
     .asig-ot { font-size: 12px; color: #212529; margin-bottom: 2px; }
     .asig-esp { color: #1a237e; font-weight: 600; font-size: 11px; }
     .asig-equipo { font-size: 10px; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .asig-estado { text-align: right; flex-shrink: 0; }
-    .perfil-card { background: #1E293B; border-color: #0EA5E9; color: #E0F2FE; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; border: 3px solid transparent; }
+    .perfil-card { background: #FFFFFF; border-color: #0EA5E9; color: #0F172A; border-radius: 16px; padding: 24px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; border: 3px solid transparent; }
     .perfil-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
     .perfil-admin { border-color: #dc3545; }
     .perfil-tecnico { border-color: #28a745; }
@@ -281,16 +281,16 @@ st.markdown("""
     .tecnico-badge.baja { background: #28a745; }
     .grupo-ele { border-left: 4px solid #ffc107 !important; }
     .grupo-mec { border-left: 4px solid #28a745 !important; }
-    .maquina-card { background: #1E293B; border-color: #0EA5E9; color: #E0F2FE; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
+    .maquina-card { background: #FFFFFF; border-color: #0EA5E9; color: #0F172A; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; border: 2px solid #e9ecef; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: space-between; }
     .maquina-card:hover { border-color: #1a237e; box-shadow: 0 2px 8px rgba(26,35,158,0.15); }
     .maquina-card.activa { border-color: #1a237e; background: linear-gradient(135deg, #e8eaf6 0%, #ffffff 100%); }
     .maquina-nombre { font-size: 15px; font-weight: 700; color: #1a237e; }
     .maquina-badge { background: #1a237e; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
     .filtro-nodo-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; }
     .contador-maquinas { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 10px 0; }
-    .contador-maquina { background: #1E293B; border-color: #0EA5E9; color: #E0F2FE; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
+    .contador-maquina { background: #FFFFFF; border-color: #0EA5E9; color: #0F172A; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #e9ecef; min-width: 80px; }
     .contador-maquina-valor { font-size: 18px; font-weight: 800; color: #60a5fa; }
-    .contador-maquina-label { font-size: 10px; color: #7DD3FC; }
+    .contador-maquina-label { font-size: 10px; color: #475569; }
     .nodo-badge-mini { background: #e8eaf6; color: #1a237e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; font-family: monospace; }
     @media (max-width: 768px) {
         .big-counter { font-size: 48px; }
@@ -313,22 +313,22 @@ st.markdown("""
     .stSelectbox label, .stTextInput label { color: #475569 !important; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
-    .eq-bloque { background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 20px; color: #E0F2FE; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
+    .eq-bloque { background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 20px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
     .eq-bloque-header { background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
     .eq-bloque-titulo { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px; }
-    .eq-bloque-meta { font-size: 11px; color: #7DD3FC; margin-top: 4px; }
-    .eq-progress-bar { width: 100%; height: 6px; background: #1E293B; border-radius: 3px; margin-top: 8px; overflow: hidden; }
+    .eq-bloque-meta { font-size: 11px; color: #475569; margin-top: 4px; }
+    .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
     .eq-bloque-contenido { padding: 12px 16px; }
-    .eq-tabla-header { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #1E293B; border-radius: 8px; font-weight: 700; font-size: 10px; color: #7DD3FC; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
-    .eq-tabla-fila { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #1E293B; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
+    .eq-tabla-header { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
+    .eq-tabla-fila { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
     .eq-tabla-fila:hover { background: #27354f; }
     .eq-tabla-fila:last-child { border-bottom: none; }
     .eq-esp-ele { background: #60a5fa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
     .eq-esp-mec { background: #fbbf24; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
     .eq-esp-hid { background: #a78bfa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
-    .eq-desc { color: #E0F2FE; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .eq-tec { color: #E0F2FE; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-desc { color: #0F172A; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-tec { color: #0F172A; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .eq-estado-ej { background-color: #059669; color: #ffffff; font-weight: 700; }
     .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
     .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
@@ -663,7 +663,7 @@ def pantalla_home():
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
-            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #7DD3FC; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #475569; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
             cols = st.columns(min(len(conteo_maquinas), 4))
             for i, (maq, cant) in enumerate(conteo_maquinas.items()):
                 with cols[i % 4]:
@@ -1262,19 +1262,19 @@ def pantalla_ejecutar():
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
-    <div class="detail-panel" style="background: #1E293B; border: 1px solid #0EA5E9;">
+    <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info">
             {nodo_info}
-            <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
-            <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
-            <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong style="color:#0F172A">Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong style="color:#0F172A">Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong style="color:#0F172A">Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
             <strong>Estado actual:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.subheader("Descripcion del Procedimiento")
+    st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
     st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
-    st.subheader("Registro de Ejecucion")
+    st.markdown("<h3 style='color:#0F172A'>Registro de Ejecucion</h3>", unsafe_allow_html=True)
 
     h_ini_str = limpiar(row.get("Hora_Inicio"), "")
     h_fin_str = limpiar(row.get("Hora_Fin"), "")
@@ -1292,7 +1292,7 @@ def pantalla_ejecutar():
         hora_inicio = st.time_input("Hora Inicio", value=h_ini_default, key=gen_key("hora_inicio_ejec"))
     with col2:
         hora_fin = st.time_input("Hora Fin", value=h_fin_default, key=gen_key("hora_fin_ejec"))
-    st.subheader("Comentarios de Ejecucion")
+    st.markdown("<h3 style='color:#0F172A'>Comentarios de Ejecucion</h3>", unsafe_allow_html=True)
     comentarios = limpiar(row.get("Comentarios"), "")
     nuevo_comentario = st.text_area("Describa lo realizado...", value=comentarios, key=gen_key("comentario_ejecucion"))
     hora_valida = True
@@ -1315,7 +1315,7 @@ def pantalla_ejecutar():
             df.at[idx, "Hora_Inicio"] = datos["Hora_Inicio"]
             df.at[idx, "Hora_Fin"] = datos["Hora_Fin"]
             st.markdown("""
-            <div style="background: #064e3b; color: #34d399; padding: 12px; border-radius: 8px; text-align: center; font-weight: 700; border: 1px solid #059669; margin: 12px 0;">
+            <div style="background: #DCFCE7; color: #34d399; padding: 12px; border-radius: 8px; text-align: center; font-weight: 700; border: 1px solid #059669; margin: 12px 0;">
                 ✅ Orden marcada como EJECUTADA y guardada en Supabase
             </div>
             """, unsafe_allow_html=True)
@@ -1354,24 +1354,24 @@ def pantalla_detalle_tecnico():
     info_prioridad = obtener_color_prioridad(prioridad)
     if prioridad:
         st.markdown(f"""
-        <div style="background: #1E293B; color: #7DD3FC; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #0EA5E9; margin-bottom: 16px; font-size: 13px;">
+        <div style="background: #FFFFFF; color: #475569; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #0EA5E9; margin-bottom: 16px; font-size: 13px;">
             <strong>Prioridad: {info_prioridad['label']}</strong> — {info_prioridad['desc']}
         </div>
         """, unsafe_allow_html=True)
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
-    <div class="detail-panel" style="background: #1E293B; border: 1px solid #0EA5E9;">
+    <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info">
             {nodo_info}
-            <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
-            <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
-            <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}<br>
-            <strong>Tecnico Asignado:</strong> {limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}
+            <strong style="color:#0F172A">Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong style="color:#0F172A">Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong style="color:#0F172A">Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong style="color:#0F172A">Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}<br>
+            <strong style="color:#0F172A">Tecnico Asignado:</strong> {limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.subheader("Descripcion del Procedimiento")
+    st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
     st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
 
     if row.get("Comentarios"):
@@ -1414,23 +1414,23 @@ def pantalla_detalle():
     info_prioridad = obtener_color_prioridad(prioridad)
     if prioridad:
         st.markdown(f"""
-        <div style="background: #1E293B; color: #7DD3FC; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #0EA5E9; margin-bottom: 16px; font-size: 13px;">
+        <div style="background: #FFFFFF; color: #475569; padding: 10px 14px; border-radius: 8px; border-left: 4px solid #0EA5E9; margin-bottom: 16px; font-size: 13px;">
             <strong>Prioridad: {info_prioridad['label']}</strong> — {info_prioridad['desc']}
         </div>
         """, unsafe_allow_html=True)
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
-    <div class="detail-panel" style="background: #1E293B; border: 1px solid #0EA5E9;">
+    <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info">
             {nodo_info}
-            <strong>Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
-            <strong>Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
-            <strong>Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong>Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
+            <strong style="color:#0F172A">Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong style="color:#0F172A">Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong style="color:#0F172A">Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong style="color:#0F172A">Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.subheader("Descripcion del Procedimiento")
+    st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
     st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
     st.divider()
     st.subheader("&#128203; Informacion de la Orden")
@@ -1448,32 +1448,32 @@ def pantalla_detalle():
 
     duracion_html = ""
     if duracion:
-        duracion_html = f"""<div style="background: #064e3b; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>"""
+        duracion_html = f"""<div style="background: #DCFCE7; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>"""
 
     st.markdown(f"""
-    <div style="background: #162032; border-radius: 12px; padding: 16px; border: 1px solid #1e3a5f; margin-bottom: 12px;">
+    <div style="background: #F8FAFC; border-radius: 12px; padding: 16px; border: 1px solid #E2E8F0; margin-bottom: 12px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
+            <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128100; Tecnico</div>
                 <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{tecnico_actual}</div>
             </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {est_color};">
+            <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {est_color};">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128308; Estado</div>
                 <div style="color:{est_color}; font-size:13px; font-weight:700; margin-top:4px;">{estado_actual}</div>
             </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {pri_color};">
+            <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {pri_color};">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9888; Prioridad</div>
                 <div style="color:{pri_color}; font-size:13px; font-weight:700; margin-top:4px;">{pri_label}</div>
             </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #a78bfa;">
+            <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #a78bfa;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128197; Fecha Ejecucion</div>
                 <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{fecha_ejec}</div>
             </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #60a5fa;">
+            <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #60a5fa;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9200; Hora Inicio</div>
                 <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_ini}</div>
             </div>
-            <div style="background: #0f172a; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #f472b6;">
+            <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #f472b6;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9201; Hora Fin</div>
                 <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_fin}</div>
             </div>
@@ -1656,7 +1656,7 @@ def pantalla_verificar():
         nodo = limpiar(row.get("Nodo"), "")
         nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
         st.markdown(f"""
-        <div class="detail-panel" style="margin-bottom: 12px;">
+        <div class="detail-panel" style="margin-bottom: 12px; background:#FFFFFF; border:1px solid #E2E8F0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                 <strong>OT {id_ot}</strong> {nodo_badge}
                 <span class="estado-badge estado-ejecutado">Ejecutado</span>
