@@ -1554,8 +1554,6 @@ def pantalla_asignacion():
         if tecnico_actual and tecnico_actual in opciones_tec:
             idx_tec = opciones_tec.index(tecnico_actual)
 
-        comentario_asig = limpiar(row.get("Comentarios"), "")
-        comentario_html_asig = f"""<div style='font-size: 10px; color: #0EA5E9; margin-top: 2px; font-style: italic;'>&#128172; {comentario_asig}</div>""" if comentario_asig else ""
         with st.container():
             st.markdown(f"""
             <div class="tabla-fila-asig {clase_prioridad}">
@@ -1563,7 +1561,6 @@ def pantalla_asignacion():
                     <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge} | <span class="asig-esp">{tipo}</span></div>
                     <div class="asig-equipo">{equipo} — {ubicacion}</div>
                     <div style="font-size: 10px; color: #666; margin-top: 2px;">{desc_corta}</div>
-                    {comentario_html_asig}
                 </div>
                 <div class="asig-estado">
                     <span class="estado-badge {estado_clase}">{estado}</span>
