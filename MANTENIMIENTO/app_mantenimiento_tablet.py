@@ -646,12 +646,6 @@ def pantalla_home():
         with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
         with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
         with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Verizado"])]))
-    if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
-        st.divider()
-        col_a, col_b, col_c = st.columns(3)
-        with col_a: st.metric("ELE", len(df[df["Especialidad"] == "ELE"]))
-        with col_b: st.metric("MEC", len(df[df["Especialidad"] == "MEC"]))
-        with col_c: st.metric("Cerradas", len(df[df["Estado"].isin(["Verizado"])]))
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
