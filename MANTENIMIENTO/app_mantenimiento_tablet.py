@@ -1645,7 +1645,7 @@ def pantalla_verificar():
     </div>
     """, unsafe_allow_html=True)
     boton_volver_inicio("verificar")
-    df_ejecutadas = df[df["Estado"] == "Ejecutado"] if not df.empty and "Estado" in df.columns else pd.DataFrame()
+    df_ejecutadas = df[(df["Estado"] == "Ejecutado") & (df["Tecnico_Asignado"].notna()) & (df["Tecnico_Asignado"] != "")] if not df.empty and "Estado" in df.columns and "Tecnico_Asignado" in df.columns else pd.DataFrame()
     st.subheader(f"Ordenes ejecutadas pendientes de verificacion ({len(df_ejecutadas)})")
     if df_ejecutadas.empty:
         st.info("No hay ordenes ejecutadas pendientes de verificacion.")
