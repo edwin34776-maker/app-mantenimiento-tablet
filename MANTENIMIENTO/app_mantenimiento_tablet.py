@@ -638,15 +638,8 @@ def pantalla_home():
         <span style="font-size: 12px; opacity: 0.8;">{'&#128100; Admin' if perfil == 'admin' else '&#128295; Tecnico'}</span>
     </div>
     """, unsafe_allow_html=True)
-    if perfil == "admin":
-        total_ordenes = len(df)
-        st.markdown(f"""
-        <div class="home-screen">
-            <div class="counter-label">ORDENES PREVENTIVAS</div>
-            <div class="big-counter">{total_ordenes}</div>
-            <div class="counter-label">Total de ordenes activas</div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Contador de ordenes movido a pantalla_ordenes
+    pass
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
@@ -1056,7 +1049,14 @@ def pantalla_ordenes():
         if "Descripcion de procedimiento" in df_filtrado.columns: mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         if "Nodo" in df_filtrado.columns: mask |= df_filtrado["Nodo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         df_filtrado = df_filtrado[mask]
-    st.subheader(f"Ordenes ({len(df_filtrado)})")
+    total_ordenes_filtradas = len(df_filtrado)
+    st.markdown(f"""
+    <div class="home-screen">
+        <div class="counter-label">ORDENES PREVENTIVAS</div>
+        <div class="big-counter">{total_ordenes_filtradas}</div>
+        <div class="counter-label">Total de ordenes activas</div>
+    </div>
+    """, unsafe_allow_html=True)
     st.markdown("""
     <div class="tabla-header">
         <div class="col-id">ID OT</div><div class="col-esp">ESP</div><div class="col-desc">DESCRIPCION</div>
