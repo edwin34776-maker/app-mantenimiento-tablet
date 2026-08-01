@@ -1555,6 +1555,10 @@ def pantalla_asignacion():
         descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
 
+        # Si no hay técnico asignado, forzar estado visual a Pendiente
+        if not tecnico_actual:
+            estado = "Pendiente"
+
         estado_clase = obtener_estado_visual(estado)
         prioridad = limpiar(row.get("Prioridad_Actividad"), "")
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
