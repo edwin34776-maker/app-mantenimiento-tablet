@@ -666,14 +666,13 @@ def pantalla_home():
         if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
         maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key=gen_key("sel_maquina_home"))
         st.session_state.filtro_maquina = maquina_sel
-        st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtros adicionales</div>", unsafe_allow_html=True)
+        # Filtro Máquina (Nodo) oculto — se mantiene en session_state para asignación
         maquinas_nodo = obtener_maquinas_desde_nodo(df)
-        idx_maq_nodo = maquinas_nodo.index(st.session_state.filtro_maquina_nodo) if st.session_state.filtro_maquina_nodo in maquinas_nodo else 0
-        maquina_nodo_sel = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key=gen_key("sel_filtro_nodo"))
-        if maquina_nodo_sel != st.session_state.filtro_maquina_nodo:
-            st.session_state.filtro_maquina_nodo = maquina_nodo_sel
-            st.session_state.filtro_subsistema_nodo = "Todos"
-            st.rerun()
+        if st.session_state.filtro_maquina_nodo not in maquinas_nodo:
+            st.session_state.filtro_maquina_nodo = "Todas"
+        # st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtros adicionales</div>", unsafe_allow_html=True)
+        # maquina_nodo_sel = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key=gen_key("sel_filtro_nodo"))
+        # st.session_state.filtro_maquina_nodo = maquina_nodo_sel
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns([1,1,1,1])
         with col1:
@@ -898,6 +897,19 @@ def pantalla_home():
                         with cols[5]:
                             st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
 
+                        # Campo de comentario para el técnico
+                        comentario_key = gen_key("com_eq", internal_id)
+                        comentario_actual = limpiar(row.get("Comentarios"), "")
+                        if comentario_key not in st.session_state:
+                            st.session_state[comentario_key] = comentario_actual
+                        st.text_input(
+                            "",
+                            value=comentario_actual,
+                            key=comentario_key,
+                            placeholder="Comentario...",
+                            label_visibility="collapsed"
+                        )
+
                     st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
                     col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
@@ -921,6 +933,10 @@ def pantalla_home():
                                 h_fin_bd = limpiar(row.get("Hora_Fin"), "")
                                 hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
 
+                                comentario_key = gen_key("com_eq", internal_id)
+                                nuevo_comentario = st.session_state.get(comentario_key, "")
+                                comentario_bd = limpiar(row.get("Comentarios"), "")
+
                                 if chk_val and estado_actual not in ["Ejecutado", "Verificado"]:
                                     hora_fin = datetime.now().strftime("%H:%M")
                                     hora_ini = hora_ini_auto if hora_ini_auto else (h_ini_bd if h_ini_bd else hora_fin)
@@ -930,13 +946,23 @@ def pantalla_home():
                                         "Hora_Fin": hora_fin,
                                         "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
                                     }
+                                    if nuevo_comentario != comentario_bd:
+                                        datos["Comentarios"] = nuevo_comentario
                                     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
                                         if f"hora_ini_auto_{internal_id}" in st.session_state:
                                             del st.session_state[f"hora_ini_auto_{internal_id}"]
                                 elif not chk_val and estado_actual == "Ejecutado":
-                                    if actualizar_orden_supabase(internal_id, "Estado", "Pendiente"):
+                                    datos = {"Estado": "Pendiente"}
+                                    if nuevo_comentario != comentario_bd:
+                                        datos["Comentarios"] = nuevo_comentario
+                                    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
+                                else:
+                                    # Solo actualizar comentario si no hay cambio de estado
+                                    if nuevo_comentario != comentario_bd:
+                                        if actualizar_orden_supabase(internal_id, "Comentarios", nuevo_comentario):
+                                            guardados += 1
 
                             if guardados > 0:
                                 st.success(f"{guardados} cambios guardados en Supabase")
@@ -1076,11 +1102,13 @@ def pantalla_ordenes():
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
         nodo = limpiar(row.get("Nodo"), "")
         nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
+        comentario_admin = limpiar(row.get("Comentarios"), "")
+        com_html = f"<div style='font-size:10px;color:#0EA5E9;margin-top:2px;font-style:italic;'>&#128172; {comentario_admin}</div>" if comentario_admin else ""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
             <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
             <div class="col-esp">{tipo}</div>
-            <div class="col-desc" title="{descripcion}">{desc_corta}</div>
+            <div class="col-desc" title="{descripcion}">{desc_corta}{com_html}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
             <div class="col-tec">{tecnico}</div>
         </div>
@@ -1533,6 +1561,7 @@ def pantalla_asignacion():
                     <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge} | <span class="asig-esp">{tipo}</span></div>
                     <div class="asig-equipo">{equipo} — {ubicacion}</div>
                     <div style="font-size: 10px; color: #666; margin-top: 2px;">{desc_corta}</div>
+                    {f'<div style="font-size: 10px; color: #0EA5E9; margin-top: 2px; font-style: italic;">&#128172; {limpiar(row.get("Comentarios"), "")}</div>' if limpiar(row.get("Comentarios"), "") else ""}
                 </div>
                 <div class="asig-estado">
                     <span class="estado-badge {estado_clase}">{estado}</span>
