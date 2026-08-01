@@ -218,7 +218,7 @@ st.set_page_config(page_title="App Tablet Mtto Preventivo", page_icon="🔧", la
 
 st.markdown("""
 <style>
-    .stApp { background-color: #0B1120; max-width: 100vw; overflow-x: hidden; }
+    .stApp { background-color: #F1F5F9; max-width: 100vw; overflow-x: hidden; }
     .main .block-container { padding-left: 0.8rem !important; padding-right: 0.8rem !important; max-width: 100% !important; }
     div[data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
     .tablet-header {
@@ -310,7 +310,7 @@ st.markdown("""
     }
     iframe { max-width: 100%; }
     .stSelectbox, .stTextInput, .stButton { max-width: 100%; }
-    .stSelectbox label, .stTextInput label { color: #94a3b8 !important; }
+    .stSelectbox label, .stTextInput label { color: #475569 !important; }
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
     .eq-bloque { background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 20px; color: #E0F2FE; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
