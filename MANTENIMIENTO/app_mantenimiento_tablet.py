@@ -660,6 +660,51 @@ def pantalla_home():
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+    # === GAUGE: Progreso de Asignación ===
+    if perfil == "admin" and not df.empty:
+        total_ord = len(df)
+        asignadas = len(df[(df["Tecnico_Asignado"].notna()) & (df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in df.columns else 0
+        sin_asignar = total_ord - asignadas
+        pct_asig = round((asignadas / total_ord) * 100, 1) if total_ord > 0 else 0
+
+        # Calcular dasharray para el gauge (arco semicircular)
+        # Circunferencia completa = 2*pi*80 ≈ 502.65, semicirculo ≈ 251.33
+        arc_total = 251.33
+        dash_green = round(arc_total * (pct_asig / 100), 2)
+        dash_red = round(arc_total - dash_green, 2)
+
+        st.markdown(f"""
+        <div style="background:#FFFFFF; border-radius:16px; padding:20px; margin:12px 0; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+            <div style="font-size:14px; font-weight:700; color:#0F172A; margin-bottom:8px; text-align:center;">⏱️ Progreso de Asignación</div>
+            <div style="display:flex; justify-content:center;">
+                <svg width="220" height="125" viewBox="0 0 220 125">
+                    <!-- Fondo del arco -->
+                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#E2E8F0" stroke-width="22" stroke-linecap="round"/>
+                    <!-- Arco verde (asignadas) -->
+                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" 
+                        stroke-dasharray="{dash_green} {dash_red}" stroke-dashoffset="0"/>
+                    <!-- Arco rojo (sin asignar) -->
+                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#ef4444" stroke-width="22" stroke-linecap="round" 
+                        stroke-dasharray="{dash_red} {dash_green}" stroke-dashoffset="-{dash_green}"/>
+                    <!-- Texto centro -->
+                    <text x="110" y="100" text-anchor="middle" font-size="10" fill="#64748B" font-family="system-ui,sans-serif">Completado</text>
+                    <text x="110" y="80" text-anchor="middle" font-size="32" font-weight="900" fill="#0F172A" font-family="system-ui,sans-serif">{pct_asig}%</text>
+                </svg>
+            </div>
+            <div style="display:flex; justify-content:center; gap:32px; margin-top:4px;">
+                <div style="text-align:center;">
+                    <div style="font-size:20px; font-weight:800; color:#166534;">{asignadas}</div>
+                    <div style="font-size:10px; color:#64748B; font-weight:600;">Asignadas</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:20px; font-weight:800; color:#991B1B;">{sin_asignar}</div>
+                    <div style="font-size:10px; color:#64748B; font-weight:600;">Pendientes</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
@@ -1531,7 +1576,14 @@ def pantalla_asignacion():
         busq_asig = st.text_input("Buscar OT o equipo...", placeholder="Escribe para filtrar...", key=gen_key("txt_busq_asig"))
 
     if estado_sel != "Todos" and "Estado" in df_asig.columns:
-        df_asig = df_asig[df_asig["Estado"] == estado_sel]
+        # Estado efectivo: sin técnico = siempre Pendiente
+        def estado_efectivo_asig(row):
+            estado_bd = limpiar(row.get("Estado"), "Pendiente")
+            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
+            if not tecnico_bd and estado_bd in ["Ejecutado", "Verificado"]:
+                return "Pendiente"
+            return estado_bd
+        df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
     if busq_asig:
         busq_lower = busq_asig.lower()
         mask = pd.Series([False] * len(df_asig), index=df_asig.index)
