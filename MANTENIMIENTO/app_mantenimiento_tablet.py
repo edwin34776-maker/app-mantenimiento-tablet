@@ -316,13 +316,13 @@ st.markdown("""
     .eq-bloque { background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 20px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
     .eq-bloque-header { background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
     .eq-bloque-titulo { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px; }
-    .eq-bloque-meta { font-size: 11px; color: #475569; margin-top: 4px; }
+    .eq-bloque-meta { font-size: 11px; color: #0F172A; margin-top: 4px; }
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
     .eq-bloque-contenido { padding: 12px 16px; }
     .eq-tabla-header { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
     .eq-tabla-fila { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
-    .eq-tabla-fila:hover { background: #27354f; }
+    .eq-tabla-fila:hover { background: #27354f; color: #e2e8f0; }
     .eq-tabla-fila:last-child { border-bottom: none; }
     .eq-esp-ele { background: #60a5fa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
     .eq-esp-mec { background: #fbbf24; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
@@ -1509,7 +1509,7 @@ def pantalla_detalle():
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128100; Tecnico</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{tecnico_actual}</div>
+                <div style="color:#0F172A; font-size:13px; font-weight:600; margin-top:4px;">{tecnico_actual}</div>
             </div>
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {est_color};">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128308; Estado</div>
@@ -1521,15 +1521,15 @@ def pantalla_detalle():
             </div>
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #a78bfa;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128197; Fecha Ejecucion</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{fecha_ejec}</div>
+                <div style="color:#0F172A; font-size:13px; font-weight:600; margin-top:4px;">{fecha_ejec}</div>
             </div>
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #60a5fa;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9200; Hora Inicio</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_ini}</div>
+                <div style="color:#0F172A; font-size:13px; font-weight:600; margin-top:4px;">{h_ini}</div>
             </div>
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #f472b6;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#9201; Hora Fin</div>
-                <div style="color:#e2e8f0; font-size:13px; font-weight:600; margin-top:4px;">{h_fin}</div>
+                <div style="color:#0F172A; font-size:13px; font-weight:600; margin-top:4px;">{h_fin}</div>
             </div>
         </div>
         {duracion_html}
