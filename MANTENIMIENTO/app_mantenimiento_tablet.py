@@ -115,7 +115,7 @@ def cargar_ordenes_supabase():
         for col in df.columns:
             if col == "id": columnas_mapeo[col] = "ID"
             elif col == "id_ot": columnas_mapeo[col] = "ID OT"
-            elif col == "descripcion_procedimiento": columnas_mapeo[col] = "Descripcion de procedimiento"
+            elif col == "actividades": columnas_mapeo[col] = "Actividades"
             elif col == "tecnico_asignado": columnas_mapeo[col] = "Tecnico_Asignado"
             elif col == "prioridad_actividad": columnas_mapeo[col] = "Prioridad_Actividad"
             elif col == "actividades_hechas": columnas_mapeo[col] = "Actividades_Hechas"
@@ -171,7 +171,7 @@ def guardar_orden_supabase(id_interno, datos):
 
 def mapear_campo_supabase(campo):
     mapeo = {
-        "ID": "id", "ID OT": "id_ot", "Descripcion de procedimiento": "descripcion_procedimiento",
+        "ID": "id", "ID OT": "id_ot", "Actividades": "actividades",
         "Tecnico_Asignado": "tecnico_asignado", "Prioridad_Actividad": "prioridad_actividad",
         "Actividades_Hechas": "actividades_hechas", "Fecha_Ejecucion": "fecha_ejecucion",
         "Hora_Inicio": "hora_inicio", "Hora_Fin": "hora_fin", "Estado": "estado",
@@ -851,7 +851,7 @@ def pantalla_home():
                 mask = pd.Series([False] * len(df_mias), index=df_mias.index)
                 if "ID OT" in df_mias.columns: mask |= df_mias["ID OT"].astype(str).str.contains(busq_tec, na=False)
                 if "Equipo" in df_mias.columns: mask |= df_mias["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
-                if "Descripcion de procedimiento" in df_mias.columns: mask |= df_mias["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busq_lower, na=False)
+                if "Actividades" in df_mias.columns: mask |= df_mias["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
                 if "Nodo" in df_mias.columns: mask |= df_mias["Nodo"].astype(str).str.lower().str.contains(busq_lower, na=False)
                 df_mias = df_mias[mask]
 
@@ -925,7 +925,7 @@ def pantalla_home():
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         esp = limpiar(row.get("Especialidad"), "")
-                        desc = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+                        desc = limpiar(row.get("Actividades"), "Sin descripcion")
                         estado = limpiar(row.get("Estado"), "Pendiente")
                         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
 
@@ -1142,7 +1142,7 @@ def pantalla_ordenes():
         if "Equipo" in df_filtrado.columns: mask |= df_filtrado["Equipo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         if "Ubicacion" in df_filtrado.columns: mask |= df_filtrado["Ubicacion"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         if "ID OT" in df_filtrado.columns: mask |= df_filtrado["ID OT"].astype(str).str.contains(busqueda, na=False)
-        if "Descripcion de procedimiento" in df_filtrado.columns: mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
+        if "Actividades" in df_filtrado.columns: mask |= df_filtrado["Actividades"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         if "Nodo" in df_filtrado.columns: mask |= df_filtrado["Nodo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         df_filtrado = df_filtrado[mask]
     st.markdown("""
@@ -1155,7 +1155,7 @@ def pantalla_ordenes():
         id_ot = limpiar(row.get("ID OT"), "SIN ID")
         internal_id = limpiar(row.get("ID"), "")
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
-        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+        descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
         # Sin técnico = no puede estar ejecutada ni verificada
@@ -1255,7 +1255,7 @@ def pantalla_mis_ordenes():
         id_ot = limpiar(row.get("ID OT"), "SIN ID")
         internal_id = limpiar(row.get("ID"), "")
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
-        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+        descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
         # Sin técnico = no puede estar ejecutada ni verificada
@@ -1327,7 +1327,7 @@ def pantalla_ejecutar():
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
+    st.write(limpiar(row.get("Actividades"), "Sin descripcion"))
     st.markdown("<h3 style='color:#0F172A'>Registro de Ejecucion</h3>", unsafe_allow_html=True)
 
     h_ini_str = limpiar(row.get("Hora_Inicio"), "")
@@ -1426,7 +1426,7 @@ def pantalla_detalle_tecnico():
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
+    st.write(limpiar(row.get("Actividades"), "Sin descripcion"))
 
     if row.get("Comentarios"):
         st.subheader("Comentarios")
@@ -1485,7 +1485,7 @@ def pantalla_detalle():
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.write(limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion"))
+    st.write(limpiar(row.get("Actividades"), "Sin descripcion"))
     st.divider()
     st.subheader("&#128203; Informacion de la Orden")
 
@@ -1592,7 +1592,7 @@ def pantalla_asignacion():
         mask = pd.Series([False] * len(df_asig), index=df_asig.index)
         if "ID OT" in df_asig.columns: mask |= df_asig["ID OT"].astype(str).str.contains(busq_asig, na=False)
         if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
-        if "Descripcion de procedimiento" in df_asig.columns: mask |= df_asig["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busq_lower, na=False)
+        if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
 
     st.subheader(f"Ordenes ({len(df_asig)})")
@@ -1613,7 +1613,7 @@ def pantalla_asignacion():
         ubicacion = limpiar(row.get("Ubicacion"), "Sin ubicacion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico_actual = limpiar(row.get("Tecnico_Asignado"), "")
-        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+        descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
 
         # Si no hay técnico asignado, forzar estado visual a Pendiente
@@ -1725,7 +1725,7 @@ def pantalla_verificar():
         equipo = limpiar(row.get("Equipo"), "Sin equipo")
         ubicacion = limpiar(row.get("Ubicacion"), "Sin ubicacion")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
-        descripcion = limpiar(row.get("Descripcion de procedimiento"), "Sin descripcion")
+        descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
         fecha_ejec = limpiar(row.get("Fecha_Ejecucion"), "N/A")
         hora_ini = limpiar(row.get("Hora_Inicio"), "N/A")
