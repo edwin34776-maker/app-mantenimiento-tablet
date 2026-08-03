@@ -333,6 +333,12 @@ st.markdown("""
     .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
     .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
     .eq-estado-cr { background-color: #0891b2; color: #ffffff; font-weight: 700; }
+    /* Ocultar header de Streamlit (Fork, menú, etc.) */
+    header {visibility: hidden;}
+    /* Ocultar footer de Streamlit */
+    footer {visibility: hidden;}
+    /* Ocultar toolbar de deploy */
+    .stDeployButton {display: none !important;}
 </style>
 """, unsafe_allow_html=True)
 
