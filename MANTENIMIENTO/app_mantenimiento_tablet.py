@@ -642,87 +642,84 @@ def pantalla_home():
     pass
 
 
-    # === GAUGE: Progreso de Asignación ===
+    # === GAUGES: Asignación y Verificación lado a lado ===
     if perfil == "admin" and not df.empty:
-        total_ord = len(df)
-        asignadas = len(df[(df["Tecnico_Asignado"].notna()) & (df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in df.columns else 0
-        sin_asignar = total_ord - asignadas
-        pct_asig = round((asignadas / total_ord) * 100, 1) if total_ord > 0 else 0
+        col_g1, col_g2 = st.columns(2)
 
-        # Calcular dasharray para el gauge (arco semicircular)
-        # Circunferencia completa = 2*pi*80 ≈ 502.65, semicirculo ≈ 251.33
-        arc_total = 251.33
-        dash_green = round(arc_total * (pct_asig / 100), 2)
-        dash_red = round(arc_total - dash_green, 2)
+        # Gauge 1: Asignación
+        with col_g1:
+            total_ord = len(df)
+            asignadas = len(df[(df["Tecnico_Asignado"].notna()) & (df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in df.columns else 0
+            sin_asignar = total_ord - asignadas
+            pct_asig = round((asignadas / total_ord) * 100, 1) if total_ord > 0 else 0
+            arc_total = 251.33
+            dash_green = round(arc_total * (pct_asig / 100), 2)
+            dash_red = round(arc_total - dash_green, 2)
 
-        st.markdown(f"""
-        <div style="background:#FFFFFF; border-radius:16px; padding:20px; margin:12px 0; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
-            <div style="font-size:14px; font-weight:700; color:#0F172A; margin-bottom:8px; text-align:center;">⏱️ Progreso de Asignación</div>
-            <div style="display:flex; justify-content:center;">
-                <svg width="220" height="125" viewBox="0 0 220 125">
-                    <!-- Fondo del arco -->
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#E2E8F0" stroke-width="22" stroke-linecap="round"/>
-                    <!-- Arco verde (asignadas) -->
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" 
-                        stroke-dasharray="{dash_green} {dash_red}" stroke-dashoffset="0"/>
-                    <!-- Arco rojo (sin asignar) -->
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#ef4444" stroke-width="22" stroke-linecap="round" 
-                        stroke-dasharray="{dash_red} {dash_green}" stroke-dashoffset="-{dash_green}"/>
-                    <!-- Texto centro -->
-                    <text x="110" y="100" text-anchor="middle" font-size="10" fill="#64748B" font-family="system-ui,sans-serif">Completado</text>
-                    <text x="110" y="80" text-anchor="middle" font-size="32" font-weight="900" fill="#0F172A" font-family="system-ui,sans-serif">{pct_asig}%</text>
-                </svg>
-            </div>
-            <div style="display:flex; justify-content:center; gap:32px; margin-top:4px;">
-                <div style="text-align:center;">
-                    <div style="font-size:20px; font-weight:800; color:#166534;">{asignadas}</div>
-                    <div style="font-size:10px; color:#64748B; font-weight:600;">Asignadas</div>
+            st.markdown(f"""
+            <div style="background:#FFFFFF; border-radius:16px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+                <div style="font-size:13px; font-weight:700; color:#0F172A; margin-bottom:6px; text-align:center;">⏱️ Progreso de Asignación</div>
+                <div style="display:flex; justify-content:center;">
+                    <svg width="180" height="105" viewBox="0 0 220 125">
+                        <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#E2E8F0" stroke-width="22" stroke-linecap="round"/>
+                        <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" 
+                            stroke-dasharray="{dash_green} {dash_red}" stroke-dashoffset="0"/>
+                        <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#ef4444" stroke-width="22" stroke-linecap="round" 
+                            stroke-dasharray="{dash_red} {dash_green}" stroke-dashoffset="-{dash_green}"/>
+                        <text x="110" y="100" text-anchor="middle" font-size="10" fill="#64748B" font-family="system-ui,sans-serif">Completado</text>
+                        <text x="110" y="80" text-anchor="middle" font-size="28" font-weight="900" fill="#0F172A" font-family="system-ui,sans-serif">{pct_asig}%</text>
+                    </svg>
                 </div>
-                <div style="text-align:center;">
-                    <div style="font-size:20px; font-weight:800; color:#991B1B;">{sin_asignar}</div>
-                    <div style="font-size:10px; color:#64748B; font-weight:600;">Pendientes</div>
+                <div style="display:flex; justify-content:center; gap:20px; margin-top:2px;">
+                    <div style="text-align:center;">
+                        <div style="font-size:16px; font-weight:800; color:#166534;">{asignadas}</div>
+                        <div style="font-size:9px; color:#64748B; font-weight:600;">Asignadas</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:16px; font-weight:800; color:#991B1B;">{sin_asignar}</div>
+                        <div style="font-size:9px; color:#64748B; font-weight:600;">Pendientes</div>
+                    </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-    # === GAUGE 2: Progreso de Verificación (Verificadas vs Ejecutadas) ===
-    if perfil == "admin" and not df.empty and "Estado" in df.columns:
-        total_ejec = len(df[df["Estado"].isin(["Ejecutado", "Verificado"])])
-        verif_count = len(df[df["Estado"] == "Verificado"])
-        pend_verif = total_ejec - verif_count
-        pct_verif = round((verif_count / total_ejec) * 100, 1) if total_ejec > 0 else 0
+        # Gauge 2: Verificación
+        with col_g2:
+            if "Estado" in df.columns:
+                total_ejec = len(df[df["Estado"].isin(["Ejecutado", "Verificado"])])
+                verif_count = len(df[df["Estado"] == "Verificado"])
+                pend_verif = total_ejec - verif_count
+                pct_verif = round((verif_count / total_ejec) * 100, 1) if total_ejec > 0 else 0
+                arc_total2 = 251.33
+                dash_green2 = round(arc_total2 * (pct_verif / 100), 2)
+                dash_red2 = round(arc_total2 - dash_green2, 2)
 
-        arc_total2 = 251.33
-        dash_green2 = round(arc_total2 * (pct_verif / 100), 2)
-        dash_red2 = round(arc_total2 - dash_green2, 2)
-
-        st.markdown(f"""
-        <div style="background:#FFFFFF; border-radius:16px; padding:20px; margin:12px 0; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
-            <div style="font-size:14px; font-weight:700; color:#0F172A; margin-bottom:8px; text-align:center;">✅ Progreso de Verificación</div>
-            <div style="display:flex; justify-content:center;">
-                <svg width="220" height="125" viewBox="0 0 220 125">
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#E2E8F0" stroke-width="22" stroke-linecap="round"/>
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" 
-                        stroke-dasharray="{dash_green2} {dash_red2}" stroke-dashoffset="0"/>
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" 
-                        stroke-dasharray="{dash_red2} {dash_green2}" stroke-dashoffset="-{dash_green2}"/>
-                    <text x="110" y="100" text-anchor="middle" font-size="10" fill="#64748B" font-family="system-ui,sans-serif">Verificadas</text>
-                    <text x="110" y="80" text-anchor="middle" font-size="32" font-weight="900" fill="#0F172A" font-family="system-ui,sans-serif">{pct_verif}%</text>
-                </svg>
-            </div>
-            <div style="display:flex; justify-content:center; gap:32px; margin-top:4px;">
-                <div style="text-align:center;">
-                    <div style="font-size:20px; font-weight:800; color:#166534;">{verif_count}</div>
-                    <div style="font-size:10px; color:#64748B; font-weight:600;">Verificadas</div>
+                st.markdown(f"""
+                <div style="background:#FFFFFF; border-radius:16px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+                    <div style="font-size:13px; font-weight:700; color:#0F172A; margin-bottom:6px; text-align:center;">✅ Progreso de Verificación</div>
+                    <div style="display:flex; justify-content:center;">
+                        <svg width="180" height="105" viewBox="0 0 220 125">
+                            <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#E2E8F0" stroke-width="22" stroke-linecap="round"/>
+                            <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" 
+                                stroke-dasharray="{dash_green2} {dash_red2}" stroke-dashoffset="0"/>
+                            <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" 
+                                stroke-dasharray="{dash_red2} {dash_green2}" stroke-dashoffset="-{dash_green2}"/>
+                            <text x="110" y="100" text-anchor="middle" font-size="10" fill="#64748B" font-family="system-ui,sans-serif">Verificadas</text>
+                            <text x="110" y="80" text-anchor="middle" font-size="28" font-weight="900" fill="#0F172A" font-family="system-ui,sans-serif">{pct_verif}%</text>
+                        </svg>
+                    </div>
+                    <div style="display:flex; justify-content:center; gap:20px; margin-top:2px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:16px; font-weight:800; color:#166534;">{verif_count}</div>
+                            <div style="font-size:9px; color:#64748B; font-weight:600;">Verificadas</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="font-size:16px; font-weight:800; color:#B45309;">{pend_verif}</div>
+                            <div style="font-size:9px; color:#64748B; font-weight:600;">Ejecutadas</div>
+                        </div>
+                    </div>
                 </div>
-                <div style="text-align:center;">
-                    <div style="font-size:20px; font-weight:800; color:#B45309;">{pend_verif}</div>
-                    <div style="font-size:10px; color:#64748B; font-weight:600;">Ejecutadas</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
@@ -1050,11 +1047,6 @@ def pantalla_home():
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
 
-    if perfil == "admin":
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("VER TODAS LAS ORDENES DEL SISTEMA", use_container_width=True, type="secondary", key=gen_key("btn_ver_todas")):
-            st.session_state.pagina = "ordenes"; st.rerun()
-
     if perfil == "admin" and st.session_state.mostrar_envio_correo:
         st.divider()
         st.subheader("Enviar Resumen por Correo")
@@ -1153,14 +1145,6 @@ def pantalla_ordenes():
         if "Descripcion de procedimiento" in df_filtrado.columns: mask |= df_filtrado["Descripcion de procedimiento"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         if "Nodo" in df_filtrado.columns: mask |= df_filtrado["Nodo"].astype(str).str.lower().str.contains(busqueda_lower, na=False)
         df_filtrado = df_filtrado[mask]
-    total_ordenes_filtradas = len(df_filtrado)
-    st.markdown(f"""
-    <div class="home-screen">
-        <div class="counter-label">ORDENES PREVENTIVAS</div>
-        <div class="big-counter">{total_ordenes_filtradas}</div>
-        <div class="counter-label">Total de ordenes activas</div>
-    </div>
-    """, unsafe_allow_html=True)
     st.markdown("""
     <div class="tabla-header">
         <div class="col-id">ID OT</div><div class="col-esp">ESP</div><div class="col-desc">DESCRIPCION</div>
