@@ -1,4 +1,4 @@
-# ===========================================================
+# ============================================================
 # APP MANTENIMIENTO PREVENTIVO - CORREGIDO
 # Cambios clave:
 #   1. UPDATE PARCIAL: Solo se envian a Supabase los campos
@@ -333,34 +333,6 @@ st.markdown("""
     .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
     .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
     .eq-estado-cr { background-color: #0891b2; color: #ffffff; font-weight: 700; }
-    /* Ocultar header de Streamlit (Fork, menú, etc.) */
-    header {visibility: hidden;}
-    /* Ocultar footer de Streamlit */
-    footer {visibility: hidden;}
-    /* Ocultar toolbar de deploy */
-    .stDeployButton {display: none !important;}
-    /* Ocultar botones flotantes inferiores derecha (cuadrícula verde y corona) */
-    .stApp > div > div:last-child > div:last-child,
-    .stApp > div > div > div:last-child > div:last-child,
-    [class*="st-emotion-cache-"][style*="position: fixed"],
-    [class*="st-emotion-cache-"][style*="position:fixed"],
-    div[style*="position: fixed"][style*="bottom"],
-    div[style*="position:fixed"][style*="bottom"] {
-        display: none !important;
-    }
-    /* Ocultar header de Streamlit (Fork, menú hamburguesa, etc.) */
-    header {visibility: hidden;}
-    /* Ocultar footer de Streamlit */
-    footer {visibility: hidden;}
-    /* Ocultar botón de deploy */
-    .stDeployButton {display: none !important;}
-    /* Ocultar botones flotantes inferiores derecha */
-    .stApp > div > div:last-child > div:last-child,
-    [class*="st-emotion-cache-"][style*="position: fixed"],
-    [class*="st-emotion-cache-"][style*="position:fixed"],
-    div[style*="position: fixed"][style*="bottom"] {
-        display: none !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -619,144 +591,10 @@ def autenticar_admin(password):
     return False, "Contrasena incorrecta"
 
 def pantalla_login():
-    df = st.session_state.df_mantenimientos
-    total = len(df) if not df.empty else 0
-    pendientes = len(df[df["Estado"] == "Pendiente"]) if not df.empty and "Estado" in df.columns else 0
-    ejecutadas = len(df[df["Estado"] == "Ejecutado"]) if not df.empty and "Estado" in df.columns else 0
-    verificadas = len(df[df["Estado"] == "Verificado"]) if not df.empty and "Estado" in df.columns else 0
-    avance_pct = round(((ejecutadas + verificadas) / total) * 100, 1) if total > 0 else 0
-
-    # Datos para el gauge
-    arc_total = 251.33
-    dash_avance = round(arc_total * (avance_pct / 100), 2)
-    dash_restante = round(arc_total - dash_avance, 2)
-
-    # Datos para barras
-    max_val = max(total, 1)
-    bar_pend = round((pendientes / max_val) * 100, 1)
-    bar_ejec = round((ejecutadas / max_val) * 100, 1)
-    bar_verif = round((verificadas / max_val) * 100, 1)
-
+    st.markdown('<div class="tablet-header">App Tablet Mtto Preventivo</div>', unsafe_allow_html=True)
     st.markdown("""
-    <style>
-    .login-wrapper {
-        background: linear-gradient(160deg, #0F172A 0%, #1E3A5F 40%, #0EA5E9 100%);
-        min-height: 100vh;
-        margin: -1rem -1rem -4rem -1rem;
-        padding: 20px 16px 40px 16px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        color: white;
-        box-sizing: border-box;
-    }
-    .login-logo {
-        width: 64px; height: 64px;
-        background: rgba(255,255,255,0.12);
-        border-radius: 18px;
-        display: flex; align-items: center; justify-content: center;
-        margin-bottom: 12px;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255,255,255,0.2);
-        font-size: 32px;
-    }
-    .login-title { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 3px; color: white; text-align: center; }
-    .login-subtitle { font-size: 11px; opacity: 0.7; margin-bottom: 20px; color: white; text-align: center; }
-    .login-gauge-wrap {
-        background: rgba(255,255,255,0.06);
-        border-radius: 20px;
-        padding: 20px 16px;
-        border: 1px solid rgba(255,255,255,0.1);
-        margin-bottom: 16px;
-        width: 100%;
-        max-width: 340px;
-        text-align: center;
-    }
-    .login-gauge-title { font-size: 11px; font-weight: 700; opacity: 0.8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
-    .login-bars { margin-top: 14px; }
-    .login-bar-row { display: flex; align-items: center; margin-bottom: 6px; gap: 8px; }
-    .login-bar-label { font-size: 10px; font-weight: 600; width: 60px; text-align: right; opacity: 0.9; }
-    .login-bar-track { flex: 1; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
-    .login-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
-    .login-bar-val { font-size: 11px; font-weight: 700; width: 28px; text-align: left; }
-    .login-cards { display: flex; gap: 12px; width: 100%; max-width: 340px; margin-top: 4px; }
-    .login-card {
-        flex: 1; background: rgba(255,255,255,0.95);
-        border-radius: 16px; padding: 16px 10px;
-        text-align: center;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-        transition: transform 0.2s;
-    }
-    .login-card:hover { transform: translateY(-3px); }
-    .login-card-admin { border: 2px solid #dc3545; }
-    .login-card-tec { border: 2px solid #28a745; }
-    .login-card-icon {
-        width: 44px; height: 44px;
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 8px;
-        font-size: 20px;
-    }
-    .login-card-icon-admin { background: linear-gradient(135deg, #dc3545, #ff6b6b); }
-    .login-card-icon-tec { background: linear-gradient(135deg, #28a745, #34d399); }
-    .login-card-title { font-size: 13px; font-weight: 800; margin-bottom: 6px; }
-    .login-card-title-admin { color: #dc3545; }
-    .login-card-title-tec { color: #28a745; }
-    .login-card-desc { font-size: 10px; color: #64748b; line-height: 1.5; margin-bottom: 10px; }
-    .login-card-badge {
-        border-radius: 6px; padding: 6px;
-        margin-bottom: 8px;
-        font-size: 9px;
-        font-weight: 700;
-    }
-    .login-card-badge-admin { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
-    .login-card-badge-tec { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
-    .login-footer { margin-top: 20px; font-size: 10px; opacity: 0.5; color: white; text-align: center; }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class="login-wrapper">
-        <div class="login-logo">🔧</div>
-        <div class="login-title">Mantenimiento Preventivo</div>
-        <div class="login-subtitle">Sistema de Gestión de Órdenes de Trabajo</div>
-
-        <div class="login-gauge-wrap">
-            <div class="login-gauge-title">📊 Avance General del Sistema</div>
-            <div style="display:flex; justify-content:center;">
-                <svg width="200" height="115" viewBox="0 0 220 125">
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="24" stroke-linecap="round"/>
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="24" stroke-linecap="round" 
-                        stroke-dasharray="{dash_avance} {dash_restante}" stroke-dashoffset="0"/>
-                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#f59e0b" stroke-width="24" stroke-linecap="round" 
-                        stroke-dasharray="{dash_restante} {dash_avance}" stroke-dashoffset="-{dash_avance}"/>
-                    <text x="110" y="100" text-anchor="middle" font-size="10" fill="rgba(255,255,255,0.7)" font-family="system-ui,sans-serif">Completado</text>
-                    <text x="110" y="78" text-anchor="middle" font-size="30" font-weight="900" fill="white" font-family="system-ui,sans-serif">{avance_pct}%</text>
-                </svg>
-            </div>
-            <div style="display:flex; justify-content:center; gap:20px; margin-top:4px;">
-                <div style="text-align:center;"><div style="font-size:16px; font-weight:800; color:#22c55e;">{ejecutadas + verificadas}</div><div style="font-size:9px; opacity:0.7;">Hechas</div></div>
-                <div style="text-align:center;"><div style="font-size:16px; font-weight:800; color:#f59e0b;">{pendientes}</div><div style="font-size:9px; opacity:0.7;">Pendientes</div></div>
-            </div>
-
-            <div class="login-bars">
-                <div class="login-bar-row">
-                    <div class="login-bar-label" style="color:#f59e0b;">⏳ Pend</div>
-                    <div class="login-bar-track"><div class="login-bar-fill" style="width:{bar_pend}%; background:#f59e0b;"></div></div>
-                    <div class="login-bar-val">{pendientes}</div>
-                </div>
-                <div class="login-bar-row">
-                    <div class="login-bar-label" style="color:#22c55e;">✅ Ejec</div>
-                    <div class="login-bar-track"><div class="login-bar-fill" style="width:{bar_ejec}%; background:#22c55e;"></div></div>
-                    <div class="login-bar-val">{ejecutadas}</div>
-                </div>
-                <div class="login-bar-row">
-                    <div class="login-bar-label" style="color:#3b82f6;">🔍 Verif</div>
-                    <div class="login-bar-track"><div class="login-bar-fill" style="width:{bar_verif}%; background:#3b82f6;"></div></div>
-                    <div class="login-bar-val">{verificadas}</div>
-                </div>
-            </div>
-        </div>
+    <div style="text-align: center; padding: 20px 0;">
+        <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -764,45 +602,31 @@ def pantalla_login():
 
     with col1:
         st.markdown("""
-        <div class="login-card login-card-admin">
-            <div class="login-card-icon login-card-icon-admin">👤</div>
-            <div class="login-card-title login-card-title-admin">ADMIN</div>
-            <div class="login-card-desc">Asigna técnicos<br>Cambia prioridades<br>Verifica ejecuciones</div>
-            <div class="login-card-badge login-card-badge-admin">🔐 CONTRASEÑA</div>
+        <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
+            <div class="perfil-icon">&#128100;</div>
+            <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
+            <div class="perfil-desc">Asigna tecnicos<br>Cambia prioridades<br>Verifica ejecuciones<br>Ve todo el sistema</div>
         </div>
         """, unsafe_allow_html=True)
-        admin_pass = st.text_input("", type="password", placeholder="Contraseña...", label_visibility="collapsed", key=gen_key("admin_pass"))
-        if st.button("ENTRAR", use_container_width=True, type="primary", key=gen_key("login_admin")):
-            if admin_pass:
-                ok, msg = autenticar_admin(admin_pass)
-                if ok:
-                    st.session_state.perfil = "admin"
-                    st.session_state.admin_autenticado = True
-                    st.session_state.pagina = "home"
-                    st.rerun()
-                else:
-                    st.error(msg)
-            else:
-                st.error("Ingresa la contraseña")
 
-    with col2:
-        st.markdown("""
-        <div class="login-card login-card-tec">
-            <div class="login-card-icon login-card-icon-tec">🔧</div>
-            <div class="login-card-title login-card-title-tec">TÉCNICO</div>
-            <div class="login-card-desc">Ve tus órdenes<br>Ejecuta actividades<br>Comenta y reporta</div>
-            <div class="login-card-badge login-card-badge-tec">✅ ACCESO DIRECTO</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button("ENTRAR", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
-            st.session_state.perfil = "tecnico"
+        if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
+            st.session_state.perfil = "admin"
+            st.session_state.admin_autenticado = True
             st.session_state.pagina = "home"
             st.rerun()
 
-    st.markdown("""
-    <div class="login-footer">v2.1 • Sistema de Mantenimiento Preventivo</div>
-    """, unsafe_allow_html=True)
-
+    with col2:
+        st.markdown("""
+        <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
+            <div class="perfil-icon">&#128295;</div>
+            <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
+            <div class="perfil-desc">Ve sus ordenes<br>Ejecuta actividades<br>Comenta y reporta</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
+            st.session_state.perfil = "tecnico"
+            st.session_state.pagina = "home"
+            st.rerun()
 
 
 def pantalla_home():
