@@ -1,4 +1,4 @@
-# ============================================================
+# ===========================================================
 # APP MANTENIMIENTO PREVENTIVO - CORREGIDO
 # Cambios clave:
 #   1. UPDATE PARCIAL: Solo se envian a Supabase los campos
