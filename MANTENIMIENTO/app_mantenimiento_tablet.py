@@ -353,6 +353,38 @@ st.markdown("""
     .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
     .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
     .eq-estado-cr { background-color: #0891b2; color: #ffffff; font-weight: 700; }
+    /* === VISTA CHECKLIST COMPACTA === */
+    .chk-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; background: #FFFFFF;
+        border-radius: 8px; margin-bottom: 4px;
+        border: 1px solid #E2E8F0;
+        transition: all 0.15s;
+    }
+    .chk-item:hover { border-color: #0EA5E9; background: #F0F9FF; }
+    .chk-item.ejecutada { opacity: 0.65; background: #F0FDF4; border-color: #86EFAC; }
+    .chk-item.ejecutada .chk-desc { text-decoration: line-through; color: #166534; }
+    .chk-box { width: 18px; height: 18px; accent-color: #0EA5E9; flex-shrink: 0; cursor: pointer; }
+    .chk-desc { font-size: 13px; color: #0F172A; flex: 1; line-height: 1.3; }
+    .chk-com-btn {
+        width: 28px; height: 28px; border-radius: 6px; background: #F1F5F9;
+        border: 1px solid #CBD5E1; display: flex; align-items: center; justify-content: center;
+        font-size: 13px; cursor: pointer; flex-shrink: 0; color: #64748B;
+    }
+    .chk-com-btn:hover { background: #E0F2FE; border-color: #0EA5E9; }
+    .chk-com-btn.tiene { background: #DBEAFE; border-color: #3B82F6; color: #1D4ED8; }
+    .chk-expand {
+        padding: 8px 12px 8px 44px; background: #F8FAFC;
+        border-radius: 0 0 8px 8px; margin-top: -2px; margin-bottom: 6px;
+        border: 1px solid #E2E8F0; border-top: none;
+    }
+    .chk-expand-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+    .chk-expand-label { font-size: 10px; color: #64748B; font-weight: 700; text-transform: uppercase; width: 60px; }
+    .chk-expand-val { font-size: 12px; color: #0F172A; font-weight: 600; }
+    .chk-expand-input {
+        width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px;
+        font-size: 12px; background: white; color: #0F172A;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -926,63 +958,72 @@ def pantalla_home():
 
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
-                        esp = limpiar(row.get("Especialidad"), "")
                         desc = limpiar(row.get("Actividades"), "Sin descripcion")
                         estado = limpiar(row.get("Estado"), "Pendiente")
-                        tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
 
                         chk_key = gen_key("chk_eq", internal_id)
                         ya_ejecutado = estado == "Ejecutado"
-
-                        # Si el ID esta en la lista de "marcar todas", forzar valor True
                         valor_inicial = ya_ejecutado or (internal_id in ids_a_marcar)
-
                         if chk_key not in st.session_state:
                             st.session_state[chk_key] = valor_inicial
 
-                        clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
-                        clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-pd"
+                        chk_val = st.session_state.get(chk_key, False)
+                        prev_key = f"prev_{chk_key}"
+                        prev_val = st.session_state.get(prev_key, False)
+                        if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
+                            st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+                        st.session_state[prev_key] = chk_val
 
                         h_ini = limpiar(row.get("Hora_Inicio"), "")
                         h_fin = limpiar(row.get("Hora_Fin"), "")
                         duracion = calcular_duracion(h_ini, h_fin)
+                        hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
 
-                        cols = st.columns([0.35, 0.5, 2.4, 0.65, 0.75, 1.85])
-                        with cols[0]:
-                            chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
-                            prev_key = f"prev_{chk_key}"
-                            prev_val = st.session_state.get(prev_key, False)
-                            if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
-                                st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
-                            st.session_state[prev_key] = chk_val
-                        with cols[1]:
-                            st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
-                        with cols[2]:
-                            st.markdown(f'<span class="eq-desc" title="{desc}">{desc}</span>', unsafe_allow_html=True)
-                        with cols[3]:
-                            st.markdown(f'<span class="estado-badge {clase_est}">{estado}</span>', unsafe_allow_html=True)
-                        with cols[4]:
-                            hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
+                        clase_ej = "ejecutada" if (chk_val or estado == "Ejecutado") else ""
+                        clase_est_chk = "chk-estado-pd" if estado == "Pendiente" else "chk-estado-ej" if estado == "Ejecutado" else "chk-estado-vf"
+
+                        comentario_key = gen_key("com_eq", internal_id)
+                        comentario_actual = limpiar(row.get("Comentarios"), "")
+                        if comentario_key not in st.session_state:
+                            st.session_state[comentario_key] = comentario_actual
+                        tiene_com = bool(comentario_actual.strip())
+
+                        # Fila checklist: checkbox + desc + estado badge + comentario icono
+                        st.markdown(f"""
+                        <div class="chk-item {clase_ej}">
+                            <span class="chk-desc">{desc}</span>
+                            <span class="chk-estado {clase_est_chk}">{estado}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Checkbox debajo (Streamlit widget)
+                        c1, c2 = st.columns([0.08, 0.92])
+                        with c1:
+                            st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                        with c2:
+                            expand_key = gen_key("chk_exp", internal_id)
+                            if st.session_state.get(expand_key, False) or tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto:
+                                st.session_state[expand_key] = True
+
+                        # Panel expandido con tiempo y comentario
+                        if st.session_state.get(expand_key, False):
+                            tiempo_html = "—"
                             if estado == "Ejecutado" and duracion:
-                                st.markdown(f'<div style="text-align:center; background:#064e3b; color:#34d399; padding:2px 4px; border-radius:4px; font-size:10px; font-weight:700; border:1px solid #059669;">&#9989; {duracion}</div>', unsafe_allow_html=True)
+                                tiempo_html = f"<span style='color:#059669;font-weight:700;'>✅ {duracion}</span>"
                             elif hora_ini_auto and estado not in ["Ejecutado", "Verificado"]:
-                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:2px 4px; border-radius:4px; font-size:9px; font-weight:600; border:1px solid #3b82f6;">&#9201; {hora_ini_auto}</div>', unsafe_allow_html=True)
+                                tiempo_html = f"<span style='color:#3b82f6;font-weight:600;'>⏱ {hora_ini_auto}</span>"
                             elif h_ini and not h_fin:
-                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:2px 4px; border-radius:4px; font-size:9px; font-weight:600; border:1px solid #3b82f6;">&#9201; {h_ini}</div>', unsafe_allow_html=True)
-                            else:
-                                st.markdown(f'<div style="text-align:center; color:#475569; font-size:10px;">—</div>', unsafe_allow_html=True)
-                        with cols[5]:
-                            comentario_key = gen_key("com_eq", internal_id)
-                            comentario_actual = limpiar(row.get("Comentarios"), "")
-                            if comentario_key not in st.session_state:
-                                st.session_state[comentario_key] = comentario_actual
-                            st.text_input(
-                                "",
-                                value=comentario_actual,
-                                key=comentario_key,
-                                placeholder="💬",
-                                label_visibility="collapsed"
-                            )
+                                tiempo_html = f"<span style='color:#3b82f6;font-weight:600;'>⏱ {h_ini}</span>"
+
+                            st.markdown(f"""
+                            <div class="chk-expand">
+                                <div class="chk-expand-row">
+                                    <span class="chk-expand-label">Tiempo</span>
+                                    <span class="chk-expand-val">{tiempo_html}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Escribe un comentario...", label_visibility="collapsed")
 
                     st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
                     col_marcar, col_guardar = st.columns(2)
