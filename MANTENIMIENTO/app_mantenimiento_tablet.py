@@ -326,14 +326,22 @@ st.markdown("""
     .stMarkdown { margin-bottom: 0 !important; }
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
     .eq-bloque { background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 20px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
-    .eq-bloque-header { background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%); padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    .eq-bloque-header { background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
     .eq-bloque-titulo { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px; }
     .eq-bloque-meta { font-size: 11px; color: #0F172A; margin-top: 4px; }
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
-    .eq-bloque-contenido { padding: 12px 16px; }
-    .eq-tabla-header { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
-    .eq-tabla-fila { display: grid; grid-template-columns: 36px 55px 1fr 80px 80px 130px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
+    .eq-bloque-contenido { padding: 8px 10px; }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { margin-bottom: 1px !important; }
+    .eq-bloque-contenido div[data-testid="stTextInput"] { margin-bottom: 0px !important; }
+    .eq-bloque-contenido div[data-testid="stTextInput"] > div > div > input {
+        padding: 2px 6px !important;
+        height: 28px !important;
+        font-size: 11px !important;
+        min-height: 28px !important;
+    }
+    .eq-tabla-header { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 6px 10px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 4px; }
+    .eq-tabla-fila { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 4px 8px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
     .eq-tabla-fila:hover { background: #27354f; color: #e2e8f0; }
     .eq-tabla-fila:last-child { border-bottom: none; }
     .eq-esp-ele { background: #60a5fa; color: #0f172a; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; text-align: center; display: inline-block; }
@@ -854,12 +862,12 @@ def pantalla_home():
             if df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
-                grupos = df_mias.groupby(["Equipo", "Ubicacion"])
-                for (equipo, ubicacion), grupo_df in grupos:
+                grupos = df_mias.groupby(["Ubicacion"])
+                for ubicacion, grupo_df in grupos:
                     total_act = len(grupo_df)
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-                    bloque_key = f"{equipo}_{ubicacion}".replace(" ", "_").replace("-", "_")
+                    bloque_key = f"{ubicacion}".replace(" ", "_").replace("-", "_")
 
                     realizadas_chk = 0
                     for idx, row in grupo_df.iterrows():
@@ -875,7 +883,7 @@ def pantalla_home():
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
                             <div style="flex:1; min-width:0;">
-                                <div class="eq-bloque-titulo">&#128295; {equipo} — {ubicacion}</div>
+                                <div class="eq-bloque-titulo">&#128295; {ubicacion}</div>
                                 <div class="eq-bloque-meta">
                                     &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas_chk} realizadas
                                 </div>
@@ -892,7 +900,7 @@ def pantalla_home():
                                 <div>DESCRIPCION</div>
                                 <div style="text-align:center">ESTADO</div>
                                 <div style="text-align:center">TIEMPO</div>
-                                <div>TECNICO</div>
+                                <div>COMENTARIO</div>
                             </div>
                     """, unsafe_allow_html=True)
 
@@ -939,7 +947,7 @@ def pantalla_home():
                         h_fin = limpiar(row.get("Hora_Fin"), "")
                         duracion = calcular_duracion(h_ini, h_fin)
 
-                        cols = st.columns([0.4, 0.6, 2.6, 0.8, 1.1, 1.2])
+                        cols = st.columns([0.35, 0.5, 2.4, 0.65, 0.75, 1.85])
                         with cols[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
                             prev_key = f"prev_{chk_key}"
@@ -956,30 +964,27 @@ def pantalla_home():
                         with cols[4]:
                             hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
                             if estado == "Ejecutado" and duracion:
-                                st.markdown(f'<div style="text-align:center; background:#064e3b; color:#34d399; padding:3px 6px; border-radius:6px; font-size:11px; font-weight:700; border:1px solid #059669;">&#9989; {duracion}</div>', unsafe_allow_html=True)
+                                st.markdown(f'<div style="text-align:center; background:#064e3b; color:#34d399; padding:2px 4px; border-radius:4px; font-size:10px; font-weight:700; border:1px solid #059669;">&#9989; {duracion}</div>', unsafe_allow_html=True)
                             elif hora_ini_auto and estado not in ["Ejecutado", "Verificado"]:
-                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:3px 6px; border-radius:6px; font-size:10px; font-weight:600; border:1px solid #3b82f6;">&#9201; {hora_ini_auto}</div>', unsafe_allow_html=True)
+                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:2px 4px; border-radius:4px; font-size:9px; font-weight:600; border:1px solid #3b82f6;">&#9201; {hora_ini_auto}</div>', unsafe_allow_html=True)
                             elif h_ini and not h_fin:
-                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:3px 6px; border-radius:6px; font-size:10px; font-weight:600; border:1px solid #3b82f6;">&#9201; {h_ini}</div>', unsafe_allow_html=True)
+                                st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:2px 4px; border-radius:4px; font-size:9px; font-weight:600; border:1px solid #3b82f6;">&#9201; {h_ini}</div>', unsafe_allow_html=True)
                             else:
-                                st.markdown(f'<div style="text-align:center; color:#475569; font-size:11px;">—</div>', unsafe_allow_html=True)
+                                st.markdown(f'<div style="text-align:center; color:#475569; font-size:10px;">—</div>', unsafe_allow_html=True)
                         with cols[5]:
-                            st.markdown(f'<span class="eq-tec">{tecnico}</span>', unsafe_allow_html=True)
+                            comentario_key = gen_key("com_eq", internal_id)
+                            comentario_actual = limpiar(row.get("Comentarios"), "")
+                            if comentario_key not in st.session_state:
+                                st.session_state[comentario_key] = comentario_actual
+                            st.text_input(
+                                "",
+                                value=comentario_actual,
+                                key=comentario_key,
+                                placeholder="💬",
+                                label_visibility="collapsed"
+                            )
 
-                        # Campo de comentario para el técnico
-                        comentario_key = gen_key("com_eq", internal_id)
-                        comentario_actual = limpiar(row.get("Comentarios"), "")
-                        if comentario_key not in st.session_state:
-                            st.session_state[comentario_key] = comentario_actual
-                        st.text_input(
-                            "",
-                            value=comentario_actual,
-                            key=comentario_key,
-                            placeholder="Comentario...",
-                            label_visibility="collapsed"
-                        )
-
-                    st.markdown("<div style='margin-top:12px'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
                     col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
@@ -1311,17 +1316,17 @@ def pantalla_ejecutar():
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
-        <div class="equipo-info">
+        <div class="equipo-info" style="color: #0F172A;">
             {nodo_info}
-            <strong style="color:#0F172A">Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
-            <strong style="color:#0F172A">Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
-            <strong style="color:#0F172A">Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong>Estado actual:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
+            <strong style="color:#0F172A">Equipo:</strong> <span style="color:#0F172A;">{limpiar(row.get('Equipo'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Ubicacion:</strong> <span style="color:#0F172A;">{limpiar(row.get('Ubicacion'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Especialidad:</strong> <span style="color:#0F172A;">{limpiar(row.get('Especialidad'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Estado actual:</strong> <span style="color:#0F172A;">{limpiar(row.get('Estado'), 'Pendiente')}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.write(limpiar(row.get("Actividades"), "Sin descripcion"))
+    st.markdown(f'<p style="color:#0F172A; font-size:14px; line-height:1.6;">{limpiar(row.get("Actividades"), "Sin descripcion")}</p>', unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Registro de Ejecucion</h3>", unsafe_allow_html=True)
 
     h_ini_str = limpiar(row.get("Hora_Inicio"), "")
@@ -1409,18 +1414,18 @@ def pantalla_detalle_tecnico():
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
-        <div class="equipo-info">
+        <div class="equipo-info" style="color: #0F172A;">
             {nodo_info}
-            <strong style="color:#0F172A">Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
-            <strong style="color:#0F172A">Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
-            <strong style="color:#0F172A">Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
-            <strong style="color:#0F172A">Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}<br>
-            <strong style="color:#0F172A">Tecnico Asignado:</strong> {limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}
+            <strong style="color:#0F172A">Equipo:</strong> <span style="color:#0F172A;">{limpiar(row.get('Equipo'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Ubicacion:</strong> <span style="color:#0F172A;">{limpiar(row.get('Ubicacion'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Especialidad:</strong> <span style="color:#0F172A;">{limpiar(row.get('Especialidad'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Estado:</strong> <span style="color:#0F172A;">{limpiar(row.get('Estado'), 'Pendiente')}</span><br>
+            <strong style="color:#0F172A">Tecnico Asignado:</strong> <span style="color:#0F172A;">{limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.write(limpiar(row.get("Actividades"), "Sin descripcion"))
+    st.markdown(f'<p style="color:#0F172A; font-size:14px; line-height:1.6;">{limpiar(row.get("Actividades"), "Sin descripcion")}</p>', unsafe_allow_html=True)
 
     if row.get("Comentarios"):
         st.subheader("Comentarios")
