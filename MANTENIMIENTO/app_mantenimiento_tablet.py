@@ -216,6 +216,18 @@ def guardar_asignaciones_supabase(df):
 
 st.set_page_config(page_title="App Tablet Mtto Preventivo", page_icon="🔧", layout="wide", initial_sidebar_state="collapsed")
 
+# ==================== OCULTAR BARRA SUPERIOR STREAMLIT ====================
+st.markdown("""
+<style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    footer {visibility: hidden;}
+    [data-testid="stToolbar"] {visibility: hidden !important;}
+</style>
+""", unsafe_allow_html=True)
+# ==========================================================================
+
 st.markdown("""
 <style>
     .stApp { background-color: #F1F5F9; max-width: 100vw; overflow-x: hidden; }
