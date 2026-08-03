@@ -640,32 +640,7 @@ def pantalla_home():
     """, unsafe_allow_html=True)
     # Contador de ordenes movido a pantalla_ordenes
     pass
-    if perfil == "admin" and not df.empty and "Especialidad" in df.columns:
-        ele_count = len(df[df["Especialidad"] == "ELE"])
-        mec_count = len(df[df["Especialidad"] == "MEC"])
-        cerr_count = len(df[df["Estado"].isin(["Verificado"])])
-        st.markdown(f"""
-        <div style="display:flex; gap:10px; justify-content:center; margin:16px 0;">
-            <div style="flex:1; text-align:center; padding:14px; background:#FFFFFF; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:2px solid #3B82F6;">
-                <div style="font-size:20px; margin-bottom:4px;">⚡</div>
-                <div style="font-size:11px; color:#64748B; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">ELE</div>
-                <div style="font-size:28px; font-weight:900; color:#0F172A; margin-top:2px;">{ele_count}</div>
-                <div style="font-size:9px; color:#94A3B8;">órdenes</div>
-            </div>
-            <div style="flex:1; text-align:center; padding:14px; background:#FFFFFF; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:2px solid #22C55E;">
-                <div style="font-size:20px; margin-bottom:4px;">🔧</div>
-                <div style="font-size:11px; color:#64748B; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">MEC</div>
-                <div style="font-size:28px; font-weight:900; color:#0F172A; margin-top:2px;">{mec_count}</div>
-                <div style="font-size:9px; color:#94A3B8;">órdenes</div>
-            </div>
-            <div style="flex:1; text-align:center; padding:14px; background:#FFFFFF; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-left:2px solid #8B5CF6;">
-                <div style="font-size:20px; margin-bottom:4px;">🔒</div>
-                <div style="font-size:11px; color:#64748B; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Cerradas</div>
-                <div style="font-size:28px; font-weight:900; color:#0F172A; margin-top:2px;">{cerr_count}</div>
-                <div style="font-size:9px; color:#94A3B8;">órdenes</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+
 
     # === GAUGE: Progreso de Asignación ===
     if perfil == "admin" and not df.empty:
