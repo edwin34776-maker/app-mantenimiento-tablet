@@ -348,6 +348,19 @@ st.markdown("""
     div[style*="position:fixed"][style*="bottom"] {
         display: none !important;
     }
+    /* Ocultar header de Streamlit (Fork, menú hamburguesa, etc.) */
+    header {visibility: hidden;}
+    /* Ocultar footer de Streamlit */
+    footer {visibility: hidden;}
+    /* Ocultar botón de deploy */
+    .stDeployButton {display: none !important;}
+    /* Ocultar botones flotantes inferiores derecha */
+    .stApp > div > div:last-child > div:last-child,
+    [class*="st-emotion-cache-"][style*="position: fixed"],
+    [class*="st-emotion-cache-"][style*="position:fixed"],
+    div[style*="position: fixed"][style*="bottom"] {
+        display: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
