@@ -753,10 +753,14 @@ def pantalla_home():
                 st.session_state.filtro_especialidad = "Todas"; st.rerun()
         with col2:
             if st.button("ELE", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "ELE" else "secondary", key=gen_key("btn_filtro_ele")):
-                st.session_state.filtro_especialidad = "ELE"; st.rerun()
+                st.session_state.filtro_especialidad = "ELE"
+                st.session_state.pagina = "asignacion"
+                st.rerun()
         with col3:
             if st.button("MEC", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "MEC" else "secondary", key=gen_key("btn_filtro_mec")):
-                st.session_state.filtro_especialidad = "MEC"; st.rerun()
+                st.session_state.filtro_especialidad = "MEC"
+                st.session_state.pagina = "asignacion"
+                st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
@@ -1584,6 +1588,67 @@ def pantalla_asignacion():
         if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
         if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
+
+    # ========== ASIGNACION MASIVA ==========
+    if not df_asig.empty:
+        st.markdown("""
+        <div style="background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+            <div style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;">&#9889; Asignación Masiva</div>
+            <div style="font-size: 12px; color: #475569; margin-bottom: 12px;">
+                Asigna <strong>todas las {} órdenes visibles</strong> a un solo técnico de golpe.
+            </div>
+        </div>
+        """.format(len(df_asig)), unsafe_allow_html=True)
+
+        # Determinar especialidad para filtrar técnicos
+        esp_filtro = st.session_state.filtro_especialidad
+        if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
+            esps_unicas = df_asig["Especialidad"].dropna().unique()
+            if len(esps_unicas) == 1:
+                esp_filtro = esps_unicas[0]
+
+        tecnicos_info = obtener_tecnicos_con_carga(df, esp_filtro)
+        opciones_tec_masivo = ["Seleccionar técnico..."] + [t["nombre"] for t in tecnicos_info]
+
+        col_m1, col_m2 = st.columns([2, 1])
+        with col_m1:
+            tec_masivo = st.selectbox("Técnico para asignación masiva:", opciones_tec_masivo, key=gen_key("tec_masivo"))
+        with col_m2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            if st.button("&#9989; ASIGNAR TODO", use_container_width=True, type="primary", key=gen_key("btn_asig_masiva")):
+                if tec_masivo == "Seleccionar técnico...":
+                    st.error("Selecciona un técnico primero.")
+                else:
+                    exitosos = 0
+                    for idx_m, row_m in df_asig.iterrows():
+                        internal_id_m = limpiar(row_m.get("ID"), "")
+                        if not internal_id_m:
+                            continue
+                        tecnico_actual_m = limpiar(row_m.get("Tecnico_Asignado"), "")
+                        estado_actual_m = limpiar(row_m.get("Estado"), "Pendiente")
+
+                        if tec_masivo == tecnico_actual_m:
+                            continue  # ya está asignado
+
+                        datos_m = {"Tecnico_Asignado": tec_masivo}
+                        if estado_actual_m in ["Ejecutado", "Verificado"]:
+                            datos_m["Estado"] = "Pendiente"
+                            datos_m["Hora_Inicio"] = None
+                            datos_m["Hora_Fin"] = None
+                            datos_m["Fecha_Ejecucion"] = None
+                            datos_m["Comentarios"] = None
+
+                        if actualizar_campos_supabase(internal_id_m, datos_m, row_m.to_dict()):
+                            exitosos += 1
+
+                    if exitosos > 0:
+                        st.success(f"&#9989; {exitosos} órdenes asignadas a {tec_masivo}")
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.rerun()
+                    else:
+                        st.info("No se realizaron cambios (¿ya estaban asignadas?)")
+        st.divider()
+    # ========================================
 
     st.subheader(f"Ordenes ({len(df_asig)})")
 
