@@ -711,6 +711,44 @@ def pantalla_home():
         </div>
         """, unsafe_allow_html=True)
 
+    # === GAUGE 2: Progreso de Verificación (Verificadas vs Ejecutadas) ===
+    if perfil == "admin" and not df.empty and "Estado" in df.columns:
+        total_ejec = len(df[df["Estado"].isin(["Ejecutado", "Verificado"])])
+        verif_count = len(df[df["Estado"] == "Verificado"])
+        pend_verif = total_ejec - verif_count
+        pct_verif = round((verif_count / total_ejec) * 100, 1) if total_ejec > 0 else 0
+
+        arc_total2 = 251.33
+        dash_green2 = round(arc_total2 * (pct_verif / 100), 2)
+        dash_red2 = round(arc_total2 - dash_green2, 2)
+
+        st.markdown(f"""
+        <div style="background:#FFFFFF; border-radius:16px; padding:20px; margin:12px 0; box-shadow:0 2px 8px rgba(0,0,0,.08); border:1px solid #E2E8F0;">
+            <div style="font-size:14px; font-weight:700; color:#0F172A; margin-bottom:8px; text-align:center;">✅ Progreso de Verificación</div>
+            <div style="display:flex; justify-content:center;">
+                <svg width="220" height="125" viewBox="0 0 220 125">
+                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#E2E8F0" stroke-width="22" stroke-linecap="round"/>
+                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#22c55e" stroke-width="22" stroke-linecap="round" 
+                        stroke-dasharray="{dash_green2} {dash_red2}" stroke-dashoffset="0"/>
+                    <path d="M 30 110 A 80 80 0 0 1 190 110" fill="none" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" 
+                        stroke-dasharray="{dash_red2} {dash_green2}" stroke-dashoffset="-{dash_green2}"/>
+                    <text x="110" y="100" text-anchor="middle" font-size="10" fill="#64748B" font-family="system-ui,sans-serif">Verificadas</text>
+                    <text x="110" y="80" text-anchor="middle" font-size="32" font-weight="900" fill="#0F172A" font-family="system-ui,sans-serif">{pct_verif}%</text>
+                </svg>
+            </div>
+            <div style="display:flex; justify-content:center; gap:32px; margin-top:4px;">
+                <div style="text-align:center;">
+                    <div style="font-size:20px; font-weight:800; color:#166534;">{verif_count}</div>
+                    <div style="font-size:10px; color:#64748B; font-weight:600;">Verificadas</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:20px; font-weight:800; color:#B45309;">{pend_verif}</div>
+                    <div style="font-size:10px; color:#64748B; font-weight:600;">Ejecutadas</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     if perfil == "admin" and "Nodo" in df.columns:
         conteo_maquinas = contar_por_maquina(df)
         if conteo_maquinas:
