@@ -339,6 +339,15 @@ st.markdown("""
     footer {visibility: hidden;}
     /* Ocultar toolbar de deploy */
     .stDeployButton {display: none !important;}
+    /* Ocultar botones flotantes inferiores derecha (cuadrícula verde y corona) */
+    .stApp > div > div:last-child > div:last-child,
+    .stApp > div > div > div:last-child > div:last-child,
+    [class*="st-emotion-cache-"][style*="position: fixed"],
+    [class*="st-emotion-cache-"][style*="position:fixed"],
+    div[style*="position: fixed"][style*="bottom"],
+    div[style*="position:fixed"][style*="bottom"] {
+        display: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
