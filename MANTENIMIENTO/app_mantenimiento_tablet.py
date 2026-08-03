@@ -721,20 +721,6 @@ def pantalla_home():
                 </div>
                 """, unsafe_allow_html=True)
 
-    if perfil == "admin" and "Nodo" in df.columns:
-        conteo_maquinas = contar_por_maquina(df)
-        if conteo_maquinas:
-            st.markdown("<div style='text-align: center; margin: 10px 0 6px 0; font-weight: 600; color: #475569; font-size: 13px;'>Ordenes por Maquina</div>", unsafe_allow_html=True)
-            cols = st.columns(min(len(conteo_maquinas), 4))
-            for i, (maq, cant) in enumerate(conteo_maquinas.items()):
-                with cols[i % 4]:
-                    st.markdown(f"""
-                    <div class="contador-maquina">
-                        <div class="contador-maquina-valor">{cant}</div>
-                        <div class="contador-maquina-label">{maq}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
     if perfil == "admin":
         maquinas = obtener_maquinas_disponibles(df)
         index_sel = 0
@@ -749,7 +735,7 @@ def pantalla_home():
         # maquina_nodo_sel = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key=gen_key("sel_filtro_nodo"))
         # st.session_state.filtro_maquina_nodo = maquina_nodo_sel
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
-        col1, col2, col3, col4 = st.columns([1,1,1,1])
+        col1, col2, col3 = st.columns([1,1,1])
         with col1:
             if st.button("TODAS", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary", key=gen_key("btn_filtro_todas")):
                 st.session_state.filtro_especialidad = "Todas"; st.rerun()
@@ -759,14 +745,6 @@ def pantalla_home():
         with col3:
             if st.button("MEC", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "MEC" else "secondary", key=gen_key("btn_filtro_mec")):
                 st.session_state.filtro_especialidad = "MEC"; st.rerun()
-        with col4:
-            if st.button("LIMPIAR", use_container_width=True, key=gen_key("btn_filtro_limpiar")):
-                st.session_state.filtro_especialidad = "Todas"
-                st.session_state.filtro_maquina = "Todas"
-                st.session_state.filtro_maquina_nodo = "Todas"
-                st.session_state.filtro_subsistema_nodo = "Todos"
-                st.session_state.busqueda = ""
-                st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
         col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
