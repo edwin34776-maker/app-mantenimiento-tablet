@@ -1,17 +1,3 @@
-# ============================================================
-# APP MANTENIMIENTO PREVENTIVO - CORREGIDO
-# Cambios clave:
-#   1. UPDATE PARCIAL: Solo se envian a Supabase los campos
-#      que realmente cambiaron (comparando con valor original).
-#   2. Los campos no editados (cliente, equipo, fecha_programada,
-#      tipo_mantenimiento, etc.) NUNCA se tocan en la BD.
-#   3. Mejor manejo de valores vacios vs None.
-#   4. LOGIN ADMIN protegido por secret ADMIN_PASSWORD.
-#   5. FIX: Boton "Marcar todas realizadas" usa patron de rerun
-#      para evitar StreamlitAPIException al modificar widgets.
-#   6. ASIGNACION MASIVA POR CANTIDAD: Reparte las ordenes
-#      visibles entre varios tecnicos indicando cuantas a cada uno.
-# ============================================================
 
 import streamlit as st
 import pandas as pd
@@ -861,14 +847,11 @@ def pantalla_home():
                 st.session_state.pagina = "asignacion"
                 st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
+        col_btn1, col_btn3 = st.columns(2)
         with col_btn1:
             if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
                 st.session_state.mostrar_opciones_ordenes = not st.session_state.get("mostrar_opciones_ordenes", False)
                 st.rerun()
-        with col_btn2:
-            if st.button("ASIGNAR TECNICOS", use_container_width=True, type="primary", key=gen_key("btn_asignacion")):
-                st.session_state.pagina = "asignacion"; st.rerun()
         with col_btn3:
             if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
                 st.session_state.mostrar_envio_correo = True
@@ -1687,11 +1670,10 @@ def pantalla_asignacion():
         if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
 
-    # ========== DOS COLUMNAS: Asignación por Cantidad | Asignación Clásica ==========
+    # ========== ASIGNACIÓN POR ACTIVIDAD ==========
     if not df_asig.empty:
         total_ordenes_visibles = len(df_asig)
 
-        # Determinar especialidad para filtrar tecnicos
         esp_filtro = st.session_state.filtro_especialidad
         if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
             esps_unicas = df_asig["Especialidad"].dropna().unique()
@@ -1703,227 +1685,174 @@ def pantalla_asignacion():
         opciones_tec = [""] + lista_tecnicos
         prioridades = ["", "Rojo", "Amarillo", "Verde"]
 
-        col_izq, col_der = st.columns(2)
-
-        # ===== COLUMNA IZQUIERDA: Asignación por Actividad =====
-        with col_izq:
-            st.markdown(f"""
-            <div class="am-cantidad-box">
-                <div style="font-size: 14px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">⚡ Asignación por Actividad</div>
-                <div style="font-size: 11px; color: #475569; margin-bottom: 12px;">
-                    Selecciona manualmente qué actividades asignar a cada técnico.
-                </div>
+        st.markdown(f"""
+        <div class="am-cantidad-box">
+            <div style="font-size: 14px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">⚡ Asignación por Actividad</div>
+            <div style="font-size: 11px; color: #475569; margin-bottom: 12px;">
+                Selecciona manualmente qué actividades asignar a cada técnico.
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
 
-            # Preparar lista de actividades disponibles (solo descripción, no ID OT)
-            actividades_disponibles = []
-            actividades_ids = {}
-            for _, row_a in df_asig.iterrows():
-                internal_id_a = limpiar(row_a.get("ID"), "")
-                desc_a = limpiar(row_a.get("Actividades"), "Sin descripción")
-                desc_corta_a = desc_a[:50] + "..." if len(desc_a) > 50 else desc_a
-                label = desc_corta_a
-                actividades_disponibles.append(label)
-                actividades_ids[label] = internal_id_a
+        # Preparar lista de actividades disponibles (solo descripción, no ID OT)
+        actividades_disponibles = []
+        actividades_ids = {}
+        for _, row_a in df_asig.iterrows():
+            internal_id_a = limpiar(row_a.get("ID"), "")
+            desc_a = limpiar(row_a.get("Actividades"), "Sin descripción")
+            desc_corta_a = desc_a[:50] + "..." if len(desc_a) > 50 else desc_a
+            label = desc_corta_a
+            actividades_disponibles.append(label)
+            actividades_ids[label] = internal_id_a
 
-            # Inicializar selecciones en session_state si no existen
-            if "am_actividad_selecciones" not in st.session_state:
-                st.session_state.am_actividad_selecciones = {}
+        # Inicializar selecciones en session_state si no existen
+        if "am_actividad_selecciones" not in st.session_state:
+            st.session_state.am_actividad_selecciones = {}
 
-            filas = st.session_state.am_cantidad_filas
-            colores_tec = ["#0EA5E9", "#F59E0B", "#22C55E", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6"]
+        filas = st.session_state.am_cantidad_filas
+        colores_tec = ["#0EA5E9", "#F59E0B", "#22C55E", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6"]
 
-            # Calcular qué actividades ya fueron seleccionadas por otras filas
-            def obtener_seleccionadas_por_otras(exclude_idx):
-                seleccionadas = set()
-                for j, f in enumerate(filas):
-                    if j == exclude_idx:
-                        continue
-                    key_sel = f"am_act_sel_{j}"
-                    if key_sel in st.session_state:
-                        seleccionadas.update(st.session_state[key_sel])
-                return seleccionadas
+        # Calcular qué actividades ya fueron seleccionadas por otras filas
+        def obtener_seleccionadas_por_otras(exclude_idx):
+            seleccionadas = set()
+            for j, f in enumerate(filas):
+                if j == exclude_idx:
+                    continue
+                key_sel = f"am_act_sel_{j}"
+                if key_sel in st.session_state:
+                    seleccionadas.update(st.session_state[key_sel])
+            return seleccionadas
 
-            for i in range(len(filas)):
-                color = colores_tec[i % len(colores_tec)]
-                key_sel = f"am_act_sel_{i}"
+        for i in range(len(filas)):
+            color = colores_tec[i % len(colores_tec)]
+            key_sel = f"am_act_sel_{i}"
 
-                # Fila 1: Técnico + Botón X
-                cols_tec = st.columns([5, 1])
-                with cols_tec[0]:
-                    filas[i]["tecnico"] = st.selectbox(
-                        f"Técnico {i+1}",
-                        opciones_tec,
-                        index=opciones_tec.index(filas[i]["tecnico"]) if filas[i]["tecnico"] in opciones_tec else 0,
-                        key=gen_key("am_tec", i),
-                        label_visibility="collapsed"
-                    )
-                with cols_tec[1]:
-                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                    if len(filas) > 1:
-                        if st.button("✕", key=gen_key("am_del", i), use_container_width=True):
-                            if key_sel in st.session_state:
-                                del st.session_state[key_sel]
-                            st.session_state.am_cantidad_filas.pop(i)
-                            st.rerun()
-
-                # Multiselect de actividades (filtrando las ya tomadas por otras filas)
-                ya_tomadas = obtener_seleccionadas_por_otras(i)
-                opts_para_esta_fila = [a for a in actividades_disponibles if a not in ya_tomadas]
-
-                prev_sel = st.session_state.get(key_sel, [])
-                default_val = [s for s in prev_sel if s in opts_para_esta_fila]
-
-                seleccionadas = st.multiselect(
-                    f"Actividades para {filas[i]['tecnico'] or 'Técnico ' + str(i+1)}",
-                    options=opts_para_esta_fila,
-                    default=default_val,
-                    key=key_sel,
-                    placeholder="Selecciona actividades..."
-                )
-
-                filas[i]["cantidad"] = len(seleccionadas)
-                filas[i]["seleccionadas"] = seleccionadas
-
-                # Prioridad (ancho completo, debajo)
-                filas[i]["prioridad"] = st.selectbox(
-                    f"Prioridad {i+1}",
-                    prioridades,
-                    index=prioridades.index(filas[i]["prioridad"]) if filas[i]["prioridad"] in prioridades else 0,
-                    key=gen_key("am_pri", i),
+            # Fila 1: Técnico + Botón X
+            cols_tec = st.columns([5, 1])
+            with cols_tec[0]:
+                filas[i]["tecnico"] = st.selectbox(
+                    f"Técnico {i+1}",
+                    opciones_tec,
+                    index=opciones_tec.index(filas[i]["tecnico"]) if filas[i]["tecnico"] in opciones_tec else 0,
+                    key=gen_key("am_tec", i),
                     label_visibility="collapsed"
                 )
-
-                # Separador visual entre filas
-                if i < len(filas) - 1:
-                    st.markdown(f"<div style='border-bottom: 1px solid {color}33; margin: 8px 0;'></div>", unsafe_allow_html=True)
-
-            # Botón agregar fila
-            if st.button("➕ Agregar otro técnico", use_container_width=True, key=gen_key("am_add")):
-                st.session_state.am_cantidad_filas.append({"tecnico": "", "cantidad": 0, "prioridad": "Normal", "seleccionadas": []})
-                st.rerun()
-
-            # Calcular resumen
-            asignadas = sum(len(f.get("seleccionadas", [])) for f in filas if f["tecnico"])
-            detalle = []
-            for f in filas:
-                if f["tecnico"] and f.get("seleccionadas"):
-                    detalle.append(f"• <strong>{f['tecnico']}</strong> → {len(f['seleccionadas'])} actividades ({f['prioridad']})")
-
-            sin_asignar = total_ordenes_visibles - asignadas
-            estado_color = "#64748b"
-            estado_texto = f"📋 {sin_asignar} sin asignar"
-            if asignadas > 0:
-                estado_color = "#0ea5e9"
-                estado_texto = f"✅ {asignadas} seleccionadas"
-
-            st.markdown(f"""
-            <div class="am-resumen">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-size: 12px; font-weight: 700; color: #0F172A;">📊 Resumen</div>
-                        <div style="font-size: 11px; color: #64748B;"><strong>{asignadas}</strong> de <strong>{total_ordenes_visibles}</strong> actividades seleccionadas</div>
-                    </div>
-                    <span style="padding: 4px 12px; border-radius: 20px; background: {estado_color}; color: white; font-weight: bold; font-size: 11px;">{estado_texto}</span>
-                </div>
-                <div style="margin-top: 6px; font-size: 11px; color: #475569; line-height: 1.5;">
-                    {"<br>".join(detalle) if detalle else "<em>Ninguna actividad seleccionada.</em>"}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            btn_disabled = asignadas == 0
-            if st.button("✅ ASIGNAR SELECCIONADAS", type="primary", use_container_width=True, disabled=btn_disabled, key=gen_key("am_btn_asignar")):
-                exitosos = 0
-                for f in filas:
-                    if not f["tecnico"] or not f.get("seleccionadas"):
-                        continue
-                    for label_act in f["seleccionadas"]:
-                        internal_id = actividades_ids.get(label_act, "")
-                        if not internal_id:
-                            continue
-                        # Buscar la fila original para datos_originales
-                        idx_orig, row_orig = get_row_by_internal_id(df, internal_id)
-                        if idx_orig is None:
-                            continue
-                        estado_actual = limpiar(row_orig.get("Estado"), "Pendiente")
-                        datos = {
-                            "Tecnico_Asignado": f["tecnico"],
-                            "Prioridad_Actividad": f["prioridad"]
-                        }
-                        if estado_actual in ["Ejecutado", "Verificado"]:
-                            datos["Estado"] = "Pendiente"
-                            datos["Hora_Inicio"] = None
-                            datos["Hora_Fin"] = None
-                            datos["Fecha_Ejecucion"] = None
-                            datos["Comentarios"] = None
-                        if actualizar_campos_supabase(internal_id, datos, row_orig.to_dict()):
-                            exitosos += 1
-
-                if exitosos > 0:
-                    st.success(f"✅ {exitosos} actividades asignadas correctamente.")
-                    # Limpiar selecciones
-                    for j in range(len(filas)):
-                        key_sel = f"am_act_sel_{j}"
+            with cols_tec[1]:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                if len(filas) > 1:
+                    if st.button("✕", key=gen_key("am_del", i), use_container_width=True):
                         if key_sel in st.session_state:
                             del st.session_state[key_sel]
-                    st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "Normal", "seleccionadas": []}]
-                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                    st.rerun()
-                else:
-                    st.error("No se pudo asignar ninguna actividad.")
-
-        # ===== COLUMNA DERECHA: Asignación Masiva Clásica =====        # ===== COLUMNA DERECHA: Asignación Masiva Clásica =====
-        with col_der:
-            st.markdown(f"""
-            <div style="background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
-                <div style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;">⚡ Asignación Masiva Clásica</div>
-                <div style="font-size: 12px; color: #475569; margin-bottom: 12px;">
-                    Asigna <strong>todas las {len(df_asig)} órdenes visibles</strong> a un solo técnico de golpe.
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            tecnicos_info_clas = obtener_tecnicos_con_carga(df, esp_filtro)
-            opciones_tec_masivo = ["Seleccionar técnico..."] + [t["nombre"] for t in tecnicos_info_clas]
-
-            tec_masivo = st.selectbox("Técnico:", opciones_tec_masivo, key=gen_key("tec_masivo"))
-
-            if st.button("✅ ASIGNAR TODO", use_container_width=True, type="primary", key=gen_key("btn_asig_masiva")):
-                if tec_masivo == "Seleccionar técnico...":
-                    st.error("Selecciona un técnico primero.")
-                else:
-                    exitosos = 0
-                    for idx_m, row_m in df_asig.iterrows():
-                        internal_id_m = limpiar(row_m.get("ID"), "")
-                        if not internal_id_m:
-                            continue
-                        tecnico_actual_m = limpiar(row_m.get("Tecnico_Asignado"), "")
-                        estado_actual_m = limpiar(row_m.get("Estado"), "Pendiente")
-
-                        if tec_masivo == tecnico_actual_m:
-                            continue
-
-                        datos_m = {"Tecnico_Asignado": tec_masivo}
-                        if estado_actual_m in ["Ejecutado", "Verificado"]:
-                            datos_m["Estado"] = "Pendiente"
-                            datos_m["Hora_Inicio"] = None
-                            datos_m["Hora_Fin"] = None
-                            datos_m["Fecha_Ejecucion"] = None
-                            datos_m["Comentarios"] = None
-
-                        if actualizar_campos_supabase(internal_id_m, datos_m, row_m.to_dict()):
-                            exitosos += 1
-
-                    if exitosos > 0:
-                        st.success(f"✅ {exitosos} órdenes asignadas a {tec_masivo}")
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.session_state.am_cantidad_filas.pop(i)
                         st.rerun()
-                    else:
-                        st.info("No se realizaron cambios.")
+
+            # Multiselect de actividades (filtrando las ya tomadas por otras filas)
+            ya_tomadas = obtener_seleccionadas_por_otras(i)
+            opts_para_esta_fila = [a for a in actividades_disponibles if a not in ya_tomadas]
+
+            prev_sel = st.session_state.get(key_sel, [])
+            default_val = [s for s in prev_sel if s in opts_para_esta_fila]
+
+            seleccionadas = st.multiselect(
+                f"Actividades para {filas[i]['tecnico'] or 'Técnico ' + str(i+1)}",
+                options=opts_para_esta_fila,
+                default=default_val,
+                key=key_sel,
+                placeholder="Selecciona actividades..."
+            )
+
+            filas[i]["cantidad"] = len(seleccionadas)
+            filas[i]["seleccionadas"] = seleccionadas
+
+            # Prioridad (ancho completo, debajo)
+            filas[i]["prioridad"] = st.selectbox(
+                f"Prioridad {i+1}",
+                prioridades,
+                index=prioridades.index(filas[i]["prioridad"]) if filas[i]["prioridad"] in prioridades else 0,
+                key=gen_key("am_pri", i),
+                label_visibility="collapsed"
+            )
+
+            # Separador visual entre filas
+            if i < len(filas) - 1:
+                st.markdown(f"<div style='border-bottom: 1px solid {color}33; margin: 8px 0;'></div>", unsafe_allow_html=True)
+
+        # Botón agregar fila
+        if st.button("➕ Agregar otro técnico", use_container_width=True, key=gen_key("am_add")):
+            st.session_state.am_cantidad_filas.append({"tecnico": "", "cantidad": 0, "prioridad": "", "seleccionadas": []})
+            st.rerun()
+
+        # Calcular resumen
+        asignadas = sum(len(f.get("seleccionadas", [])) for f in filas if f["tecnico"])
+        detalle = []
+        for f in filas:
+            if f["tecnico"] and f.get("seleccionadas"):
+                detalle.append(f"• <strong>{f['tecnico']}</strong> → {len(f['seleccionadas'])} actividades ({f['prioridad']})")
+
+        sin_asignar = total_ordenes_visibles - asignadas
+        estado_color = "#64748b"
+        estado_texto = f"📋 {sin_asignar} sin asignar"
+        if asignadas > 0:
+            estado_color = "#0ea5e9"
+            estado_texto = f"✅ {asignadas} seleccionadas"
+
+        st.markdown(f"""
+        <div class="am-resumen">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 12px; font-weight: 700; color: #0F172A;">📊 Resumen</div>
+                    <div style="font-size: 11px; color: #64748B;"><strong>{asignadas}</strong> de <strong>{total_ordenes_visibles}</strong> actividades seleccionadas</div>
+                </div>
+                <span style="padding: 4px 12px; border-radius: 20px; background: {estado_color}; color: white; font-weight: bold; font-size: 11px;">{estado_texto}</span>
+            </div>
+            <div style="margin-top: 6px; font-size: 11px; color: #475569; line-height: 1.5;">
+                {"<br>".join(detalle) if detalle else "<em>Ninguna actividad seleccionada.</em>"}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        btn_disabled = asignadas == 0
+        if st.button("✅ ASIGNAR SELECCIONADAS", type="primary", use_container_width=True, disabled=btn_disabled, key=gen_key("am_btn_asignar")):
+            exitosos = 0
+            for f in filas:
+                if not f["tecnico"] or not f.get("seleccionadas"):
+                    continue
+                for label_act in f["seleccionadas"]:
+                    internal_id = actividades_ids.get(label_act, "")
+                    if not internal_id:
+                        continue
+                    idx_orig, row_orig = get_row_by_internal_id(df, internal_id)
+                    if idx_orig is None:
+                        continue
+                    estado_actual = limpiar(row_orig.get("Estado"), "Pendiente")
+                    datos = {
+                        "Tecnico_Asignado": f["tecnico"],
+                        "Prioridad_Actividad": f["prioridad"]
+                    }
+                    if estado_actual in ["Ejecutado", "Verificado"]:
+                        datos["Estado"] = "Pendiente"
+                        datos["Hora_Inicio"] = None
+                        datos["Hora_Fin"] = None
+                        datos["Fecha_Ejecucion"] = None
+                        datos["Comentarios"] = None
+                    if actualizar_campos_supabase(internal_id, datos, row_orig.to_dict()):
+                        exitosos += 1
+
+            if exitosos > 0:
+                st.success(f"✅ {exitosos} actividades asignadas correctamente.")
+                for j in range(len(filas)):
+                    key_sel = f"am_act_sel_{j}"
+                    if key_sel in st.session_state:
+                        del st.session_state[key_sel]
+                st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "", "seleccionadas": []}]
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.rerun()
+            else:
+                st.error("No se pudo asignar ninguna actividad.")
 
         st.divider()
+    # ========================================
+
     # ========================================
 
     # ========== VISTA PREVIA DEL REPARTO ==========
