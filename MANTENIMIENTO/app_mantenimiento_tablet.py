@@ -1,17 +1,3 @@
-# ============================================================
-# APP MANTENIMIENTO PREVENTIVO - CORREGIDO
-# Cambios clave:
-#   1. UPDATE PARCIAL: Solo se envian a Supabase los campos
-#      que realmente cambiaron (comparando con valor original).
-#   2. Los campos no editados (cliente, equipo, fecha_programada,
-#      tipo_mantenimiento, etc.) NUNCA se tocan en la BD.
-#   3. Mejor manejo de valores vacios vs None.
-#   4. LOGIN ADMIN protegido por secret ADMIN_PASSWORD.
-#   5. FIX: Boton "Marcar todas realizadas" usa patron de rerun
-#      para evitar StreamlitAPIException al modificar widgets.
-#   6. ASIGNACION MASIVA POR CANTIDAD: Reparte las ordenes
-#      visibles entre varios tecnicos indicando cuantas a cada uno.
-# ============================================================
 
 import streamlit as st
 import pandas as pd
@@ -227,19 +213,19 @@ st.markdown("""
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden !important;}
     .fila-ultra {
-        display: flex; align-items: center; gap: 8px;
-        padding: 6px 8px; background: #FFFFFF;
-        border-radius: 6px; margin-bottom: 3px;
+        display: flex; align-items: center; gap: 2px;
+        padding: 4px 6px; background: #FFFFFF;
+        border-radius: 6px; margin-bottom: 1px;
         border: 1px solid #E2E8F0;
         transition: all 0.15s;
-        min-height: 36px;
+        min-height: 28px;
     }
     .fila-ultra:hover { border-color: #0EA5E9; background: #F0F9FF; }
     .fila-ultra.ejecutada { opacity: 0.55; background: #F0FDF4; border-color: #86EFAC; }
     .fila-ultra.ejecutada .fila-desc { text-decoration: line-through; color: #166534; }
     .fila-check { width: 16px; height: 16px; accent-color: #0EA5E9; flex-shrink: 0; cursor: pointer; }
     .fila-desc { font-size: 12px; color: #0F172A; flex: 1; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .fila-badge { padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+    .fila-badge { padding: 1px 5px; border-radius: 8px; font-size: 9px; font-weight: 700; flex-shrink: 0; }
     .fila-badge-pd { background: #d97706; color: #ffffff; }
     .fila-badge-ej { background: #059669; color: #ffffff; }
     .fila-badge-vf { background: #2563eb; color: #ffffff; }
@@ -1063,23 +1049,11 @@ def pantalla_home():
                             </div>
                             """, unsafe_allow_html=True)
 
-                        # Expandible compacto: tiempo + comentario
-                        exp_key = gen_key("exp_com", internal_id)
-                        esta_expandido = st.session_state.get(exp_key, False) or tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto
-                        if esta_expandido:
-                            tiempo_str = "—"
-                            if estado == "Ejecutado" and duracion:
-                                tiempo_str = f"✅ {duracion}"
-                            elif hora_ini_auto and estado not in ["Ejecutado", "Verificado"]:
-                                tiempo_str = f"⏱ {hora_ini_auto}"
-                            elif h_ini and not h_fin:
-                                tiempo_str = f"⏱ {h_ini}"
-
-                            cols_exp = st.columns([1, 3])
-                            with cols_exp[0]:
-                                st.caption(f"Tiempo: {tiempo_str}")
-                            with cols_exp[1]:
-                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Comentario...", label_visibility="collapsed")
+                        # Comentario compacto siempre visible
+                        com_style = "margin: 2px 0 4px 28px;"
+                        st.markdown(f"<div style='{com_style}'>", unsafe_allow_html=True)
+                        st.text_input("", value=comentario_actual, key=comentario_key, placeholder="💬 Comentario...", label_visibility="collapsed")
+                        st.markdown("</div>", unsafe_allow_html=True)
 
                     # Botones del bloque
                     col_marcar, col_guardar = st.columns(2)
