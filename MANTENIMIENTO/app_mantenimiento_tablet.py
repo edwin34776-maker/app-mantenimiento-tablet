@@ -941,14 +941,20 @@ def pantalla_home():
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
                 grupos = df_mias.groupby(["Ubicacion"])
-                for ubicacion, grupo_df in grupos:
+                for ubicacion_raw, grupo_df in grupos:
+                    # Fix: ubicacion puede ser tupla de groupby
+                    if isinstance(ubicacion_raw, tuple):
+                        ubicacion = ubicacion_raw[0]
+                    else:
+                        ubicacion = ubicacion_raw
+
                     grupo_df = grupo_df[grupo_df["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
                     if grupo_df.empty:
                         continue
                     total_act = len(grupo_df)
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-                    bloque_key = f"{ubicacion}".replace(" ", "_").replace("-", "_")
+                    bloque_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
 
                     realizadas_chk = 0
                     for idx, row in grupo_df.iterrows():
@@ -964,9 +970,9 @@ def pantalla_home():
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
                             <div style="flex:1; min-width:0;">
-                                <div class="eq-bloque-titulo">&#128295; {ubicacion}</div>
+                                <div class="eq-bloque-titulo">🔧 {ubicacion}</div>
                                 <div class="eq-bloque-meta">
-                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas_chk} realizadas
+                                    👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
                                 </div>
                                 <div class="eq-progress-bar">
                                     <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
@@ -1025,7 +1031,8 @@ def pantalla_home():
                             st.session_state[comentario_key] = comentario_actual
                         tiene_com = bool(comentario_actual.strip())
 
-                        cols_fila = st.columns([0.06, 0.78, 0.16])
+                        # Layout compacto: checkbox + desc en una fila
+                        cols_fila = st.columns([0.1, 1])
                         with cols_fila[0]:
                             chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
                             prev_key = f"prev_{chk_key}"
@@ -1034,20 +1041,15 @@ def pantalla_home():
                                 st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
                             st.session_state[prev_key] = chk_val_nuevo
                         with cols_fila[1]:
+                            # Badge de estado inline con la descripción
                             st.markdown(f"""
-                            <div class="fila-ultra {clase_ej}">
-                                <span class="fila-desc">{desc}</span>
+                            <div class="fila-ultra {clase_ej}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <span class="fila-desc" style="flex: 1;">{desc}</span>
                                 <span class="fila-badge {clase_est}">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
-                        with cols_fila[2]:
-                            com_btn_key = gen_key("btn_com", internal_id)
-                            btn_label = "💬" if not tiene_com else "📝"
-                            if st.button(btn_label, key=com_btn_key, use_container_width=True):
-                                exp_key = gen_key("exp_com", internal_id)
-                                st.session_state[exp_key] = not st.session_state.get(exp_key, False)
-                                st.rerun()
 
+                        # Expandible compacto: tiempo + comentario
                         exp_key = gen_key("exp_com", internal_id)
                         esta_expandido = st.session_state.get(exp_key, False) or tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto
                         if esta_expandido:
@@ -1059,16 +1061,16 @@ def pantalla_home():
                             elif h_ini and not h_fin:
                                 tiempo_str = f"⏱ {h_ini}"
 
-                            c1, c2 = st.columns([1, 3])
-                            with c1:
+                            cols_exp = st.columns([1, 3])
+                            with cols_exp[0]:
                                 st.caption(f"Tiempo: {tiempo_str}")
-                            with c2:
-                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Escribe un comentario...", label_visibility="collapsed")
+                            with cols_exp[1]:
+                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Comentario...", label_visibility="collapsed")
 
-                        st.markdown("<div style='margin-top:2px'></div>", unsafe_allow_html=True)
+                    # Botones del bloque
                     col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
-                        if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
+                        if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             ids_lista = []
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
@@ -1076,7 +1078,7 @@ def pantalla_home():
                             st.session_state[lista_marcar_key] = ids_lista
                             st.rerun()
                     with col_guardar:
-                        if st.button("&#128190; Guardar cambios", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
+                        if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
                             guardados = 0
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
@@ -1118,14 +1120,14 @@ def pantalla_home():
                                             guardados += 1
 
                             if guardados > 0:
-                                st.success(f"{guardados} cambios guardados en Supabase")
+                                st.success(f"{guardados} cambios guardados")
                                 st.rerun()
                             else:
                                 st.info("No hay cambios para guardar")
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
 
-    if perfil == "admin" and st.session_state.mostrar_envio_correo:
+if perfil == "admin" and st.session_state.mostrar_envio_correo:
         st.divider()
         st.subheader("Enviar Resumen por Correo")
         df_envio = df.copy()
