@@ -861,11 +861,14 @@ def pantalla_home():
                 st.session_state.pagina = "asignacion"
                 st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
-        col_btn1, col_btn3 = st.columns(2)
+        col_btn1, col_btn2, col_btn3 = st.columns(3)
         with col_btn1:
             if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
                 st.session_state.mostrar_opciones_ordenes = not st.session_state.get("mostrar_opciones_ordenes", False)
                 st.rerun()
+        with col_btn2:
+            if st.button("ASIGNAR TECNICOS", use_container_width=True, type="primary", key=gen_key("btn_asignacion")):
+                st.session_state.pagina = "asignacion"; st.rerun()
         with col_btn3:
             if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
                 st.session_state.mostrar_envio_correo = True
@@ -955,20 +958,14 @@ def pantalla_home():
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
                 grupos = df_mias.groupby(["Ubicacion"])
-                for ubicacion_raw, grupo_df in grupos:
-                    # Fix: ubicacion puede ser tupla de groupby
-                    if isinstance(ubicacion_raw, tuple):
-                        ubicacion = ubicacion_raw[0]
-                    else:
-                        ubicacion = ubicacion_raw
-
+                for ubicacion, grupo_df in grupos:
                     grupo_df = grupo_df[grupo_df["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
                     if grupo_df.empty:
                         continue
                     total_act = len(grupo_df)
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-                    bloque_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
+                    bloque_key = f"{ubicacion}".replace(" ", "_").replace("-", "_")
 
                     realizadas_chk = 0
                     for idx, row in grupo_df.iterrows():
@@ -984,9 +981,9 @@ def pantalla_home():
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
                             <div style="flex:1; min-width:0;">
-                                <div class="eq-bloque-titulo">🔧 {ubicacion}</div>
+                                <div class="eq-bloque-titulo">&#128295; {ubicacion}</div>
                                 <div class="eq-bloque-meta">
-                                    👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
+                                    &#128100; {tecnico_bloque} | &#128203; {total_act} actividades | &#9989; {realizadas_chk} realizadas
                                 </div>
                                 <div class="eq-progress-bar">
                                     <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
@@ -1045,8 +1042,7 @@ def pantalla_home():
                             st.session_state[comentario_key] = comentario_actual
                         tiene_com = bool(comentario_actual.strip())
 
-                        # Layout compacto: checkbox + desc en una fila
-                        cols_fila = st.columns([0.1, 1])
+                        cols_fila = st.columns([0.06, 0.78, 0.16])
                         with cols_fila[0]:
                             chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
                             prev_key = f"prev_{chk_key}"
@@ -1055,15 +1051,20 @@ def pantalla_home():
                                 st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
                             st.session_state[prev_key] = chk_val_nuevo
                         with cols_fila[1]:
-                            # Badge de estado inline con la descripción
                             st.markdown(f"""
-                            <div class="fila-ultra {clase_ej}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                                <span class="fila-desc" style="flex: 1;">{desc}</span>
+                            <div class="fila-ultra {clase_ej}">
+                                <span class="fila-desc">{desc}</span>
                                 <span class="fila-badge {clase_est}">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
+                        with cols_fila[2]:
+                            com_btn_key = gen_key("btn_com", internal_id)
+                            btn_label = "💬" if not tiene_com else "📝"
+                            if st.button(btn_label, key=com_btn_key, use_container_width=True):
+                                exp_key = gen_key("exp_com", internal_id)
+                                st.session_state[exp_key] = not st.session_state.get(exp_key, False)
+                                st.rerun()
 
-                        # Expandible compacto: tiempo + comentario
                         exp_key = gen_key("exp_com", internal_id)
                         esta_expandido = st.session_state.get(exp_key, False) or tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto
                         if esta_expandido:
@@ -1075,16 +1076,16 @@ def pantalla_home():
                             elif h_ini and not h_fin:
                                 tiempo_str = f"⏱ {h_ini}"
 
-                            cols_exp = st.columns([1, 3])
-                            with cols_exp[0]:
+                            c1, c2 = st.columns([1, 3])
+                            with c1:
                                 st.caption(f"Tiempo: {tiempo_str}")
-                            with cols_exp[1]:
-                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Comentario...", label_visibility="collapsed")
+                            with c2:
+                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Escribe un comentario...", label_visibility="collapsed")
 
-                    # Botones del bloque
+                        st.markdown("<div style='margin-top:2px'></div>", unsafe_allow_html=True)
                     col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
-                        if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
+                        if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             ids_lista = []
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
@@ -1092,7 +1093,7 @@ def pantalla_home():
                             st.session_state[lista_marcar_key] = ids_lista
                             st.rerun()
                     with col_guardar:
-                        if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
+                        if st.button("&#128190; Guardar cambios", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
                             guardados = 0
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
@@ -1134,14 +1135,14 @@ def pantalla_home():
                                             guardados += 1
 
                             if guardados > 0:
-                                st.success(f"{guardados} cambios guardados")
+                                st.success(f"{guardados} cambios guardados en Supabase")
                                 st.rerun()
                             else:
                                 st.info("No hay cambios para guardar")
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
 
-if perfil == "admin" and st.session_state.mostrar_envio_correo:
+    if perfil == "admin" and st.session_state.mostrar_envio_correo:
         st.divider()
         st.subheader("Enviar Resumen por Correo")
         df_envio = df.copy()
@@ -1686,10 +1687,11 @@ def pantalla_asignacion():
         if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
 
-    # ========== ASIGNACIÓN POR ACTIVIDAD ==========
+    # ========== DOS COLUMNAS: Asignación por Cantidad | Asignación Clásica ==========
     if not df_asig.empty:
         total_ordenes_visibles = len(df_asig)
 
+        # Determinar especialidad para filtrar tecnicos
         esp_filtro = st.session_state.filtro_especialidad
         if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
             esps_unicas = df_asig["Especialidad"].dropna().unique()
@@ -1701,174 +1703,227 @@ def pantalla_asignacion():
         opciones_tec = [""] + lista_tecnicos
         prioridades = ["", "Rojo", "Amarillo", "Verde"]
 
-        st.markdown(f"""
-        <div class="am-cantidad-box">
-            <div style="font-size: 14px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">⚡ Asignación por Actividad</div>
-            <div style="font-size: 11px; color: #475569; margin-bottom: 12px;">
-                Selecciona manualmente qué actividades asignar a cada técnico.
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        col_izq, col_der = st.columns(2)
 
-        # Preparar lista de actividades disponibles (solo descripción, no ID OT)
-        actividades_disponibles = []
-        actividades_ids = {}
-        for _, row_a in df_asig.iterrows():
-            internal_id_a = limpiar(row_a.get("ID"), "")
-            desc_a = limpiar(row_a.get("Actividades"), "Sin descripción")
-            desc_corta_a = desc_a[:50] + "..." if len(desc_a) > 50 else desc_a
-            label = desc_corta_a
-            actividades_disponibles.append(label)
-            actividades_ids[label] = internal_id_a
-
-        # Inicializar selecciones en session_state si no existen
-        if "am_actividad_selecciones" not in st.session_state:
-            st.session_state.am_actividad_selecciones = {}
-
-        filas = st.session_state.am_cantidad_filas
-        colores_tec = ["#0EA5E9", "#F59E0B", "#22C55E", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6"]
-
-        # Calcular qué actividades ya fueron seleccionadas por otras filas
-        def obtener_seleccionadas_por_otras(exclude_idx):
-            seleccionadas = set()
-            for j, f in enumerate(filas):
-                if j == exclude_idx:
-                    continue
-                key_sel = f"am_act_sel_{j}"
-                if key_sel in st.session_state:
-                    seleccionadas.update(st.session_state[key_sel])
-            return seleccionadas
-
-        for i in range(len(filas)):
-            color = colores_tec[i % len(colores_tec)]
-            key_sel = f"am_act_sel_{i}"
-
-            # Fila 1: Técnico + Botón X
-            cols_tec = st.columns([5, 1])
-            with cols_tec[0]:
-                filas[i]["tecnico"] = st.selectbox(
-                    f"Técnico {i+1}",
-                    opciones_tec,
-                    index=opciones_tec.index(filas[i]["tecnico"]) if filas[i]["tecnico"] in opciones_tec else 0,
-                    key=gen_key("am_tec", i),
-                    label_visibility="collapsed"
-                )
-            with cols_tec[1]:
-                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-                if len(filas) > 1:
-                    if st.button("✕", key=gen_key("am_del", i), use_container_width=True):
-                        if key_sel in st.session_state:
-                            del st.session_state[key_sel]
-                        st.session_state.am_cantidad_filas.pop(i)
-                        st.rerun()
-
-            # Multiselect de actividades (filtrando las ya tomadas por otras filas)
-            ya_tomadas = obtener_seleccionadas_por_otras(i)
-            opts_para_esta_fila = [a for a in actividades_disponibles if a not in ya_tomadas]
-
-            prev_sel = st.session_state.get(key_sel, [])
-            default_val = [s for s in prev_sel if s in opts_para_esta_fila]
-
-            seleccionadas = st.multiselect(
-                f"Actividades para {filas[i]['tecnico'] or 'Técnico ' + str(i+1)}",
-                options=opts_para_esta_fila,
-                default=default_val,
-                key=key_sel,
-                placeholder="Selecciona actividades..."
-            )
-
-            filas[i]["cantidad"] = len(seleccionadas)
-            filas[i]["seleccionadas"] = seleccionadas
-
-            # Prioridad (ancho completo, debajo)
-            filas[i]["prioridad"] = st.selectbox(
-                f"Prioridad {i+1}",
-                prioridades,
-                index=prioridades.index(filas[i]["prioridad"]) if filas[i]["prioridad"] in prioridades else 0,
-                key=gen_key("am_pri", i),
-                label_visibility="collapsed"
-            )
-
-            # Separador visual entre filas
-            if i < len(filas) - 1:
-                st.markdown(f"<div style='border-bottom: 1px solid {color}33; margin: 8px 0;'></div>", unsafe_allow_html=True)
-
-        # Botón agregar fila
-        if st.button("➕ Agregar otro técnico", use_container_width=True, key=gen_key("am_add")):
-            st.session_state.am_cantidad_filas.append({"tecnico": "", "cantidad": 0, "prioridad": "", "seleccionadas": []})
-            st.rerun()
-
-        # Calcular resumen
-        asignadas = sum(len(f.get("seleccionadas", [])) for f in filas if f["tecnico"])
-        detalle = []
-        for f in filas:
-            if f["tecnico"] and f.get("seleccionadas"):
-                detalle.append(f"• <strong>{f['tecnico']}</strong> → {len(f['seleccionadas'])} actividades ({f['prioridad']})")
-
-        sin_asignar = total_ordenes_visibles - asignadas
-        estado_color = "#64748b"
-        estado_texto = f"📋 {sin_asignar} sin asignar"
-        if asignadas > 0:
-            estado_color = "#0ea5e9"
-            estado_texto = f"✅ {asignadas} seleccionadas"
-
-        st.markdown(f"""
-        <div class="am-resumen">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="font-size: 12px; font-weight: 700; color: #0F172A;">📊 Resumen</div>
-                    <div style="font-size: 11px; color: #64748B;"><strong>{asignadas}</strong> de <strong>{total_ordenes_visibles}</strong> actividades seleccionadas</div>
+        # ===== COLUMNA IZQUIERDA: Asignación por Actividad =====
+        with col_izq:
+            st.markdown(f"""
+            <div class="am-cantidad-box">
+                <div style="font-size: 14px; font-weight: 800; color: #0F172A; margin-bottom: 4px;">⚡ Asignación por Actividad</div>
+                <div style="font-size: 11px; color: #475569; margin-bottom: 12px;">
+                    Selecciona manualmente qué actividades asignar a cada técnico.
                 </div>
-                <span style="padding: 4px 12px; border-radius: 20px; background: {estado_color}; color: white; font-weight: bold; font-size: 11px;">{estado_texto}</span>
             </div>
-            <div style="margin-top: 6px; font-size: 11px; color: #475569; line-height: 1.5;">
-                {"<br>".join(detalle) if detalle else "<em>Ninguna actividad seleccionada.</em>"}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
-        btn_disabled = asignadas == 0
-        if st.button("✅ ASIGNAR SELECCIONADAS", type="primary", use_container_width=True, disabled=btn_disabled, key=gen_key("am_btn_asignar")):
-            exitosos = 0
-            for f in filas:
-                if not f["tecnico"] or not f.get("seleccionadas"):
-                    continue
-                for label_act in f["seleccionadas"]:
-                    internal_id = actividades_ids.get(label_act, "")
-                    if not internal_id:
-                        continue
-                    idx_orig, row_orig = get_row_by_internal_id(df, internal_id)
-                    if idx_orig is None:
-                        continue
-                    estado_actual = limpiar(row_orig.get("Estado"), "Pendiente")
-                    datos = {
-                        "Tecnico_Asignado": f["tecnico"],
-                        "Prioridad_Actividad": f["prioridad"]
-                    }
-                    if estado_actual in ["Ejecutado", "Verificado"]:
-                        datos["Estado"] = "Pendiente"
-                        datos["Hora_Inicio"] = None
-                        datos["Hora_Fin"] = None
-                        datos["Fecha_Ejecucion"] = None
-                        datos["Comentarios"] = None
-                    if actualizar_campos_supabase(internal_id, datos, row_orig.to_dict()):
-                        exitosos += 1
+            # Preparar lista de actividades disponibles (solo descripción, no ID OT)
+            actividades_disponibles = []
+            actividades_ids = {}
+            for _, row_a in df_asig.iterrows():
+                internal_id_a = limpiar(row_a.get("ID"), "")
+                desc_a = limpiar(row_a.get("Actividades"), "Sin descripción")
+                desc_corta_a = desc_a[:50] + "..." if len(desc_a) > 50 else desc_a
+                label = desc_corta_a
+                actividades_disponibles.append(label)
+                actividades_ids[label] = internal_id_a
 
-            if exitosos > 0:
-                st.success(f"✅ {exitosos} actividades asignadas correctamente.")
-                for j in range(len(filas)):
+            # Inicializar selecciones en session_state si no existen
+            if "am_actividad_selecciones" not in st.session_state:
+                st.session_state.am_actividad_selecciones = {}
+
+            filas = st.session_state.am_cantidad_filas
+            colores_tec = ["#0EA5E9", "#F59E0B", "#22C55E", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6"]
+
+            # Calcular qué actividades ya fueron seleccionadas por otras filas
+            def obtener_seleccionadas_por_otras(exclude_idx):
+                seleccionadas = set()
+                for j, f in enumerate(filas):
+                    if j == exclude_idx:
+                        continue
                     key_sel = f"am_act_sel_{j}"
                     if key_sel in st.session_state:
-                        del st.session_state[key_sel]
-                st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "", "seleccionadas": []}]
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        seleccionadas.update(st.session_state[key_sel])
+                return seleccionadas
+
+            for i in range(len(filas)):
+                color = colores_tec[i % len(colores_tec)]
+                key_sel = f"am_act_sel_{i}"
+
+                # Fila 1: Técnico + Botón X
+                cols_tec = st.columns([5, 1])
+                with cols_tec[0]:
+                    filas[i]["tecnico"] = st.selectbox(
+                        f"Técnico {i+1}",
+                        opciones_tec,
+                        index=opciones_tec.index(filas[i]["tecnico"]) if filas[i]["tecnico"] in opciones_tec else 0,
+                        key=gen_key("am_tec", i),
+                        label_visibility="collapsed"
+                    )
+                with cols_tec[1]:
+                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                    if len(filas) > 1:
+                        if st.button("✕", key=gen_key("am_del", i), use_container_width=True):
+                            if key_sel in st.session_state:
+                                del st.session_state[key_sel]
+                            st.session_state.am_cantidad_filas.pop(i)
+                            st.rerun()
+
+                # Multiselect de actividades (filtrando las ya tomadas por otras filas)
+                ya_tomadas = obtener_seleccionadas_por_otras(i)
+                opts_para_esta_fila = [a for a in actividades_disponibles if a not in ya_tomadas]
+
+                prev_sel = st.session_state.get(key_sel, [])
+                default_val = [s for s in prev_sel if s in opts_para_esta_fila]
+
+                seleccionadas = st.multiselect(
+                    f"Actividades para {filas[i]['tecnico'] or 'Técnico ' + str(i+1)}",
+                    options=opts_para_esta_fila,
+                    default=default_val,
+                    key=key_sel,
+                    placeholder="Selecciona actividades..."
+                )
+
+                filas[i]["cantidad"] = len(seleccionadas)
+                filas[i]["seleccionadas"] = seleccionadas
+
+                # Prioridad (ancho completo, debajo)
+                filas[i]["prioridad"] = st.selectbox(
+                    f"Prioridad {i+1}",
+                    prioridades,
+                    index=prioridades.index(filas[i]["prioridad"]) if filas[i]["prioridad"] in prioridades else 0,
+                    key=gen_key("am_pri", i),
+                    label_visibility="collapsed"
+                )
+
+                # Separador visual entre filas
+                if i < len(filas) - 1:
+                    st.markdown(f"<div style='border-bottom: 1px solid {color}33; margin: 8px 0;'></div>", unsafe_allow_html=True)
+
+            # Botón agregar fila
+            if st.button("➕ Agregar otro técnico", use_container_width=True, key=gen_key("am_add")):
+                st.session_state.am_cantidad_filas.append({"tecnico": "", "cantidad": 0, "prioridad": "Normal", "seleccionadas": []})
                 st.rerun()
-            else:
-                st.error("No se pudo asignar ninguna actividad.")
+
+            # Calcular resumen
+            asignadas = sum(len(f.get("seleccionadas", [])) for f in filas if f["tecnico"])
+            detalle = []
+            for f in filas:
+                if f["tecnico"] and f.get("seleccionadas"):
+                    detalle.append(f"• <strong>{f['tecnico']}</strong> → {len(f['seleccionadas'])} actividades ({f['prioridad']})")
+
+            sin_asignar = total_ordenes_visibles - asignadas
+            estado_color = "#64748b"
+            estado_texto = f"📋 {sin_asignar} sin asignar"
+            if asignadas > 0:
+                estado_color = "#0ea5e9"
+                estado_texto = f"✅ {asignadas} seleccionadas"
+
+            st.markdown(f"""
+            <div class="am-resumen">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 12px; font-weight: 700; color: #0F172A;">📊 Resumen</div>
+                        <div style="font-size: 11px; color: #64748B;"><strong>{asignadas}</strong> de <strong>{total_ordenes_visibles}</strong> actividades seleccionadas</div>
+                    </div>
+                    <span style="padding: 4px 12px; border-radius: 20px; background: {estado_color}; color: white; font-weight: bold; font-size: 11px;">{estado_texto}</span>
+                </div>
+                <div style="margin-top: 6px; font-size: 11px; color: #475569; line-height: 1.5;">
+                    {"<br>".join(detalle) if detalle else "<em>Ninguna actividad seleccionada.</em>"}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            btn_disabled = asignadas == 0
+            if st.button("✅ ASIGNAR SELECCIONADAS", type="primary", use_container_width=True, disabled=btn_disabled, key=gen_key("am_btn_asignar")):
+                exitosos = 0
+                for f in filas:
+                    if not f["tecnico"] or not f.get("seleccionadas"):
+                        continue
+                    for label_act in f["seleccionadas"]:
+                        internal_id = actividades_ids.get(label_act, "")
+                        if not internal_id:
+                            continue
+                        # Buscar la fila original para datos_originales
+                        idx_orig, row_orig = get_row_by_internal_id(df, internal_id)
+                        if idx_orig is None:
+                            continue
+                        estado_actual = limpiar(row_orig.get("Estado"), "Pendiente")
+                        datos = {
+                            "Tecnico_Asignado": f["tecnico"],
+                            "Prioridad_Actividad": f["prioridad"]
+                        }
+                        if estado_actual in ["Ejecutado", "Verificado"]:
+                            datos["Estado"] = "Pendiente"
+                            datos["Hora_Inicio"] = None
+                            datos["Hora_Fin"] = None
+                            datos["Fecha_Ejecucion"] = None
+                            datos["Comentarios"] = None
+                        if actualizar_campos_supabase(internal_id, datos, row_orig.to_dict()):
+                            exitosos += 1
+
+                if exitosos > 0:
+                    st.success(f"✅ {exitosos} actividades asignadas correctamente.")
+                    # Limpiar selecciones
+                    for j in range(len(filas)):
+                        key_sel = f"am_act_sel_{j}"
+                        if key_sel in st.session_state:
+                            del st.session_state[key_sel]
+                    st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "Normal", "seleccionadas": []}]
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                    st.rerun()
+                else:
+                    st.error("No se pudo asignar ninguna actividad.")
+
+        # ===== COLUMNA DERECHA: Asignación Masiva Clásica =====        # ===== COLUMNA DERECHA: Asignación Masiva Clásica =====
+        with col_der:
+            st.markdown(f"""
+            <div style="background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                <div style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;">⚡ Asignación Masiva Clásica</div>
+                <div style="font-size: 12px; color: #475569; margin-bottom: 12px;">
+                    Asigna <strong>todas las {len(df_asig)} órdenes visibles</strong> a un solo técnico de golpe.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            tecnicos_info_clas = obtener_tecnicos_con_carga(df, esp_filtro)
+            opciones_tec_masivo = ["Seleccionar técnico..."] + [t["nombre"] for t in tecnicos_info_clas]
+
+            tec_masivo = st.selectbox("Técnico:", opciones_tec_masivo, key=gen_key("tec_masivo"))
+
+            if st.button("✅ ASIGNAR TODO", use_container_width=True, type="primary", key=gen_key("btn_asig_masiva")):
+                if tec_masivo == "Seleccionar técnico...":
+                    st.error("Selecciona un técnico primero.")
+                else:
+                    exitosos = 0
+                    for idx_m, row_m in df_asig.iterrows():
+                        internal_id_m = limpiar(row_m.get("ID"), "")
+                        if not internal_id_m:
+                            continue
+                        tecnico_actual_m = limpiar(row_m.get("Tecnico_Asignado"), "")
+                        estado_actual_m = limpiar(row_m.get("Estado"), "Pendiente")
+
+                        if tec_masivo == tecnico_actual_m:
+                            continue
+
+                        datos_m = {"Tecnico_Asignado": tec_masivo}
+                        if estado_actual_m in ["Ejecutado", "Verificado"]:
+                            datos_m["Estado"] = "Pendiente"
+                            datos_m["Hora_Inicio"] = None
+                            datos_m["Hora_Fin"] = None
+                            datos_m["Fecha_Ejecucion"] = None
+                            datos_m["Comentarios"] = None
+
+                        if actualizar_campos_supabase(internal_id_m, datos_m, row_m.to_dict()):
+                            exitosos += 1
+
+                    if exitosos > 0:
+                        st.success(f"✅ {exitosos} órdenes asignadas a {tec_masivo}")
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.rerun()
+                    else:
+                        st.info("No se realizaron cambios.")
 
         st.divider()
-    # ========================================
-
     # ========================================
 
     # ========== VISTA PREVIA DEL REPARTO ==========
