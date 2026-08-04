@@ -236,7 +236,6 @@ st.markdown("""
     .fila-ultra.ejecutada { opacity: 0.55; background: #F0FDF4; border-color: #86EFAC; }
     .fila-ultra.ejecutada .fila-desc { text-decoration: line-through; color: #166534; }
     .fila-check { width: 16px; height: 16px; accent-color: #0EA5E9; flex-shrink: 0; cursor: pointer; }
-    .fila-check { width: 16px; height: 16px; accent-color: #0EA5E9; cursor: pointer; flex-shrink: 0; margin-right: 4px; }
     .fila-desc { font-size: 12px; color: #0F172A; flex: 1; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fila-badge { padding: 2px 8px; border-radius: 10px; font-size: 9px; font-weight: 700; flex-shrink: 0; }
     .fila-badge-pd { background: #d97706; color: #ffffff; }
@@ -1027,19 +1026,18 @@ def pantalla_home():
                             st.session_state[comentario_key] = comentario_actual
                         tiene_com = bool(comentario_actual.strip())
 
-                        # Fila ULTRA COMPACTA con checkbox visible
-                        chk_html = f'<input type="checkbox" class="fila-check" {"checked" if chk_val else ""} disabled>'
-                        st.markdown(f"""
-                        <div class="fila-ultra {clase_ej}">
-                            {chk_html}
-                            <span class="fila-desc">{desc}</span>
-                            <span class="fila-badge {clase_est}">{estado}</span>
-                            <span class="fila-com {'tiene' if tiene_com else ''}">💬</span>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                        # Checkbox widget funcional (invisible pero clickeable)
-                        st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                        # Fila ULTRA COMPACTA: checkbox + desc en una sola línea
+                        cols_fila = st.columns([0.06, 0.94])
+                        with cols_fila[0]:
+                            st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                        with cols_fila[1]:
+                            st.markdown(f"""
+                            <div class="fila-ultra {clase_ej}">
+                                <span class="fila-desc">{desc}</span>
+                                <span class="fila-badge {clase_est}">{estado}</span>
+                                <span class="fila-com {'tiene' if tiene_com else ''}">💬</span>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                         # Comentario compacto (solo si aplica)
                         if tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto:
