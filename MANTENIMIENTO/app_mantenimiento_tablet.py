@@ -1,15 +1,3 @@
-# ============================================================
-# APP MANTENIMIENTO PREVENTIVO - CORREGIDO
-# Cambios clave:
-#   1. UPDATE PARCIAL: Solo se envian a Supabase los campos
-#      que realmente cambiaron (comparando con valor original).
-#   2. Los campos no editados (cliente, equipo, fecha_programada,
-#      tipo_mantenimiento, etc.) NUNCA se tocan en la BD.
-#   3. Mejor manejo de valores vacios vs None.
-#   4. LOGIN ADMIN protegido por secret ADMIN_PASSWORD.
-#   5. FIX: Boton "Marcar todas realizadas" usa patron de rerun
-#      para evitar StreamlitAPIException al modificar widgets.
-# ============================================================
 
 import streamlit as st
 import pandas as pd
@@ -404,6 +392,20 @@ st.markdown("""
         width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px;
         font-size: 12px; background: white; color: #0F172A;
     }
+    /* === ASIGNACION MASIVA POR CANTIDAD === */
+    .am-cantidad-box {
+        background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px;
+        padding: 14px; margin-bottom: 16px;
+    }
+    .am-fila {
+        display: flex; gap: 8px; align-items: flex-end;
+        background: white; padding: 8px 10px; border-radius: 8px;
+        border: 1px solid #E2E8F0; margin-bottom: 6px;
+    }
+    .am-resumen {
+        background: #FFF7ED; border: 1px solid #F97316; border-radius: 10px;
+        padding: 10px 14px; margin: 10px 0; font-size: 13px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -679,6 +681,12 @@ if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_
 if "actividad_expandida" not in st.session_state: st.session_state.actividad_expandida = None
 if "admin_autenticado" not in st.session_state: st.session_state.admin_autenticado = False
 
+# ===== Session state para asignacion masiva por cantidad =====
+if "am_cantidad_filas" not in st.session_state:
+    st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "Normal"}]
+if "am_cantidad_msg" not in st.session_state:
+    st.session_state.am_cantidad_msg = None
+
 # ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
     admin_pass = st.secrets.get("ADMIN_PASSWORD", "")
@@ -736,15 +744,11 @@ def pantalla_home():
         <span style="font-size: 12px; opacity: 0.8;">{'&#128100; Admin' if perfil == 'admin' else '&#128295; Tecnico'}</span>
     </div>
     """, unsafe_allow_html=True)
-    # Contador de ordenes movido a pantalla_ordenes
-    pass
-
 
     # === GAUGES: Asignación y Verificación lado a lado ===
     if perfil == "admin" and not df.empty:
         col_g1, col_g2 = st.columns(2)
 
-        # Gauge 1: Asignación
         with col_g1:
             total_ord = len(df)
             asignadas = len(df[(df["Tecnico_Asignado"].notna()) & (df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in df.columns else 0
@@ -781,7 +785,6 @@ def pantalla_home():
             </div>
             """, unsafe_allow_html=True)
 
-        # Gauge 2: Verificación
         with col_g2:
             if "Estado" in df.columns:
                 total_ejec = len(df[df["Estado"].isin(["Ejecutado", "Verificado"])])
@@ -825,13 +828,9 @@ def pantalla_home():
         if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
         maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key=gen_key("sel_maquina_home"))
         st.session_state.filtro_maquina = maquina_sel
-        # Filtro Máquina (Nodo) oculto — se mantiene en session_state para asignación
         maquinas_nodo = obtener_maquinas_desde_nodo(df)
         if st.session_state.filtro_maquina_nodo not in maquinas_nodo:
             st.session_state.filtro_maquina_nodo = "Todas"
-        # st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtros adicionales</div>", unsafe_allow_html=True)
-        # maquina_nodo_sel = st.selectbox("Maquina (Nodo)", maquinas_nodo, index=idx_maq_nodo, key=gen_key("sel_filtro_nodo"))
-        # st.session_state.filtro_maquina_nodo = maquina_nodo_sel
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col1:
@@ -937,7 +936,6 @@ def pantalla_home():
 
             st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
 
-            # Verificar si quedan pendientes
             df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None])]
             if df_pendientes.empty and not df_mias.empty:
                 st.success("&#127881; ¡Todas las actividades están completadas! No quedan tareas pendientes.")
@@ -947,7 +945,6 @@ def pantalla_home():
             else:
                 grupos = df_mias.groupby(["Ubicacion"])
                 for ubicacion, grupo_df in grupos:
-                    # Solo mostrar actividades pendientes para el técnico
                     grupo_df = grupo_df[grupo_df["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
                     if grupo_df.empty:
                         continue
@@ -983,13 +980,10 @@ def pantalla_home():
                         <div class="eq-bloque-contenido">
                     """, unsafe_allow_html=True)
 
-                                        # ===== FIX: Patrón seguro para "Marcar todas realizadas" =====
-                    # 1. Verificar si hay una orden pendiente de marcar todas
                     lista_marcar_key = f"lista_marcar_{bloque_key}"
                     ids_a_marcar = set()
                     if lista_marcar_key in st.session_state:
                         ids_a_marcar = set(st.session_state[lista_marcar_key])
-                        # Eliminar los keys de los checkboxes afectados para forzar recreacion
                         for internal_id in ids_a_marcar:
                             chk_key = gen_key("chk_eq", internal_id)
                             if chk_key in st.session_state:
@@ -1001,7 +995,6 @@ def pantalla_home():
                             if hora_auto_key in st.session_state:
                                 del st.session_state[hora_auto_key]
                         del st.session_state[lista_marcar_key]
-                    # =============================================================
 
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
@@ -1035,15 +1028,12 @@ def pantalla_home():
                             st.session_state[comentario_key] = comentario_actual
                         tiene_com = bool(comentario_actual.strip())
 
-                        # Fila ULTRA COMPACTA: checkbox + desc en una sola línea
                         cols_fila = st.columns([0.06, 0.78, 0.16])
                         with cols_fila[0]:
                             chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
-                            # Si se acaba de marcar, iniciar cronómetro automáticamente
                             prev_key = f"prev_{chk_key}"
                             prev_val = st.session_state.get(prev_key, False)
                             if chk_val_nuevo and not prev_val and estado not in ["Ejecutado", "Verificado"]:
-                                # Iniciar cronómetro al marcar checkbox
                                 st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
                             st.session_state[prev_key] = chk_val_nuevo
                         with cols_fila[1]:
@@ -1061,7 +1051,6 @@ def pantalla_home():
                                 st.session_state[exp_key] = not st.session_state.get(exp_key, False)
                                 st.rerun()
 
-                        # Comentario expandido (si se tocó el botón o ya tiene datos)
                         exp_key = gen_key("exp_com", internal_id)
                         esta_expandido = st.session_state.get(exp_key, False) or tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto
                         if esta_expandido:
@@ -1083,7 +1072,6 @@ def pantalla_home():
                     col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
-                            # Guardar lista de IDs y hacer rerun (NO modificar session_state de widgets directamente)
                             ids_lista = []
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
@@ -1128,7 +1116,6 @@ def pantalla_home():
                                     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
                                 else:
-                                    # Solo actualizar comentario si no hay cambio de estado
                                     if nuevo_comentario != comentario_bd:
                                         if actualizar_orden_supabase(internal_id, "Comentarios", nuevo_comentario):
                                             guardados += 1
@@ -1252,7 +1239,6 @@ def pantalla_ordenes():
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
-        # Sin técnico = no puede estar ejecutada ni verificada
         if tecnico == "Sin asignar" and estado in ["Ejecutado", "Verificado"]:
             estado = "Pendiente"
         estado_clase = obtener_estado_visual(estado)
@@ -1352,7 +1338,6 @@ def pantalla_mis_ordenes():
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
-        # Sin técnico = no puede estar ejecutada ni verificada
         if tecnico == "Sin asignar" and estado in ["Ejecutado", "Verificado"]:
             estado = "Pendiente"
         estado_clase = obtener_estado_visual(estado)
@@ -1673,7 +1658,6 @@ def pantalla_asignacion():
         busq_asig = st.text_input("Buscar OT o equipo...", placeholder="Escribe para filtrar...", key=gen_key("txt_busq_asig"))
 
     if estado_sel != "Todos" and "Estado" in df_asig.columns:
-        # Estado efectivo: sin técnico = siempre Pendiente
         def estado_efectivo_asig(row):
             estado_bd = limpiar(row.get("Estado"), "Pendiente")
             tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
@@ -1689,18 +1673,158 @@ def pantalla_asignacion():
         if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
 
-    # ========== ASIGNACION MASIVA ==========
+    # ========== ASIGNACION MASIVA POR CANTIDAD (NUEVO) ==========
     if not df_asig.empty:
-        st.markdown("""
-        <div style="background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
-            <div style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;">&#9889; Asignación Masiva</div>
-            <div style="font-size: 12px; color: #475569; margin-bottom: 12px;">
-                Asigna <strong>todas las {} órdenes visibles</strong> a un solo técnico de golpe.
+        total_ordenes_visibles = len(df_asig)
+
+        # Determinar especialidad para filtrar tecnicos
+        esp_filtro = st.session_state.filtro_especialidad
+        if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
+            esps_unicas = df_asig["Especialidad"].dropna().unique()
+            if len(esps_unicas) == 1:
+                esp_filtro = esps_unicas[0]
+
+        tecnicos_info = obtener_tecnicos_con_carga(df, esp_filtro)
+        lista_tecnicos = [t["nombre"] for t in tecnicos_info]
+        opciones_tec = [""] + lista_tecnicos
+        prioridades = ["Normal", "Alta", "Urgente", "Baja"]
+
+        st.markdown(f"""
+        <div class="am-cantidad-box">
+            <div style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 4px;">⚡ Asignación Masiva por Cantidad</div>
+            <div style="font-size: 12px; color: #475569; margin-bottom: 10px;">
+                Reparte las <strong>{total_ordenes_visibles}</strong> órdenes visibles entre varios técnicos indicando cuántas le tocan a cada uno.
             </div>
         </div>
-        """.format(len(df_asig)), unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-        # Determinar especialidad para filtrar técnicos
+        # Mostrar filas dinamicas
+        filas = st.session_state.am_cantidad_filas
+        for i in range(len(filas)):
+            cols = st.columns([3, 1, 1, 0.5])
+            with cols[0]:
+                filas[i]["tecnico"] = st.selectbox(
+                    f"Técnico {i+1}",
+                    opciones_tec,
+                    index=opciones_tec.index(filas[i]["tecnico"]) if filas[i]["tecnico"] in opciones_tec else 0,
+                    key=gen_key("am_tec", i),
+                    label_visibility="collapsed"
+                )
+            with cols[1]:
+                filas[i]["cantidad"] = st.number_input(
+                    f"Cantidad {i+1}",
+                    min_value=0,
+                    max_value=total_ordenes_visibles,
+                    value=int(filas[i]["cantidad"]),
+                    key=gen_key("am_cant", i),
+                    label_visibility="collapsed"
+                )
+            with cols[2]:
+                filas[i]["prioridad"] = st.selectbox(
+                    f"Prioridad {i+1}",
+                    prioridades,
+                    index=prioridades.index(filas[i]["prioridad"]) if filas[i]["prioridad"] in prioridades else 0,
+                    key=gen_key("am_pri", i),
+                    label_visibility="collapsed"
+                )
+            with cols[3]:
+                if len(filas) > 1:
+                    if st.button("✕", key=gen_key("am_del", i)):
+                        st.session_state.am_cantidad_filas.pop(i)
+                        st.rerun()
+
+        # Boton agregar fila
+        if st.button("➕ Agregar otro técnico", use_container_width=True, key=gen_key("am_add")):
+            st.session_state.am_cantidad_filas.append({"tecnico": "", "cantidad": 0, "prioridad": "Normal"})
+            st.rerun()
+
+        # Calcular resumen
+        asignadas = sum(f["cantidad"] for f in filas if f["tecnico"] and f["cantidad"] > 0)
+        detalle = []
+        for f in filas:
+            if f["tecnico"] and f["cantidad"] > 0:
+                detalle.append(f"• <strong>{f['tecnico']}</strong> → {f['cantidad']} órdenes ({f['prioridad']})")
+
+        if asignadas == total_ordenes_visibles:
+            estado_color = "#22c55e"
+            estado_texto = "✅ Completo"
+        elif asignadas < total_ordenes_visibles:
+            estado_color = "#f59e0b"
+            estado_texto = f"⏳ Faltan {total_ordenes_visibles - asignadas}"
+        else:
+            estado_color = "#ef4444"
+            estado_texto = f"⚠️ Sobran {asignadas - total_ordenes_visibles}"
+
+        st.markdown(f"""
+        <div class="am-resumen">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>📊 Resumen</strong><br>
+                    <span style="color:#666;">Asignadas: <strong>{asignadas}</strong> / <strong>{total_ordenes_visibles}</strong> órdenes</span>
+                </div>
+                <span style="padding: 4px 12px; border-radius: 20px; background: {estado_color}; color: white; font-weight: bold; font-size: 12px;">{estado_texto}</span>
+            </div>
+            <div style="margin-top: 8px; color: #555; line-height: 1.5;">
+                {"<br>".join(detalle) if detalle else "<em>Ninguna asignación configurada.</em>"}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if asignadas != total_ordenes_visibles:
+            st.warning(f"⚠️ La suma de cantidades ({asignadas}) no coincide con el total de órdenes ({total_ordenes_visibles}). Ajusta las cantidades para continuar.")
+
+        btn_disabled = asignadas != total_ordenes_visibles or asignadas == 0
+        if st.button("✅ ASIGNAR TODAS LAS ÓRDENES", type="primary", use_container_width=True, disabled=btn_disabled, key=gen_key("am_btn_asignar")):
+            ordenes_por_asignar = df_asig.reset_index(drop=True)
+            idx = 0
+            exitosos = 0
+            for f in filas:
+                if not f["tecnico"] or f["cantidad"] <= 0:
+                    continue
+                cant = f["cantidad"]
+                subset = ordenes_por_asignar.iloc[idx : idx + cant]
+                for _, row_sub in subset.iterrows():
+                    internal_id = limpiar(row_sub.get("ID"), "")
+                    if not internal_id:
+                        continue
+                    estado_actual = limpiar(row_sub.get("Estado"), "Pendiente")
+                    datos = {
+                        "Tecnico_Asignado": f["tecnico"],
+                        "Prioridad_Actividad": f["prioridad"]
+                    }
+                    # Si estaba ejecutada/verificada y se reasigna, resetear
+                    if estado_actual in ["Ejecutado", "Verificado"]:
+                        datos["Estado"] = "Pendiente"
+                        datos["Hora_Inicio"] = None
+                        datos["Hora_Fin"] = None
+                        datos["Fecha_Ejecucion"] = None
+                        datos["Comentarios"] = None
+                    if actualizar_campos_supabase(internal_id, datos, row_sub.to_dict()):
+                        exitosos += 1
+                idx += cant
+
+            if exitosos > 0:
+                st.success(f"✅ {exitosos} órdenes asignadas correctamente.")
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "Normal"}]
+                st.rerun()
+            else:
+                st.error("No se pudo asignar ninguna orden.")
+
+        st.divider()
+    # ========================================
+
+    # ========== ASIGNACION MASIVA CLASICA (1 solo tecnico a todo) ==========
+    if not df_asig.empty:
+        st.markdown(f"""
+        <div style="background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+            <div style="font-size: 14px; font-weight: 700; color: #0F172A; margin-bottom: 8px;">&#9889; Asignación Masiva Clásica</div>
+            <div style="font-size: 12px; color: #475569; margin-bottom: 12px;">
+                Asigna <strong>todas las {len(df_asig)} órdenes visibles</strong> a un solo técnico de golpe.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         esp_filtro = st.session_state.filtro_especialidad
         if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
             esps_unicas = df_asig["Especialidad"].dropna().unique()
@@ -1728,7 +1852,7 @@ def pantalla_asignacion():
                         estado_actual_m = limpiar(row_m.get("Estado"), "Pendiente")
 
                         if tec_masivo == tecnico_actual_m:
-                            continue  # ya está asignado
+                            continue
 
                         datos_m = {"Tecnico_Asignado": tec_masivo}
                         if estado_actual_m in ["Ejecutado", "Verificado"]:
@@ -1771,7 +1895,6 @@ def pantalla_asignacion():
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
 
-        # Si no hay técnico asignado, forzar estado visual a Pendiente
         if not tecnico_actual:
             estado = "Pendiente"
 
@@ -1833,8 +1956,6 @@ def pantalla_asignacion():
 
                 if nuevo_tec != tecnico_actual:
                     datos["Tecnico_Asignado"] = nuevo_tec
-                    # Si se cambia o quita el tecnico, resetear estado a Pendiente
-                    # para que el nuevo tecnico no herede una ejecucion que no hizo
                     if estado_actual_asig in ["Ejecutado", "Verificado"]:
                         datos["Estado"] = "Pendiente"
                         datos["Hora_Inicio"] = None
@@ -1923,6 +2044,7 @@ def pantalla_verificar():
                         st.error("Error al rechazar")
 
 
+# ==================== EJECUCION PRINCIPAL ====================
 if st.session_state.pagina == "login":
     pantalla_login()
 elif st.session_state.pagina == "home":
