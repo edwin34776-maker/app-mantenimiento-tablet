@@ -1063,7 +1063,8 @@ def pantalla_home():
                             with c2:
                                 st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Escribe un comentario...", label_visibility="collapsed")
 
-                        st.markdown("<div style='margin-top:2px'></div>", unsafe_allow_html=True)col_marcar, col_guardar = st.columns(2)
+                        st.markdown("<div style='margin-top:2px'></div>", unsafe_allow_html=True)
+                    col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             # Guardar lista de IDs y hacer rerun (NO modificar session_state de widgets directamente)
