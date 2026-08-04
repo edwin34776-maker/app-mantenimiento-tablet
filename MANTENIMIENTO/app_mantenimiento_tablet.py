@@ -937,11 +937,20 @@ def pantalla_home():
 
             st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
 
-            if df_mias.empty:
+            # Verificar si quedan pendientes
+            df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None])]
+            if df_pendientes.empty and not df_mias.empty:
+                st.success("&#127881; ¡Todas las actividades están completadas! No quedan tareas pendientes.")
+                st.balloons()
+            elif df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
                 grupos = df_mias.groupby(["Ubicacion"])
                 for ubicacion, grupo_df in grupos:
+                    # Solo mostrar actividades pendientes para el técnico
+                    grupo_df = grupo_df[grupo_df["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
+                    if grupo_df.empty:
+                        continue
                     total_act = len(grupo_df)
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
@@ -1029,7 +1038,14 @@ def pantalla_home():
                         # Fila ULTRA COMPACTA: checkbox + desc en una sola línea
                         cols_fila = st.columns([0.06, 0.78, 0.16])
                         with cols_fila[0]:
-                            st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                            chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                            # Si se acaba de marcar, iniciar cronómetro automáticamente
+                            prev_key = f"prev_{chk_key}"
+                            prev_val = st.session_state.get(prev_key, False)
+                            if chk_val_nuevo and not prev_val and estado not in ["Ejecutado", "Verificado"]:
+                                # Iniciar cronómetro al marcar checkbox
+                                st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+                            st.session_state[prev_key] = chk_val_nuevo
                         with cols_fila[1]:
                             st.markdown(f"""
                             <div class="fila-ultra {clase_ej}">
