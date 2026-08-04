@@ -1027,7 +1027,7 @@ def pantalla_home():
                         tiene_com = bool(comentario_actual.strip())
 
                         # Fila ULTRA COMPACTA: checkbox + desc en una sola línea
-                        cols_fila = st.columns([0.06, 0.94])
+                        cols_fila = st.columns([0.06, 0.78, 0.16])
                         with cols_fila[0]:
                             st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
                         with cols_fila[1]:
@@ -1035,12 +1035,20 @@ def pantalla_home():
                             <div class="fila-ultra {clase_ej}">
                                 <span class="fila-desc">{desc}</span>
                                 <span class="fila-badge {clase_est}">{estado}</span>
-                                <span class="fila-com {'tiene' if tiene_com else ''}">💬</span>
                             </div>
                             """, unsafe_allow_html=True)
+                        with cols_fila[2]:
+                            com_btn_key = gen_key("btn_com", internal_id)
+                            btn_label = "💬" if not tiene_com else "📝"
+                            if st.button(btn_label, key=com_btn_key, use_container_width=True):
+                                exp_key = gen_key("exp_com", internal_id)
+                                st.session_state[exp_key] = not st.session_state.get(exp_key, False)
+                                st.rerun()
 
-                        # Comentario compacto (solo si aplica)
-                        if tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto:
+                        # Comentario expandido (si se tocó el botón o ya tiene datos)
+                        exp_key = gen_key("exp_com", internal_id)
+                        esta_expandido = st.session_state.get(exp_key, False) or tiene_com or estado in ["Ejecutado", "Verificado"] or hora_ini_auto
+                        if esta_expandido:
                             tiempo_str = "—"
                             if estado == "Ejecutado" and duracion:
                                 tiempo_str = f"✅ {duracion}"
@@ -1053,10 +1061,9 @@ def pantalla_home():
                             with c1:
                                 st.caption(f"Tiempo: {tiempo_str}")
                             with c2:
-                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Comentario...", label_visibility="collapsed")
+                                st.text_input("", value=comentario_actual, key=comentario_key, placeholder="Escribe un comentario...", label_visibility="collapsed")
 
-                    st.markdown("<div style='margin-top:4px'></div>", unsafe_allow_html=True)
-                    col_marcar, col_guardar = st.columns(2)
+                        st.markdown("<div style='margin-top:2px'></div>", unsafe_allow_html=True)col_marcar, col_guardar = st.columns(2)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas realizadas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             # Guardar lista de IDs y hacer rerun (NO modificar session_state de widgets directamente)
