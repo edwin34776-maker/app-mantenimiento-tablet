@@ -1031,8 +1031,8 @@ def pantalla_home():
                             st.session_state[comentario_key] = comentario_actual
                         tiene_com = bool(comentario_actual.strip())
 
-                        # Layout compacto: checkbox + desc en una fila
-                        cols_fila = st.columns([0.1, 1])
+                        # Layout ultra compacto: checkbox + desc en una fila
+                        cols_fila = st.columns([0.03, 1])
                         with cols_fila[0]:
                             chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
                             prev_key = f"prev_{chk_key}"
@@ -1043,17 +1043,15 @@ def pantalla_home():
                         with cols_fila[1]:
                             # Badge de estado inline con la descripción
                             st.markdown(f"""
-                            <div class="fila-ultra {clase_ej}" style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                                <span class="fila-desc" style="flex: 1;">{desc}</span>
+                            <div class="fila-ultra {clase_ej}" style="display: flex; align-items: center; justify-content: space-between; gap: 1px; padding: 2px 4px; margin-bottom: 0px;">
+                                <span class="fila-desc" style="flex: 1; font-size: 12px; line-height: 1.2;">{desc}</span>
                                 <span class="fila-badge {clase_est}">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
 
-                        # Comentario compacto siempre visible
-                        com_style = "margin: 2px 0 4px 28px;"
-                        st.markdown(f"<div style='{com_style}'>", unsafe_allow_html=True)
-                        st.text_input("", value=comentario_actual, key=comentario_key, placeholder="💬 Comentario...", label_visibility="collapsed")
-                        st.markdown("</div>", unsafe_allow_html=True)
+                        # Comentario ultra compacto sin espacio extra
+                        st.text_input("", value=comentario_actual, key=comentario_key, placeholder="💬", label_visibility="collapsed")
+                        st.markdown("<div style='height: 1px;'></div>", unsafe_allow_html=True)
 
                     # Botones del bloque
                     col_marcar, col_guardar = st.columns(2)
