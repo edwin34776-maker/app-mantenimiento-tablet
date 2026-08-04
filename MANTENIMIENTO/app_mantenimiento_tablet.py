@@ -697,7 +697,7 @@ if "admin_autenticado" not in st.session_state: st.session_state.admin_autentica
 
 # ===== Session state para asignacion masiva por cantidad =====
 if "am_cantidad_filas" not in st.session_state:
-    st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "Normal"}]
+    st.session_state.am_cantidad_filas = [{"tecnico": "", "cantidad": 0, "prioridad": "", "seleccionadas": []}]
 if "am_cantidad_msg" not in st.session_state:
     st.session_state.am_cantidad_msg = None
 
@@ -1811,22 +1811,19 @@ def pantalla_asignacion():
                 if f["tecnico"] and f.get("seleccionadas"):
                     detalle.append(f"• <strong>{f['tecnico']}</strong> → {len(f['seleccionadas'])} actividades ({f['prioridad']})")
 
-            if asignadas == total_ordenes_visibles:
-                estado_color = "#22c55e"
-                estado_texto = "✅ Completo"
-            elif asignadas < total_ordenes_visibles:
-                estado_color = "#f59e0b"
-                estado_texto = f"⏳ Faltan {total_ordenes_visibles - asignadas}"
-            else:
-                estado_color = "#ef4444"
-                estado_texto = f"⚠️ Sobran {asignadas - total_ordenes_visibles}"
+            sin_asignar = total_ordenes_visibles - asignadas
+            estado_color = "#64748b"
+            estado_texto = f"📋 {sin_asignar} sin asignar"
+            if asignadas > 0:
+                estado_color = "#0ea5e9"
+                estado_texto = f"✅ {asignadas} seleccionadas"
 
             st.markdown(f"""
             <div class="am-resumen">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <div style="font-size: 12px; font-weight: 700; color: #0F172A;">📊 Resumen</div>
-                        <div style="font-size: 11px; color: #64748B;"><strong>{asignadas}</strong> / <strong>{total_ordenes_visibles}</strong> actividades asignadas</div>
+                        <div style="font-size: 11px; color: #64748B;"><strong>{asignadas}</strong> de <strong>{total_ordenes_visibles}</strong> actividades seleccionadas</div>
                     </div>
                     <span style="padding: 4px 12px; border-radius: 20px; background: {estado_color}; color: white; font-weight: bold; font-size: 11px;">{estado_texto}</span>
                 </div>
@@ -1836,10 +1833,7 @@ def pantalla_asignacion():
             </div>
             """, unsafe_allow_html=True)
 
-            if asignadas != total_ordenes_visibles:
-                st.warning(f"⚠️ Asignadas: {asignadas} / {total_ordenes_visibles}", icon="⚠️")
-
-            btn_disabled = asignadas != total_ordenes_visibles or asignadas == 0
+            btn_disabled = asignadas == 0
             if st.button("✅ ASIGNAR SELECCIONADAS", type="primary", use_container_width=True, disabled=btn_disabled, key=gen_key("am_btn_asignar")):
                 exitosos = 0
                 for f in filas:
