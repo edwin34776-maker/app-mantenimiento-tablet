@@ -1600,6 +1600,15 @@ def pantalla_detalle():
     </div>
     """, unsafe_allow_html=True)
 
+    # Mostrar comentario si existe
+    comentario_detalle = limpiar(row.get("Comentarios"), "")
+    if comentario_detalle:
+        st.markdown(f"""
+        <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: #78350F;">
+            <strong>💬 Comentario:</strong><br>{comentario_detalle}
+        </div>
+        """, unsafe_allow_html=True)
+
     if st.button("&#9998; EDITAR EN ASIGNACIONES", use_container_width=True, type="secondary", key=gen_key("det_ir_asignar")):
         st.session_state.pagina = "asignacion"
         st.rerun()
