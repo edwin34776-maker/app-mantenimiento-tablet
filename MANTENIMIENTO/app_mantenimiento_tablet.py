@@ -1,17 +1,3 @@
-# ============================================================
-# APP MANTENIMIENTO PREVENTIVO - CORREGIDO
-# Cambios clave:
-#   1. UPDATE PARCIAL: Solo se envian a Supabase los campos
-#      que realmente cambiaron (comparando con valor original).
-#   2. Los campos no editados (cliente, equipo, fecha_programada,
-#      tipo_mantenimiento, etc.) NUNCA se tocan en la BD.
-#   3. Mejor manejo de valores vacios vs None.
-#   4. LOGIN ADMIN protegido por secret ADMIN_PASSWORD.
-#   5. FIX: Boton "Marcar todas realizadas" usa patron de rerun
-#      para evitar StreamlitAPIException al modificar widgets.
-#   6. ASIGNACION MASIVA POR CANTIDAD: Reparte las ordenes
-#      visibles entre varios tecnicos indicando cuantas a cada uno.
-# ============================================================
 
 import streamlit as st
 import pandas as pd
