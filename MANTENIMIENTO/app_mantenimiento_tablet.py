@@ -1,4 +1,3 @@
-
 import streamlit as st
 import streamlit as st
 import pandas as pd
@@ -828,37 +827,15 @@ def pantalla_home():
                 """, unsafe_allow_html=True)
 
     if perfil == "admin":
-        # ═══ FILTRO MÁQUINA: Chips redondeados táctiles ═══
         maquinas = obtener_maquinas_disponibles(df)
-        maquina_actual = st.session_state.filtro_maquina
-        cols_por_fila = 3
-
-        st.markdown("""
-        <style>
-            .chip-label { font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
-        </style>
-        <div class="chip-label">📍 Máquina / Ubicación</div>
-        """, unsafe_allow_html=True)
-
-        for i in range(0, len(maquinas), cols_por_fila):
-            cols = st.columns(cols_por_fila)
-            for j, col in enumerate(cols):
-                idx = i + j
-                if idx >= len(maquinas):
-                    break
-                maq = maquinas[idx]
-                with col:
-                    es_activa = (maq == maquina_actual)
-                    if st.button(maq, use_container_width=True, type="primary" if es_activa else "secondary", key=gen_key("chip_maq", maq)):
-                        st.session_state.filtro_maquina = maq
-                        st.rerun()
-
+        index_sel = 0
+        if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
+        maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key=gen_key("sel_maquina_home"))
+        st.session_state.filtro_maquina = maquina_sel
         maquinas_nodo = obtener_maquinas_desde_nodo(df)
         if st.session_state.filtro_maquina_nodo not in maquinas_nodo:
             st.session_state.filtro_maquina_nodo = "Todas"
-
-        # ═══ FILTRO ESPECIALIDAD ═══
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:16px 0 10px 0;'>⚡ Filtrar por Especialidad</div>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col1:
             if st.button("TODAS", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary", key=gen_key("btn_filtro_todas")):
@@ -1685,7 +1662,7 @@ def pantalla_asignacion():
                     st.session_state.filtro_maquina = maq
                     st.rerun()
 
-    # Aplicar filtros
+    # Aplicar filtros de máquina/especialidad/nodo
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
