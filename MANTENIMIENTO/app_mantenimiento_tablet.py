@@ -1638,31 +1638,16 @@ def pantalla_asignacion():
 
     df_asig = df.copy()
 
-    # ═══ FILTRO MÁQUINA: Chips redondeados ═══
+    # ═══ FILTRO MÁQUINA: Pills redondeados ═══
     maquinas_asig = obtener_maquinas_disponibles(df_asig)
-    maquina_actual_asig = st.session_state.filtro_maquina
-    st.markdown("""
-    <style>
-        .chip-label { font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
-    </style>
-    <div class="chip-label">📍 Máquina / Ubicación</div>
-    """, unsafe_allow_html=True)
+    maq_default = st.session_state.filtro_maquina if st.session_state.filtro_maquina in maquinas_asig else maquinas_asig[0]
+    st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina / Ubicación</div>", unsafe_allow_html=True)
+    maq_sel = st.pills("", maquinas_asig, default=maq_default, selection_mode="single", key=gen_key("pills_maq"), label_visibility="collapsed")
+    if maq_sel and maq_sel != st.session_state.filtro_maquina:
+        st.session_state.filtro_maquina = maq_sel
+        st.rerun()
 
-    cols_por_fila_asig = 3
-    for i in range(0, len(maquinas_asig), cols_por_fila_asig):
-        cols = st.columns(cols_por_fila_asig)
-        for j, col in enumerate(cols):
-            idx = i + j
-            if idx >= len(maquinas_asig):
-                break
-            maq = maquinas_asig[idx]
-            with col:
-                es_activa = (maq == maquina_actual_asig)
-                if st.button(maq, use_container_width=True, type="primary" if es_activa else "secondary", key=gen_key("chip_asig_maq", maq)):
-                    st.session_state.filtro_maquina = maq
-                    st.rerun()
-
-    # Aplicar filtros de máquina/especialidad/nodo
+    # Aplicar filtros
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
@@ -1672,17 +1657,14 @@ def pantalla_asignacion():
     if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
-    # ═══ FILTRO ESTADO: Chips redondeados ═══
+    # ═══ FILTRO ESTADO: Pills redondeados ═══
     estados_filtro = ["Todos", "Pendiente", "Ejecutado", "Verificado"]
-    estado_actual_asig = st.session_state.filtro_estado_asig
+    est_default = st.session_state.filtro_estado_asig if st.session_state.filtro_estado_asig in estados_filtro else estados_filtro[0]
     st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>📋 Estado</div>", unsafe_allow_html=True)
-    cols_est = st.columns(4)
-    for k, est in enumerate(estados_filtro):
-        with cols_est[k]:
-            es_activa_est = (est == estado_actual_asig)
-            if st.button(est, use_container_width=True, type="primary" if es_activa_est else "secondary", key=gen_key("chip_asig_est", est)):
-                st.session_state.filtro_estado_asig = est
-                st.rerun()
+    est_sel = st.pills("", estados_filtro, default=est_default, selection_mode="single", key=gen_key("pills_est"), label_visibility="collapsed")
+    if est_sel and est_sel != st.session_state.filtro_estado_asig:
+        st.session_state.filtro_estado_asig = est_sel
+        st.rerun()
 
     estado_sel = st.session_state.filtro_estado_asig
     busq_asig = st.text_input("🔍 Buscar OT o equipo...", placeholder="Escribe para filtrar...", key=gen_key("txt_busq_asig"))
