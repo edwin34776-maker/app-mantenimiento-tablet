@@ -1,23 +1,18 @@
-# ═══════════════════════════════════════════════════════
-# PATCH: Fix GZipResponder compatibility (Streamlit/Starlette)
-# ═══════════════════════════════════════════════════════
-import sys
-import starlette.middleware.gzip
-import inspect
+# ═══ PATCH: GZipResponder fix (respaldo) ═══
+try:
+    import starlette.middleware.gzip
+    import inspect
+    _orig = starlette.middleware.gzip.GZipResponder.__init__
+    _sig = inspect.signature(_orig)
+    if 'media_types' in _sig.parameters:
+        def _patched(self, app, minimum_size=500, compresslevel=9):
+            _orig(self, app, minimum_size=minimum_size, compresslevel=compresslevel, media_types=None)
+        starlette.middleware.gzip.GZipResponder.__init__ = _patched
+except Exception:
+    pass
+# ════════════════════════════════════════════
 
-_orig = starlette.middleware.gzip.GZipResponder.__init__
-_sig = inspect.signature(_orig)
-_params = list(_sig.parameters.keys())
-
-def _patched(self, app, minimum_size=500, compresslevel=9):
-    kwargs = {}
-    if 'media_types' in _params:
-        kwargs['media_types'] = None
-    _orig(self, app, minimum_size=minimum_size, compresslevel=compresslevel, **kwargs)
-
-starlette.middleware.gzip.GZipResponder.__init__ = _patched
-# ═══════════════════════════════════════════════════════
-
+import streamlit as st
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time
