@@ -1,0 +1,17 @@
+# ═══ PATCH: GZipResponder compatibility fix ═══
+import starlette.middleware.gzip
+import inspect
+
+_orig_init = starlette.middleware.gzip.GZipResponder.__init__
+_sig = inspect.signature(_orig_init)
+
+def _patched_init(self, app, minimum_size=500, compresslevel=9):
+    kwargs = {}
+    if 'media_types' in _sig.parameters:
+        kwargs['media_types'] = None
+    _orig_init(self, app, minimum_size=minimum_size, compresslevel=compresslevel, **kwargs)
+
+starlette.middleware.gzip.GZipResponder.__init__ = _patched_init
+# ════════════════════════════════════════════════
+
+import streamlit as st
