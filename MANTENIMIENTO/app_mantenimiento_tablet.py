@@ -1653,6 +1653,99 @@ def pantalla_verificar():
                         st.error("Error al rechazar")
 
 
+
+
+# ==================== CALLBACK AUTO-GUARDAR ====================
+def auto_guardar_fila(internal_id, key_widget):
+    """Se ejecuta automáticamente cuando cambia el técnico en una fila"""
+    nuevo_tec = st.session_state.get(key_widget, "")
+    if nuevo_tec == "Sin asignar":
+        nuevo_tec = ""
+
+    df = st.session_state.df_mantenimientos
+    idx, row = get_row_by_internal_id(df, internal_id)
+    if idx is None:
+        return
+
+    tec_bd = limpiar(row.get("Tecnico_Asignado"), "")
+    if nuevo_tec == tec_bd:
+        return
+
+    datos = {"Tecnico_Asignado": nuevo_tec}
+    estado_bd = limpiar(row.get("Estado"), "Pendiente")
+    if estado_bd in ["Ejecutado", "Verificado"]:
+        datos["Estado"] = "Pendiente"
+        datos["Hora_Inicio"] = None
+        datos["Hora_Fin"] = None
+        datos["Fecha_Ejecucion"] = None
+        datos["Comentarios"] = None
+    elif nuevo_tec == "" and estado_bd != "Pendiente":
+        datos["Estado"] = "Pendiente"
+
+    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+        st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = nuevo_tec
+        if "Estado" in datos:
+            st.session_state.df_mantenimientos.loc[idx, "Estado"] = datos["Estado"]
+        st.toast(f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')} → {nuevo_tec if nuevo_tec else 'Sin asignar'}", icon="💾")
+
+
+def auto_guardar_masivo(maquina_sel, tecnico_masivo):
+    """Asigna técnico a todas las actividades visibles de la máquina y guarda en Supabase"""
+    if not tecnico_masivo:
+        return
+
+    df = st.session_state.df_mantenimientos
+    # Reconstruir el df filtrado igual que en pantalla_asignacion
+    df_asig = df.copy()
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
+        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
+    if maquina_sel != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == maquina_sel]
+    if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+    if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
+
+    estado_sel = st.session_state.filtro_estado_asig
+    if estado_sel != "Todos" and "Estado" in df_asig.columns:
+        def estado_efectivo_asig(row):
+            estado_bd = limpiar(row.get("Estado"), "Pendiente")
+            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
+            if not tecnico_bd and estado_bd in ["Ejecutado", "Verificado"]:
+                return "Pendiente"
+            return estado_bd
+        df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
+
+    guardados = 0
+    for _, row_a in df_asig.iterrows():
+        internal_id = limpiar(row_a.get("ID"), "")
+        if not internal_id:
+            continue
+        tec_bd = limpiar(row_a.get("Tecnico_Asignado"), "")
+        if tecnico_masivo == tec_bd:
+            continue
+        datos = {"Tecnico_Asignado": tecnico_masivo}
+        estado_bd = limpiar(row_a.get("Estado"), "Pendiente")
+        if estado_bd in ["Ejecutado", "Verificado"]:
+            datos["Estado"] = "Pendiente"
+            datos["Hora_Inicio"] = None
+            datos["Hora_Fin"] = None
+            datos["Fecha_Ejecucion"] = None
+            datos["Comentarios"] = None
+        if actualizar_campos_supabase(internal_id, datos, row_a.to_dict()):
+            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+            if idx_local is not None:
+                st.session_state.df_mantenimientos.loc[idx_local, "Tecnico_Asignado"] = tecnico_masivo
+                if "Estado" in datos:
+                    st.session_state.df_mantenimientos.loc[idx_local, "Estado"] = datos["Estado"]
+            guardados += 1
+
+    if guardados > 0:
+        st.success(f"✅ {tecnico_masivo} asignado a {guardados} actividades de **{maquina_sel}**")
+        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+        st.rerun()
+
+
 # ==================== NUEVA PANTALLA ASIGNACIÓN RÁPIDA ====================
 def pantalla_asignacion():
     df = recargar_datos()
@@ -1757,12 +1850,7 @@ def pantalla_asignacion():
             with cols_batch[2]:
                 if st.button("✓ Asignar", type="primary", use_container_width=True, key=gen_key("btn_batch_asig")):
                     if tecnico_masivo:
-                        for _, row_a in df_asig.iterrows():
-                            ot_id = limpiar(row_a.get("ID"), "")
-                            if ot_id:
-                                st.session_state.asignaciones_temp[ot_id] = tecnico_masivo
-                        st.success(f"✅ {tecnico_masivo} asignado a {total_ordenes} actividades de **{maq_sel}**")
-                        st.rerun()
+                        auto_guardar_masivo(maq_sel, tecnico_masivo)
                     else:
                         st.warning("Selecciona un técnico primero")
             st.markdown("</div>", unsafe_allow_html=True)
@@ -1783,10 +1871,6 @@ def pantalla_asignacion():
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
-
-        if st.session_state.asig_rapida_msg:
-            st.success(st.session_state.asig_rapida_msg)
-            st.session_state.asig_rapida_msg = None
 
         # Calcular slice
         inicio = (pagina_actual - 1) * ordenes_por_pagina
@@ -1828,7 +1912,6 @@ def pantalla_asignacion():
             estado = limpiar(row.get("Estado"), "Pendiente")
             tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
 
-            # Si no hay técnico pero está ejecutado/verificado, mostrar como pendiente
             if not tecnico_bd and estado in ["Ejecutado", "Verificado"]:
                 estado = "Pendiente"
 
@@ -1840,12 +1923,7 @@ def pantalla_asignacion():
             tecnicos_info_fila = obtener_tecnicos_con_carga(df, esp_fila)
             opciones_tec = ["Sin asignar"] + [t["nombre"] for t in tecnicos_info_fila]
 
-            # Valor actual: session_state primero, luego BD
-            if internal_id in st.session_state.asignaciones_temp:
-                tec_actual = st.session_state.asignaciones_temp[internal_id]
-            else:
-                tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
-
+            tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
             fila_class = "asig-rapida-fila asignada" if tec_actual != "Sin asignar" else "asig-rapida-fila"
 
@@ -1859,57 +1937,26 @@ def pantalla_asignacion():
             </div>
             """, unsafe_allow_html=True)
 
-            # Selectbox de técnico (debajo en móvil, al lado en desktop por CSS grid)
+            # Selectbox de técnico con AUTO-GUARDADO on_change
             select_key = gen_key("sel_tec_rapido", internal_id)
-            nuevo_tec = st.selectbox(
+            st.selectbox(
                 f"Técnico para OT {id_ot}",
                 opciones_tec,
                 index=idx_tec,
                 key=select_key,
-                label_visibility="collapsed"
+                label_visibility="collapsed",
+                on_change=auto_guardar_fila,
+                args=(internal_id, select_key)
             )
-            # Guardar en temp
-            if nuevo_tec == "Sin asignar":
-                nuevo_tec = ""
-            st.session_state.asignaciones_temp[internal_id] = nuevo_tec
 
             st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
 
-        # ========== BOTÓN GUARDAR TODO ==========
-        st.divider()
-        col_save, col_clear = st.columns([1, 1])
-        with col_save:
-            if st.button("💾 GUARDAR EN SUPABASE", type="primary", use_container_width=True, key=gen_key("btn_guardar_rapido")):
-                guardados = 0
-                for ot_id, nuevo_tec in st.session_state.asignaciones_temp.items():
-                    idx_orig, row_orig = get_row_by_internal_id(df, ot_id)
-                    if idx_orig is None:
-                        continue
-                    tec_bd = limpiar(row_orig.get("Tecnico_Asignado"), "")
-                    estado_bd = limpiar(row_orig.get("Estado"), "Pendiente")
-                    if nuevo_tec != tec_bd:
-                        datos = {"Tecnico_Asignado": nuevo_tec}
-                        if estado_bd in ["Ejecutado", "Verificado"]:
-                            datos["Estado"] = "Pendiente"
-                            datos["Hora_Inicio"] = None
-                            datos["Hora_Fin"] = None
-                            datos["Fecha_Ejecucion"] = None
-                            datos["Comentarios"] = None
-                        elif nuevo_tec == "" and estado_bd != "Pendiente":
-                            datos["Estado"] = "Pendiente"
-                        if actualizar_campos_supabase(ot_id, datos, row_orig.to_dict()):
-                            guardados += 1
-                if guardados > 0:
-                    st.session_state.asig_rapida_msg = f"✅ {guardados} asignaciones guardadas en Supabase"
-                    st.session_state.asignaciones_temp = {}
-                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                    st.rerun()
-                else:
-                    st.info("No hay cambios nuevos para guardar")
-        with col_clear:
-            if st.button("🔄 Limpiar cambios", use_container_width=True, key=gen_key("btn_limpiar_rapido")):
-                st.session_state.asignaciones_temp = {}
-                st.rerun()
+        # ========== MENSAJE DE AUTO-GUARDADO ==========
+        st.markdown("""
+        <div style="text-align:center; padding:8px; color:#64748B; font-size:11px;">
+            💾 Los cambios se guardan automáticamente en Supabase
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ==================== EJECUCION PRINCIPAL ====================
