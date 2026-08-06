@@ -1862,7 +1862,7 @@ def pantalla_asignacion():
             lista_tecnicos = [""] + [t["nombre"] for t in tecnicos_info]
 
             st.markdown("<div class='batch-bar-rapida'>", unsafe_allow_html=True)
-            cols_batch = st.columns([2, 2, 1, 1])
+            cols_batch = st.columns([2, 2, 1])
             with cols_batch[0]:
                 st.markdown("<div style='font-weight:600; color:#0369a1; font-size:13px; padding-top:6px;'>👤 Asignar técnico a todas:</div>", unsafe_allow_html=True)
             with cols_batch[1]:
@@ -1873,9 +1873,6 @@ def pantalla_asignacion():
                         auto_guardar_masivo(maq_sel, tecnico_masivo)
                     else:
                         st.warning("Selecciona un técnico primero")
-            with cols_batch[3]:
-                if st.button("✕ Desmarcar", type="secondary", use_container_width=True, key=gen_key("btn_batch_desasig")):
-                    auto_guardar_masivo(maq_sel, "", desasignar=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
         # ========== PAGINACIÓN ==========
