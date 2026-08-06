@@ -1050,7 +1050,7 @@ def pantalla_home():
                             """, unsafe_allow_html=True)
                         st.text_input("", value=comentario_actual, key=comentario_key, placeholder="💬", label_visibility="collapsed")
                         st.markdown("<div style='height: 1px;'></div>", unsafe_allow_html=True)
-                    col_marcar, col_guardar = st.columns(2)
+                    col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_marcar:
                         if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             ids_lista = []
@@ -1058,6 +1058,20 @@ def pantalla_home():
                                 internal_id = limpiar(row.get("ID"), "")
                                 ids_lista.append(internal_id)
                             st.session_state[lista_marcar_key] = ids_lista
+                            st.rerun()
+                    with col_desmarcar:
+                        if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
+                            for idx, row in grupo_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                chk_key = gen_key("chk_eq", internal_id)
+                                if chk_key in st.session_state:
+                                    st.session_state[chk_key] = False
+                                prev_key = f"prev_{chk_key}"
+                                if prev_key in st.session_state:
+                                    st.session_state[prev_key] = False
+                                hora_auto_key = f"hora_ini_auto_{internal_id}"
+                                if hora_auto_key in st.session_state:
+                                    del st.session_state[hora_auto_key]
                             st.rerun()
                     with col_guardar:
                         if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
