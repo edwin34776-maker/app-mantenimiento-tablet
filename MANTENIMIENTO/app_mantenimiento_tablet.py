@@ -852,22 +852,7 @@ def pantalla_home():
         maquinas_nodo = obtener_maquinas_desde_nodo(df)
         if st.session_state.filtro_maquina_nodo not in maquinas_nodo:
             st.session_state.filtro_maquina_nodo = "Todas"
-        st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1,1,1])
-        with col1:
-            if st.button("TODAS", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "Todas" else "secondary", key=gen_key("btn_filtro_todas")):
-                st.session_state.filtro_especialidad = "Todas"; st.rerun()
-        with col2:
-            if st.button("ELE", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "ELE" else "secondary", key=gen_key("btn_filtro_ele")):
-                st.session_state.filtro_especialidad = "ELE"
-                st.session_state.pagina = "asignacion"
-                st.rerun()
-        with col3:
-            if st.button("MEC", use_container_width=True, type="primary" if st.session_state.filtro_especialidad == "MEC" else "secondary", key=gen_key("btn_filtro_mec")):
-                st.session_state.filtro_especialidad = "MEC"
-                st.session_state.pagina = "asignacion"
-                st.rerun()
-        st.markdown("<br>", unsafe_allow_html=True)
+
         col_btn1, col_btn3 = st.columns(2)
         with col_btn1:
             if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
