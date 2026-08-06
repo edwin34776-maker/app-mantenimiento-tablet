@@ -1689,9 +1689,9 @@ def auto_guardar_fila(internal_id, key_widget):
         st.toast(f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')} → {nuevo_tec if nuevo_tec else 'Sin asignar'}", icon="💾")
 
 
-def auto_guardar_masivo(maquina_sel, tecnico_masivo):
-    """Asigna técnico a todas las actividades visibles de la máquina y guarda en Supabase"""
-    if not tecnico_masivo:
+def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
+    """Asigna o desasigna técnico a todas las actividades visibles de la máquina y guarda en Supabase"""
+    if not desasignar and not tecnico_masivo:
         return
 
     df = st.session_state.df_mantenimientos
@@ -1717,14 +1717,15 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo):
         df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
 
     guardados = 0
+    valor_nuevo = "" if desasignar else tecnico_masivo
     for _, row_a in df_asig.iterrows():
         internal_id = limpiar(row_a.get("ID"), "")
         if not internal_id:
             continue
         tec_bd = limpiar(row_a.get("Tecnico_Asignado"), "")
-        if tecnico_masivo == tec_bd:
+        if valor_nuevo == tec_bd:
             continue
-        datos = {"Tecnico_Asignado": tecnico_masivo}
+        datos = {"Tecnico_Asignado": valor_nuevo}
         estado_bd = limpiar(row_a.get("Estado"), "Pendiente")
         if estado_bd in ["Ejecutado", "Verificado"]:
             datos["Estado"] = "Pendiente"
@@ -1732,16 +1733,21 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo):
             datos["Hora_Fin"] = None
             datos["Fecha_Ejecucion"] = None
             datos["Comentarios"] = None
+        elif valor_nuevo == "" and estado_bd != "Pendiente":
+            datos["Estado"] = "Pendiente"
         if actualizar_campos_supabase(internal_id, datos, row_a.to_dict()):
             idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
             if idx_local is not None:
-                st.session_state.df_mantenimientos.loc[idx_local, "Tecnico_Asignado"] = tecnico_masivo
+                st.session_state.df_mantenimientos.loc[idx_local, "Tecnico_Asignado"] = valor_nuevo
                 if "Estado" in datos:
                     st.session_state.df_mantenimientos.loc[idx_local, "Estado"] = datos["Estado"]
             guardados += 1
 
     if guardados > 0:
-        st.success(f"✅ {tecnico_masivo} asignado a {guardados} actividades de **{maquina_sel}**")
+        if desasignar:
+            st.success(f"✅ {guardados} actividades desasignadas de **{maquina_sel}**")
+        else:
+            st.success(f"✅ {tecnico_masivo} asignado a {guardados} actividades de **{maquina_sel}**")
         st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
         st.rerun()
 
@@ -1842,7 +1848,7 @@ def pantalla_asignacion():
             lista_tecnicos = [""] + [t["nombre"] for t in tecnicos_info]
 
             st.markdown("<div class='batch-bar-rapida'>", unsafe_allow_html=True)
-            cols_batch = st.columns([2, 2, 1])
+            cols_batch = st.columns([2, 2, 1, 1])
             with cols_batch[0]:
                 st.markdown("<div style='font-weight:600; color:#0369a1; font-size:13px; padding-top:6px;'>👤 Asignar técnico a todas:</div>", unsafe_allow_html=True)
             with cols_batch[1]:
@@ -1853,6 +1859,9 @@ def pantalla_asignacion():
                         auto_guardar_masivo(maq_sel, tecnico_masivo)
                     else:
                         st.warning("Selecciona un técnico primero")
+            with cols_batch[3]:
+                if st.button("✕ Desmarcar", type="secondary", use_container_width=True, key=gen_key("btn_batch_desasig")):
+                    auto_guardar_masivo(maq_sel, "", desasignar=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
         # ========== PAGINACIÓN ==========
