@@ -999,13 +999,33 @@ def pantalla_home():
                             if hora_auto_key in st.session_state:
                                 del st.session_state[hora_auto_key]
                         del st.session_state[lista_marcar_key]
+                    lista_desmarcar_key = f"lista_desmarcar_{bloque_key}"
+                    ids_a_desmarcar = set()
+                    if lista_desmarcar_key in st.session_state:
+                        ids_a_desmarcar = set(st.session_state[lista_desmarcar_key])
+                        for internal_id in ids_a_desmarcar:
+                            chk_key = gen_key("chk_eq", internal_id)
+                            if chk_key in st.session_state:
+                                del st.session_state[chk_key]
+                            prev_key = f"prev_{chk_key}"
+                            if prev_key in st.session_state:
+                                del st.session_state[prev_key]
+                            hora_auto_key = f"hora_ini_auto_{internal_id}"
+                            if hora_auto_key in st.session_state:
+                                del st.session_state[hora_auto_key]
+                        del st.session_state[lista_desmarcar_key]
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         desc = limpiar(row.get("Actividades"), "Sin descripcion")
                         estado = limpiar(row.get("Estado"), "Pendiente")
                         chk_key = gen_key("chk_eq", internal_id)
                         ya_ejecutado = estado == "Ejecutado"
-                        valor_inicial = ya_ejecutado or (internal_id in ids_a_marcar)
+                        if internal_id in ids_a_desmarcar:
+                            valor_inicial = False
+                        elif internal_id in ids_a_marcar:
+                            valor_inicial = True
+                        else:
+                            valor_inicial = ya_ejecutado
                         if chk_key not in st.session_state:
                             st.session_state[chk_key] = valor_inicial
                         chk_val = st.session_state.get(chk_key, False)
@@ -1053,17 +1073,8 @@ def pantalla_home():
                             st.rerun()
                     with col_desmarcar:
                         if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
-                            for idx, row in grupo_df.iterrows():
-                                internal_id = limpiar(row.get("ID"), "")
-                                chk_key = gen_key("chk_eq", internal_id)
-                                if chk_key in st.session_state:
-                                    st.session_state[chk_key] = False
-                                prev_key = f"prev_{chk_key}"
-                                if prev_key in st.session_state:
-                                    st.session_state[prev_key] = False
-                                hora_auto_key = f"hora_ini_auto_{internal_id}"
-                                if hora_auto_key in st.session_state:
-                                    del st.session_state[hora_auto_key]
+                            ids_lista = [limpiar(row.get("ID"), "") for _, row in grupo_df.iterrows()]
+                            st.session_state[f"lista_desmarcar_{bloque_key}"] = ids_lista
                             st.rerun()
                     with col_guardar:
                         if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
