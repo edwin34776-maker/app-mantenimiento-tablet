@@ -844,15 +844,6 @@ def pantalla_home():
                 """, unsafe_allow_html=True)
 
     if perfil == "admin":
-        maquinas = obtener_maquinas_disponibles(df)
-        index_sel = 0
-        if st.session_state.filtro_maquina in maquinas: index_sel = maquinas.index(st.session_state.filtro_maquina)
-        maquina_sel = st.selectbox("Maquina / Ubicacion", maquinas, index=index_sel, key=gen_key("sel_maquina_home"))
-        st.session_state.filtro_maquina = maquina_sel
-        maquinas_nodo = obtener_maquinas_desde_nodo(df)
-        if st.session_state.filtro_maquina_nodo not in maquinas_nodo:
-            st.session_state.filtro_maquina_nodo = "Todas"
-
         col_btn1, col_btn3 = st.columns(2)
         with col_btn1:
             if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
