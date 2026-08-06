@@ -985,7 +985,9 @@ def pantalla_home():
                         <div class="eq-bloque-contenido">
                     """, unsafe_allow_html=True)
                     lista_marcar_key = f"lista_marcar_{bloque_key}"
+                    lista_desmarcar_key = f"lista_desmarcar_{bloque_key}"
                     ids_a_marcar = set()
+                    ids_a_desmarcar = set()
                     if lista_marcar_key in st.session_state:
                         ids_a_marcar = set(st.session_state[lista_marcar_key])
                         for internal_id in ids_a_marcar:
@@ -999,8 +1001,6 @@ def pantalla_home():
                             if hora_auto_key in st.session_state:
                                 del st.session_state[hora_auto_key]
                         del st.session_state[lista_marcar_key]
-                    lista_desmarcar_key = f"lista_desmarcar_{bloque_key}"
-                    ids_a_desmarcar = set()
                     if lista_desmarcar_key in st.session_state:
                         ids_a_desmarcar = set(st.session_state[lista_desmarcar_key])
                         for internal_id in ids_a_desmarcar:
@@ -1040,11 +1040,6 @@ def pantalla_home():
                         hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
                         clase_ej = "ejecutada" if (chk_val or estado == "Ejecutado") else ""
                         clase_est = "fila-badge-pd" if estado == "Pendiente" else "fila-badge-ej" if estado == "Ejecutado" else "fila-badge-vf"
-                        comentario_key = gen_key("com_eq", internal_id)
-                        comentario_actual = limpiar(row.get("Comentarios"), "")
-                        if comentario_key not in st.session_state:
-                            st.session_state[comentario_key] = comentario_actual
-                        tiene_com = bool(comentario_actual.strip())
                         cols_fila = st.columns([0.03, 1])
                         with cols_fila[0]:
                             chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
@@ -1060,8 +1055,12 @@ def pantalla_home():
                                 <span class="fila-badge {clase_est}">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
-                        st.text_input("", value=comentario_actual, key=comentario_key, placeholder="💬", label_visibility="collapsed")
-                        st.markdown("<div style='height: 1px;'></div>", unsafe_allow_html=True)
+                    # === COMENTARIO GENERAL DEL BLOQUE ===
+                    comentario_bloque_key = f"com_bloque_{bloque_key}"
+                    if comentario_bloque_key not in st.session_state:
+                        st.session_state[comentario_bloque_key] = ""
+                    st.text_input("💬 Comentario general del bloque:", value=st.session_state[comentario_bloque_key], key=comentario_bloque_key, placeholder="Escribe un comentario para todas las actividades...")
+                    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                     col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_marcar:
                         if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
@@ -1079,6 +1078,8 @@ def pantalla_home():
                     with col_guardar:
                         if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
                             guardados = 0
+                            comentario_bloque_key = f"com_bloque_{bloque_key}"
+                            comentario_general = st.session_state.get(comentario_bloque_key, "")
                             for idx, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
                                 chk_key = gen_key("chk_eq", internal_id)
@@ -1087,8 +1088,6 @@ def pantalla_home():
                                 h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
                                 h_fin_bd = limpiar(row.get("Hora_Fin"), "")
                                 hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
-                                comentario_key = gen_key("com_eq", internal_id)
-                                nuevo_comentario = st.session_state.get(comentario_key, "")
                                 comentario_bd = limpiar(row.get("Comentarios"), "")
                                 if chk_val and estado_actual not in ["Ejecutado", "Verificado"]:
                                     hora_fin = datetime.now().strftime("%H:%M")
@@ -1099,21 +1098,21 @@ def pantalla_home():
                                         "Hora_Fin": hora_fin,
                                         "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
                                     }
-                                    if nuevo_comentario != comentario_bd:
-                                        datos["Comentarios"] = nuevo_comentario
+                                    if comentario_general != comentario_bd:
+                                        datos["Comentarios"] = comentario_general
                                     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
                                         if f"hora_ini_auto_{internal_id}" in st.session_state:
                                             del st.session_state[f"hora_ini_auto_{internal_id}"]
                                 elif not chk_val and estado_actual == "Ejecutado":
                                     datos = {"Estado": "Pendiente"}
-                                    if nuevo_comentario != comentario_bd:
-                                        datos["Comentarios"] = nuevo_comentario
+                                    if comentario_general != comentario_bd:
+                                        datos["Comentarios"] = comentario_general
                                     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
                                 else:
-                                    if nuevo_comentario != comentario_bd:
-                                        if actualizar_orden_supabase(internal_id, "Comentarios", nuevo_comentario):
+                                    if comentario_general != comentario_bd:
+                                        if actualizar_orden_supabase(internal_id, "Comentarios", comentario_general):
                                             guardados += 1
                             if guardados > 0:
                                 st.success(f"{guardados} cambios guardados")
