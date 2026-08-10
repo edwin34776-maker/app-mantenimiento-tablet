@@ -935,7 +935,7 @@ def pantalla_home():
 
             st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
 
-            # --- FILTRAR SOLO PENDIENTES PARA MOSTRAR ---
+            # --- SOLO MOSTRAR PENDIENTES ---
             df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])]
             if df_pendientes.empty and not df_mias.empty:
                 st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
@@ -955,13 +955,14 @@ def pantalla_home():
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
                     bloque_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
 
+                    # ===== FUENTE DE VERDAD: diccionario de checks por bloque =====
+                    checks_key = f"checks_{bloque_key}"
+                    if checks_key not in st.session_state:
+                        st.session_state[checks_key] = {}
+                    checks_dict = st.session_state[checks_key]
+
                     # Calcular progreso visual
-                    realizadas_chk = 0
-                    for idx, row in grupo_df.iterrows():
-                        internal_id = limpiar(row.get("ID"), "")
-                        chk_key = gen_key("chk_eq", internal_id)
-                        if st.session_state.get(chk_key, False):
-                            realizadas_chk += 1
+                    realizadas_chk = sum(1 for _, r in grupo_df.iterrows() if checks_dict.get(limpiar(r.get("ID"), ""), False))
                     pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
                     estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
                     clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
@@ -986,32 +987,31 @@ def pantalla_home():
                     # ========== RENDERIZAR CADA ACTIVIDAD ==========
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
+                        if not internal_id:
+                            continue
+
                         desc = limpiar(row.get("Actividades"), "Sin descripcion")
                         estado = limpiar(row.get("Estado"), "Pendiente")
-                        chk_key = gen_key("chk_eq", internal_id)
                         ya_ejecutado = estado == "Ejecutado"
 
-                        # Si el checkbox ya tiene valor en session_state, usarlo; si no, usar BD
-                        valor_inicial = st.session_state.get(chk_key, ya_ejecutado)
+                        # Valor inicial: nuestro dict primero, si no existe usar BD
+                        valor_inicial = checks_dict.get(internal_id, ya_ejecutado)
 
-                        h_ini = limpiar(row.get("Hora_Inicio"), "")
-                        h_fin = limpiar(row.get("Hora_Fin"), "")
-                        duracion = calcular_duracion(h_ini, h_fin)
-                        hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
-                        clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
+                        chk_key = gen_key("chk_eq", internal_id)
+                        chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+
+                        # Detectar cambio manual para registrar hora de inicio automática
+                        if chk_val and not checks_dict.get(internal_id, False) and estado not in ["Ejecutado", "Verificado"]:
+                            st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+
+                        # Actualizar nuestra fuente de verdad
+                        checks_dict[internal_id] = chk_val
+
+                        clase_ej = "ejecutada" if (chk_val or estado == "Ejecutado") else ""
 
                         cols_fila = st.columns([0.03, 1])
                         with cols_fila[0]:
-                            chk_val_nuevo = st.checkbox(
-                                "", value=valor_inicial, key=chk_key, label_visibility="collapsed"
-                            )
-                            prev_key = f"prev_{chk_key}"
-                            prev_val = st.session_state.get(prev_key, False)
-                            # Registrar hora de inicio automática solo la primera vez que se marca
-                            if chk_val_nuevo and not prev_val and estado not in ["Ejecutado", "Verificado"]:
-                                st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
-                            st.session_state[prev_key] = chk_val_nuevo
-
+                            pass  # El checkbox ya se renderizó arriba
                         with cols_fila[1]:
                             st.markdown(f"""
                             <div class="chk-item {clase_ej}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; margin-bottom:4px;">
@@ -1039,21 +1039,19 @@ def pantalla_home():
                             ahora = datetime.now().strftime("%H:%M")
                             for _, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
-                                chk_key = gen_key("chk_eq", internal_id)
-                                st.session_state[chk_key] = True
-                                st.session_state[f"prev_{chk_key}"] = True
-                                st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
+                                if internal_id:
+                                    checks_dict[internal_id] = True
+                                    st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
                             st.rerun()
 
                     with col_desmarcar:
                         if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
                             for _, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
-                                chk_key = gen_key("chk_eq", internal_id)
-                                st.session_state[chk_key] = False
-                                st.session_state[f"prev_{chk_key}"] = False
-                                if f"hora_ini_auto_{internal_id}" in st.session_state:
-                                    del st.session_state[f"hora_ini_auto_{internal_id}"]
+                                if internal_id:
+                                    checks_dict[internal_id] = False
+                                    if f"hora_ini_auto_{internal_id}" in st.session_state:
+                                        del st.session_state[f"hora_ini_auto_{internal_id}"]
                             st.rerun()
 
                     with col_guardar:
@@ -1062,8 +1060,10 @@ def pantalla_home():
                             comentario_general = st.session_state.get(comentario_bloque_key, "")
                             for _, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
-                                chk_key = gen_key("chk_eq", internal_id)
-                                chk_val = st.session_state.get(chk_key, False)
+                                if not internal_id:
+                                    continue
+
+                                chk_val = checks_dict.get(internal_id, False)
                                 estado_actual = limpiar(row.get("Estado"), "Pendiente")
                                 h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
                                 h_fin_bd = limpiar(row.get("Hora_Fin"), "")
@@ -1086,10 +1086,8 @@ def pantalla_home():
                                         # Limpiar session state para esta fila
                                         if f"hora_ini_auto_{internal_id}" in st.session_state:
                                             del st.session_state[f"hora_ini_auto_{internal_id}"]
-                                        if chk_key in st.session_state:
-                                            del st.session_state[chk_key]
-                                        if f"prev_{chk_key}" in st.session_state:
-                                            del st.session_state[f"prev_{chk_key}"]
+                                        if internal_id in checks_dict:
+                                            del checks_dict[internal_id]
 
                                 elif not chk_val and estado_actual == "Ejecutado":
                                     datos = {"Estado": "Pendiente"}
