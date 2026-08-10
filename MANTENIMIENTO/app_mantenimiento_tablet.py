@@ -1,4 +1,4 @@
- import streamlit as st
+import streamlit as st
 import pandas as pd
 from datetime import datetime, time
 from supabase import create_client
