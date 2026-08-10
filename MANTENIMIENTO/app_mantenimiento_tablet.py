@@ -1847,7 +1847,11 @@ def pantalla_asignacion():
     # ═══════════════════════════════════════════════════
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        maquinas_asig = obtener_maquinas_disponibles(df)
+        # Filtrar por especialidad antes de listar máquinas disponibles
+        df_maq = df.copy()
+        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_maq.columns:
+            df_maq = df_maq[df_maq["Especialidad"] == st.session_state.filtro_especialidad]
+        maquinas_asig = obtener_maquinas_disponibles(df_maq)
         for maq in maquinas_asig:
             is_active = st.session_state.filtro_maquina == maq
             btn_type = "primary" if is_active else "secondary"
