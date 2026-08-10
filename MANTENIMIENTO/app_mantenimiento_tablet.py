@@ -894,6 +894,7 @@ def pantalla_home():
             st.session_state.tecnico_seleccionado = tecnico_sel
         else:
             st.session_state.tecnico_seleccionado = "Seleccionar tecnico..."
+
         if st.session_state.tecnico_seleccionado != "Seleccionar tecnico...":
             tecnico_actual = st.session_state.tecnico_seleccionado
             esp_sel = obtener_especialidad_tecnico(tecnico_actual)
@@ -901,10 +902,12 @@ def pantalla_home():
             df_mias = df.copy()
             if "Tecnico_Asignado" in df_mias.columns:
                 df_mias = df_mias[df_mias["Tecnico_Asignado"] == tecnico_actual]
+
             total_asignadas = len(df_mias)
             pendientes = len(df_mias[df_mias["Estado"] == "Pendiente"]) if "Estado" in df_mias.columns else 0
             ejecutadas = len(df_mias[df_mias["Estado"] == "Ejecutado"]) if "Estado" in df_mias.columns else 0
             verificadas = len(df_mias[df_mias["Estado"] == "Verificado"]) if "Estado" in df_mias.columns else 0
+
             st.markdown(f"""
             <div style="text-align: center; margin: 15px 0 8px 0;">
                 <div style="font-size: 14px; font-weight: 700; color: #1a237e;">{tecnico_actual}</div>
@@ -929,36 +932,30 @@ def pantalla_home():
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            busq_tec = ""
-            if busq_tec:
-                busq_lower = busq_tec.lower()
-                mask = pd.Series([False] * len(df_mias), index=df_mias.index)
-                if "ID OT" in df_mias.columns: mask |= df_mias["ID OT"].astype(str).str.contains(busq_tec, na=False)
-                if "Equipo" in df_mias.columns: mask |= df_mias["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
-                if "Actividades" in df_mias.columns: mask |= df_mias["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
-                if "Nodo" in df_mias.columns: mask |= df_mias["Nodo"].astype(str).str.lower().str.contains(busq_lower, na=False)
-                df_mias = df_mias[mask]
+
             st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
-            df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None])]
+
+            # --- FILTRAR SOLO PENDIENTES PARA MOSTRAR ---
+            df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])]
             if df_pendientes.empty and not df_mias.empty:
-                st.success("&#127881; ¡Todas las actividades están completadas! No quedan tareas pendientes.")
+                st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
                 st.balloons()
             elif df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
-                grupos = df_mias.groupby(["Ubicacion"])
+                grupos = df_pendientes.groupby(["Ubicacion"])
                 for ubicacion_raw, grupo_df in grupos:
-                    if isinstance(ubicacion_raw, tuple):
-                        ubicacion = ubicacion_raw[0]
-                    else:
-                        ubicacion = ubicacion_raw
-                    grupo_df = grupo_df[grupo_df["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
+                    ubicacion = ubicacion_raw[0] if isinstance(ubicacion_raw, tuple) else ubicacion_raw
+                    grupo_df = grupo_df.copy()
                     if grupo_df.empty:
                         continue
+
                     total_act = len(grupo_df)
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
                     bloque_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
+
+                    # Calcular progreso visual
                     realizadas_chk = 0
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
@@ -968,6 +965,7 @@ def pantalla_home():
                     pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
                     estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
                     clase_est_bloque = "eq-estado-ej" if estado_bloque == "Completado" else "eq-estado-pd"
+
                     st.markdown(f"""
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
@@ -984,103 +982,85 @@ def pantalla_home():
                         </div>
                         <div class="eq-bloque-contenido">
                     """, unsafe_allow_html=True)
-                    lista_marcar_key = f"lista_marcar_{bloque_key}"
-                    lista_desmarcar_key = f"lista_desmarcar_{bloque_key}"
-                    ids_a_marcar = set()
-                    ids_a_desmarcar = set()
-                    if lista_marcar_key in st.session_state:
-                        ids_a_marcar = set(st.session_state[lista_marcar_key])
-                        for internal_id in ids_a_marcar:
-                            chk_key = gen_key("chk_eq", internal_id)
-                            if chk_key in st.session_state:
-                                del st.session_state[chk_key]
-                            prev_key = f"prev_{chk_key}"
-                            if prev_key in st.session_state:
-                                del st.session_state[prev_key]
-                            hora_auto_key = f"hora_ini_auto_{internal_id}"
-                            if hora_auto_key in st.session_state:
-                                del st.session_state[hora_auto_key]
-                        del st.session_state[lista_marcar_key]
-                    if lista_desmarcar_key in st.session_state:
-                        ids_a_desmarcar = set(st.session_state[lista_desmarcar_key])
-                        for internal_id in ids_a_desmarcar:
-                            chk_key = gen_key("chk_eq", internal_id)
-                            if chk_key in st.session_state:
-                                del st.session_state[chk_key]
-                            prev_key = f"prev_{chk_key}"
-                            if prev_key in st.session_state:
-                                del st.session_state[prev_key]
-                            hora_auto_key = f"hora_ini_auto_{internal_id}"
-                            if hora_auto_key in st.session_state:
-                                del st.session_state[hora_auto_key]
-                        del st.session_state[lista_desmarcar_key]
+
+                    # ========== RENDERIZAR CADA ACTIVIDAD ==========
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         desc = limpiar(row.get("Actividades"), "Sin descripcion")
                         estado = limpiar(row.get("Estado"), "Pendiente")
                         chk_key = gen_key("chk_eq", internal_id)
                         ya_ejecutado = estado == "Ejecutado"
-                        if internal_id in ids_a_desmarcar:
-                            valor_inicial = False
-                        elif internal_id in ids_a_marcar:
-                            valor_inicial = True
-                        else:
-                            valor_inicial = ya_ejecutado
-                        if chk_key not in st.session_state:
-                            st.session_state[chk_key] = valor_inicial
-                        chk_val = st.session_state.get(chk_key, False)
-                        prev_key = f"prev_{chk_key}"
-                        prev_val = st.session_state.get(prev_key, False)
-                        if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
-                            st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
-                        st.session_state[prev_key] = chk_val
+
+                        # Si el checkbox ya tiene valor en session_state, usarlo; si no, usar BD
+                        valor_inicial = st.session_state.get(chk_key, ya_ejecutado)
+
                         h_ini = limpiar(row.get("Hora_Inicio"), "")
                         h_fin = limpiar(row.get("Hora_Fin"), "")
                         duracion = calcular_duracion(h_ini, h_fin)
                         hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
-                        clase_ej = "ejecutada" if (chk_val or estado == "Ejecutado") else ""
-                        clase_est = "fila-badge-pd" if estado == "Pendiente" else "fila-badge-ej" if estado == "Ejecutado" else "fila-badge-vf"
+                        clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
+
                         cols_fila = st.columns([0.03, 1])
                         with cols_fila[0]:
-                            chk_val_nuevo = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                            chk_val_nuevo = st.checkbox(
+                                "", value=valor_inicial, key=chk_key, label_visibility="collapsed"
+                            )
                             prev_key = f"prev_{chk_key}"
                             prev_val = st.session_state.get(prev_key, False)
+                            # Registrar hora de inicio automática solo la primera vez que se marca
                             if chk_val_nuevo and not prev_val and estado not in ["Ejecutado", "Verificado"]:
                                 st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
                             st.session_state[prev_key] = chk_val_nuevo
+
                         with cols_fila[1]:
                             st.markdown(f"""
-                            <div class="fila-ultra {clase_ej}" style="display: flex; align-items: center; justify-content: space-between; gap: 1px; padding: 2px 4px; margin-bottom: 0px;">
-                                <span class="fila-desc" style="flex: 1; font-size: 12px; line-height: 1.2;">{desc}</span>
-                                <span class="fila-badge {clase_est}">{estado}</span>
+                            <div class="chk-item {clase_ej}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; margin-bottom:4px;">
+                                <span class="chk-desc" style="flex:1; font-size:12px; line-height:1.3;">{desc}</span>
+                                <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0;">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
+
                     # === COMENTARIO GENERAL DEL BLOQUE ===
                     comentario_bloque_key = f"com_bloque_{bloque_key}"
                     if comentario_bloque_key not in st.session_state:
                         st.session_state[comentario_bloque_key] = ""
-                    st.text_input("💬 Comentario general del bloque:", value=st.session_state[comentario_bloque_key], key=comentario_bloque_key, placeholder="Escribe un comentario para todas las actividades...")
+                    st.text_input(
+                        "💬 Comentario general del bloque:",
+                        value=st.session_state[comentario_bloque_key],
+                        key=comentario_bloque_key,
+                        placeholder="Escribe un comentario para todas las actividades..."
+                    )
                     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+
+                    # ========== BOTONES DE ACCIÓN ==========
                     col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_marcar:
                         if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
-                            ids_lista = []
-                            for idx, row in grupo_df.iterrows():
+                            ahora = datetime.now().strftime("%H:%M")
+                            for _, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
-                                ids_lista.append(internal_id)
-                            st.session_state[lista_marcar_key] = ids_lista
+                                chk_key = gen_key("chk_eq", internal_id)
+                                st.session_state[chk_key] = True
+                                st.session_state[f"prev_{chk_key}"] = True
+                                st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
                             st.rerun()
+
                     with col_desmarcar:
                         if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
-                            ids_lista = [limpiar(row.get("ID"), "") for _, row in grupo_df.iterrows()]
-                            st.session_state[f"lista_desmarcar_{bloque_key}"] = ids_lista
+                            for _, row in grupo_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                chk_key = gen_key("chk_eq", internal_id)
+                                st.session_state[chk_key] = False
+                                st.session_state[f"prev_{chk_key}"] = False
+                                if f"hora_ini_auto_{internal_id}" in st.session_state:
+                                    del st.session_state[f"hora_ini_auto_{internal_id}"]
                             st.rerun()
+
                     with col_guardar:
                         if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
                             guardados = 0
-                            comentario_bloque_key = f"com_bloque_{bloque_key}"
                             comentario_general = st.session_state.get(comentario_bloque_key, "")
-                            for idx, row in grupo_df.iterrows():
+                            for _, row in grupo_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
                                 chk_key = gen_key("chk_eq", internal_id)
                                 chk_val = st.session_state.get(chk_key, False)
@@ -1089,6 +1069,7 @@ def pantalla_home():
                                 h_fin_bd = limpiar(row.get("Hora_Fin"), "")
                                 hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
                                 comentario_bd = limpiar(row.get("Comentarios"), "")
+
                                 if chk_val and estado_actual not in ["Ejecutado", "Verificado"]:
                                     hora_fin = datetime.now().strftime("%H:%M")
                                     hora_ini = hora_ini_auto if hora_ini_auto else (h_ini_bd if h_ini_bd else hora_fin)
@@ -1102,23 +1083,32 @@ def pantalla_home():
                                         datos["Comentarios"] = comentario_general
                                     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
+                                        # Limpiar session state para esta fila
                                         if f"hora_ini_auto_{internal_id}" in st.session_state:
                                             del st.session_state[f"hora_ini_auto_{internal_id}"]
+                                        if chk_key in st.session_state:
+                                            del st.session_state[chk_key]
+                                        if f"prev_{chk_key}" in st.session_state:
+                                            del st.session_state[f"prev_{chk_key}"]
+
                                 elif not chk_val and estado_actual == "Ejecutado":
                                     datos = {"Estado": "Pendiente"}
                                     if comentario_general != comentario_bd:
                                         datos["Comentarios"] = comentario_general
                                     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                                         guardados += 1
+
                                 else:
                                     if comentario_general != comentario_bd:
                                         if actualizar_orden_supabase(internal_id, "Comentarios", comentario_general):
                                             guardados += 1
+
                             if guardados > 0:
-                                st.success(f"{guardados} cambios guardados")
+                                st.success(f"✅ {guardados} cambios guardados en Supabase")
                                 st.rerun()
                             else:
                                 st.info("No hay cambios para guardar")
+
                     st.markdown("</div></div>", unsafe_allow_html=True)
 
     if perfil == "admin" and st.session_state.mostrar_envio_correo:
