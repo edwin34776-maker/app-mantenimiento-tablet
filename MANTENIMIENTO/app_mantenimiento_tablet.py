@@ -1,4 +1,4 @@
-
+# =========
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time
@@ -880,38 +880,27 @@ def pantalla_home():
                             </div>
                     """, unsafe_allow_html=True)
 
-                    # ===== FIX: Patron seguro para "Marcar/Desmarcar todas" =====
-                    lista_marcar_key = f"lista_marcar_{bloque_key}"
-                    lista_desmarcar_key = f"lista_desmarcar_{bloque_key}"
-                    ids_a_marcar = set()
-                    ids_a_desmarcar = set()
-                    if lista_marcar_key in st.session_state:
-                        ids_a_marcar = set(st.session_state[lista_marcar_key])
-                        for internal_id in ids_a_marcar:
-                            chk_key = gen_key("chk_eq", internal_id)
-                            if chk_key in st.session_state:
-                                del st.session_state[chk_key]
-                            prev_key = f"prev_{chk_key}"
-                            if prev_key in st.session_state:
-                                del st.session_state[prev_key]
-                            hora_auto_key = f"hora_ini_auto_{internal_id}"
-                            if hora_auto_key in st.session_state:
-                                del st.session_state[hora_auto_key]
-                        del st.session_state[lista_marcar_key]
-                    if lista_desmarcar_key in st.session_state:
-                        ids_a_desmarcar = set(st.session_state[lista_desmarcar_key])
-                        for internal_id in ids_a_desmarcar:
-                            chk_key = gen_key("chk_eq", internal_id)
-                            if chk_key in st.session_state:
-                                del st.session_state[chk_key]
-                            prev_key = f"prev_{chk_key}"
-                            if prev_key in st.session_state:
-                                del st.session_state[prev_key]
-                            hora_auto_key = f"hora_ini_auto_{internal_id}"
-                            if hora_auto_key in st.session_state:
-                                del st.session_state[hora_auto_key]
-                        del st.session_state[lista_desmarcar_key]
-                    # =============================================================
+                    # ===== Patron robusto para "Marcar/Desmarcar todas" =====
+                    marcar_todo_key = f"marcar_todo_{bloque_key}"
+                    desmarcar_todo_key = f"desmarcar_todo_{bloque_key}"
+                    
+                    if marcar_todo_key in st.session_state:
+                        for _, row_m in grupo_df.iterrows():
+                            iid = limpiar(row_m.get("ID"), "")
+                            if iid:
+                                st.session_state[gen_key("chk_eq", iid)] = True
+                        del st.session_state[marcar_todo_key]
+                    
+                    if desmarcar_todo_key in st.session_state:
+                        for _, row_m in grupo_df.iterrows():
+                            iid = limpiar(row_m.get("ID"), "")
+                            if iid:
+                                st.session_state[gen_key("chk_eq", iid)] = False
+                                hauto = f"hora_ini_auto_{iid}"
+                                if hauto in st.session_state:
+                                    del st.session_state[hauto]
+                        del st.session_state[desmarcar_todo_key]
+                    # =========================================================
 
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
@@ -923,26 +912,11 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         ya_ejecutado = estado == "Ejecutado"
 
-                        if internal_id in ids_a_desmarcar:
-                            valor_inicial = False
-                        elif internal_id in ids_a_marcar:
-                            valor_inicial = True
-                        else:
-                            valor_inicial = ya_ejecutado
-
+                        # Inicializar session_state si no existe
                         if chk_key not in st.session_state:
-                            st.session_state[chk_key] = valor_inicial
-
-                        clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
-                        clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-pd"
-
-                        h_ini = limpiar(row.get("Hora_Inicio"), "")
-                        h_fin = limpiar(row.get("Hora_Fin"), "")
-                        duracion = calcular_duracion(h_ini, h_fin)
-
-                        cols = st.columns([0.35, 0.5, 2.4, 0.65, 0.75, 1.85])
-                        with cols[0]:
-                            chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                            st.session_state[chk_key] = ya_ejecutado
+                        
+                            chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
                             prev_key = f"prev_{chk_key}"
                             prev_val = st.session_state.get(prev_key, False)
                             if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
@@ -975,13 +949,13 @@ def pantalla_home():
                     col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
-                            ids_lista = [limpiar(row.get("ID"), "") for _, row in grupo_df.iterrows()]
-                            st.session_state[f"lista_marcar_{bloque_key}"] = ids_lista
+                            st.session_state[f"marcar_todo_{bloque_key}"] = True
                             st.rerun()
+                    # Crear columna desmarcar si no existe
+                    col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_desmarcar:
                         if st.button("&#10060; Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
-                            ids_lista = [limpiar(row.get("ID"), "") for _, row in grupo_df.iterrows()]
-                            st.session_state[f"lista_desmarcar_{bloque_key}"] = ids_lista
+                            st.session_state[f"desmarcar_todo_{bloque_key}"] = True
                             st.rerun()
                     with col_guardar:
                         if st.button("&#128190; Guardar cambios", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", bloque_key)):
@@ -1026,6 +1000,16 @@ def pantalla_home():
 
                             if guardados > 0:
                                 st.success(f"{guardados} cambios guardados en Supabase")
+                                # Limpiar keys para reinicializar con estado real de BD
+                                for _, row_c in grupo_df.iterrows():
+                                    iid = limpiar(row_c.get("ID"), "")
+                                    if iid:
+                                        ck = gen_key("chk_eq", iid)
+                                        pk = f"prev_{ck}"
+                                        ha = f"hora_ini_auto_{iid}"
+                                        for k in [ck, pk, ha]:
+                                            if k in st.session_state:
+                                                del st.session_state[k]
                                 st.rerun()
                             else:
                                 st.info("No hay cambios para guardar")
