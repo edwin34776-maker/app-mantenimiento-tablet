@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time
@@ -433,6 +432,81 @@ st.markdown("""
         .asig-rapida-fila > div:nth-child(3) { grid-column: 1 / -1; }
         .asig-rapida-fila > div:nth-child(4) { grid-column: 1; }
         .asig-rapida-fila > div:nth-child(5) { grid-column: 2; }
+    }
+
+    /* === COMPACTAR FILAS DE ACTIVIDADES TÉCNICO === */
+    .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
+        gap: 0.3rem !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido .stCheckbox {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido .stCheckbox > label {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+        min-height: unset !important;
+    }
+    .eq-bloque-contenido .stCheckbox > label > div {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
+        min-height: 20px !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] {
+        display: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="element-container"] {
+        margin-bottom: 0px !important;
+    }
+    .fila-compacta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        margin-bottom: 2px;
+        border-radius: 6px;
+        border: 1px solid #E2E8F0;
+        background: #FFFFFF;
+        transition: all 0.15s;
+    }
+    .fila-compacta:hover {
+        border-color: #0EA5E9;
+        background: #F0F9FF;
+    }
+    .fila-compacta.ejecutada {
+        opacity: 0.65;
+        background: #F0FDF4;
+        border-color: #86EFAC;
+    }
+    .fila-compacta.ejecutada .fila-desc {
+        text-decoration: line-through;
+        color: #166534;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -999,29 +1073,27 @@ def pantalla_home():
                         valor_inicial = checks_dict.get(internal_id, ya_ejecutado)
 
                         chk_key = gen_key("chk_eq", internal_id)
-                        chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                        clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        # Detectar cambio manual para registrar hora de inicio automática
-                        if chk_val and not checks_dict.get(internal_id, False) and estado not in ["Ejecutado", "Verificado"]:
-                            st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
-
-                        # Actualizar nuestra fuente de verdad
-                        checks_dict[internal_id] = chk_val
-
-                        clase_ej = "ejecutada" if (chk_val or estado == "Ejecutado") else ""
-
-                        cols_fila = st.columns([0.03, 1])
+                        cols_fila = st.columns([0.06, 1], gap="small")
                         with cols_fila[0]:
-                            pass  # El checkbox ya se renderizó arriba
+                            chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+
+                            # Detectar cambio manual para registrar hora de inicio automática
+                            if chk_val and not checks_dict.get(internal_id, False) and estado not in ["Ejecutado", "Verificado"]:
+                                st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+
+                            # Actualizar nuestra fuente de verdad
+                            checks_dict[internal_id] = chk_val
+
                         with cols_fila[1]:
                             st.markdown(f"""
-                            <div class="chk-item {clase_ej}" style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 10px; margin-bottom:4px;">
-                                <span class="chk-desc" style="flex:1; font-size:12px; line-height:1.3;">{desc}</span>
-                                <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0;">{estado}</span>
+                            <div class="fila-compacta {clase_ej}">
+                                <span class="fila-desc" style="flex:1; font-size:12px; line-height:1.3;">{desc}</span>
+                                <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:8px;">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
-
-                    # === COMENTARIO GENERAL DEL BLOQUE ===
+# === COMENTARIO GENERAL DEL BLOQUE ===
                     comentario_bloque_key = f"com_bloque_{bloque_key}"
                     if comentario_bloque_key not in st.session_state:
                         st.session_state[comentario_bloque_key] = ""
