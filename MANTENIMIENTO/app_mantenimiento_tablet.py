@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time
@@ -944,10 +943,6 @@ def pantalla_home():
                         cols = st.columns([0.35, 0.5, 2.4, 0.65, 0.75, 1.85])
                         with cols[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
-                            # FIX: Si venimos de "Marcar todas", forzar el valor en session_state
-                            if internal_id in ids_a_marcar:
-                                st.session_state[chk_key] = True
-                                chk_val = True
                             prev_key = f"prev_{chk_key}"
                             prev_val = st.session_state.get(prev_key, False)
                             if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
@@ -978,6 +973,11 @@ def pantalla_home():
                     st.text_input("💬 Comentario general:", value=st.session_state[comentario_bloque_key], key=comentario_bloque_key, placeholder="Escribe un comentario para todas las actividades...")
                     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                     col_marcar, col_desmarcar, col_guardar = st.columns(3)
+                    with col_marcar:
+                        if st.button("&#9989; Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
+                            ids_lista = [limpiar(row.get("ID"), "") for _, row in grupo_df.iterrows()]
+                            st.session_state[f"lista_marcar_{bloque_key}"] = ids_lista
+                            st.rerun()
                     with col_desmarcar:
                         if st.button("&#10060; Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
                             ids_lista = [limpiar(row.get("ID"), "") for _, row in grupo_df.iterrows()]
