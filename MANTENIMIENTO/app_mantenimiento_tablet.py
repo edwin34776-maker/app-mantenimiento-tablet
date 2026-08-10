@@ -812,12 +812,7 @@ def pantalla_login():
         <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
             <div class="perfil-icon">&#128100;</div>
             <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
-            <div class="perfil-desc">
-                <div>Asigna tecnicos</div>
-                <div>Cambia prioridades</div>
-                <div>Verifica ejecuciones</div>
-                <div>Ve todo el sistema</div>
-            </div>
+            <div class="perfil-desc">Asigna tecnicos<br>Cambia prioridades<br>Verifica ejecuciones<br>Ve todo el sistema</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -832,11 +827,7 @@ def pantalla_login():
         <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
             <div class="perfil-icon">&#128295;</div>
             <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
-            <div class="perfil-desc">
-                <div>Ve sus ordenes</div>
-                <div>Ejecuta actividades</div>
-                <div>Comenta y reporta</div>
-            </div>
+            <div class="perfil-desc">Ve sus ordenes<br>Ejecuta actividades<br>Comenta y reporta</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
