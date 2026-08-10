@@ -1,4 +1,5 @@
 # =========
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, time
@@ -845,6 +846,7 @@ def pantalla_home():
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
                     bloque_key = f"{ubicacion}".replace(" ", "_").replace("-", "_")
 
+                    # === CONTAR REALIZADAS ===
                     realizadas_chk = 0
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
@@ -880,17 +882,17 @@ def pantalla_home():
                             </div>
                     """, unsafe_allow_html=True)
 
-                    # ===== Patron robusto para "Marcar/Desmarcar todas" =====
+                    # === PATRÓN MARCAR/DESMARCAR TODO ===
                     marcar_todo_key = f"marcar_todo_{bloque_key}"
                     desmarcar_todo_key = f"desmarcar_todo_{bloque_key}"
-                    
+
                     if marcar_todo_key in st.session_state:
                         for _, row_m in grupo_df.iterrows():
                             iid = limpiar(row_m.get("ID"), "")
                             if iid:
                                 st.session_state[gen_key("chk_eq", iid)] = True
                         del st.session_state[marcar_todo_key]
-                    
+
                     if desmarcar_todo_key in st.session_state:
                         for _, row_m in grupo_df.iterrows():
                             iid = limpiar(row_m.get("ID"), "")
@@ -900,28 +902,40 @@ def pantalla_home():
                                 if hauto in st.session_state:
                                     del st.session_state[hauto]
                         del st.session_state[desmarcar_todo_key]
-                    # =========================================================
 
+                    # === RENDERIZAR CADA ACTIVIDAD ===
                     for idx, row in grupo_df.iterrows():
                         internal_id = limpiar(row.get("ID"), "")
                         esp = limpiar(row.get("Especialidad"), "")
                         desc = limpiar(row.get("Actividades"), "Sin descripcion")
                         estado = limpiar(row.get("Estado"), "Pendiente")
                         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
+                        ya_ejecutado = estado == "Ejecutado"
 
                         chk_key = gen_key("chk_eq", internal_id)
-                        ya_ejecutado = estado == "Ejecutado"
 
                         # Inicializar session_state si no existe
                         if chk_key not in st.session_state:
                             st.session_state[chk_key] = ya_ejecutado
-                        
-                            chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
-                            prev_key = f"prev_{chk_key}"
-                            prev_val = st.session_state.get(prev_key, False)
-                            if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
-                                st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
-                            st.session_state[prev_key] = chk_val
+
+                        # RENDERIZAR CHECKBOX (siempre, fuera del if)
+                        chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
+
+                        # Detectar cambio de False a True para hora inicio
+                        prev_key = f"prev_{chk_key}"
+                        prev_val = st.session_state.get(prev_key, False)
+                        if chk_val and not prev_val and estado not in ["Ejecutado", "Verificado"]:
+                            st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+                        st.session_state[prev_key] = chk_val
+
+                        clase_esp = "eq-esp-ele" if esp == "ELE" else "eq-esp-mec" if esp == "MEC" else "eq-esp-hid" if esp == "HID" else ""
+                        clase_est = "eq-estado-ej" if estado == "Ejecutado" else "eq-estado-vf" if estado == "Verificado" else "eq-estado-pd"
+
+                        h_ini = limpiar(row.get("Hora_Inicio"), "")
+                        h_fin = limpiar(row.get("Hora_Fin"), "")
+                        duracion = calcular_duracion(h_ini, h_fin)
+
+                        cols = st.columns([0.35, 0.5, 2.4, 0.65, 0.75, 1.85])
                         with cols[1]:
                             st.markdown(f'<span class="{clase_esp}">{esp}</span>', unsafe_allow_html=True)
                         with cols[2]:
@@ -938,6 +952,7 @@ def pantalla_home():
                                 st.markdown(f'<div style="text-align:center; background:#1e3a5f; color:#60a5fa; padding:2px 4px; border-radius:4px; font-size:9px; font-weight:600; border:1px solid #3b82f6;">&#9201; {h_ini}</div>', unsafe_allow_html=True)
                             else:
                                 st.markdown(f'<div style="text-align:center; color:#475569; font-size:10px;">—</div>', unsafe_allow_html=True)
+
                     st.markdown("<div style='margin-top:6px'></div>", unsafe_allow_html=True)
 
                     # === COMENTARIO GENERAL DEL BLOQUE ===
@@ -946,13 +961,12 @@ def pantalla_home():
                         st.session_state[comentario_bloque_key] = ""
                     st.text_input("💬 Comentario general:", value=st.session_state[comentario_bloque_key], key=comentario_bloque_key, placeholder="Escribe un comentario para todas las actividades...")
                     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+
                     col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_marcar:
                         if st.button("&#9989; Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", bloque_key)):
                             st.session_state[f"marcar_todo_{bloque_key}"] = True
                             st.rerun()
-                    # Crear columna desmarcar si no existe
-                    col_marcar, col_desmarcar, col_guardar = st.columns(3)
                     with col_desmarcar:
                         if st.button("&#10060; Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", bloque_key)):
                             st.session_state[f"desmarcar_todo_{bloque_key}"] = True
