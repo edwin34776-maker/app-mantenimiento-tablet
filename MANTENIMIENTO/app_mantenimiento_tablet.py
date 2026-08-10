@@ -1843,15 +1843,33 @@ def pantalla_asignacion():
     col_izq, col_der = st.columns([1, 3])
 
     # ═══════════════════════════════════════════════════
+    # PREPARAR DATAFRAME CON TODOS LOS FILTROS EXCEPTO MÁQUINA
+    # ═══════════════════════════════════════════════════
+    df_asig_base = df.copy()
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig_base.columns:
+        df_asig_base = df_asig_base[df_asig_base["Especialidad"] == st.session_state.filtro_especialidad]
+    if "Nodo" in df_asig_base.columns and st.session_state.filtro_maquina_nodo != "Todas":
+        df_asig_base = df_asig_base[df_asig_base["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+    if "Nodo" in df_asig_base.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+        df_asig_base = df_asig_base[df_asig_base["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
+
+    estado_sel = st.session_state.filtro_estado_asig
+    if estado_sel != "Todos" and "Estado" in df_asig_base.columns:
+        def estado_efectivo_asig(row):
+            estado_bd = limpiar(row.get("Estado"), "Pendiente")
+            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
+            if not tecnico_bd and estado_bd in ["Ejecutado", "Verificado"]:
+                return "Pendiente"
+            return estado_bd
+        df_asig_base = df_asig_base[df_asig_base.apply(estado_efectivo_asig, axis=1) == estado_sel]
+
+    # ═══════════════════════════════════════════════════
     # COLUMNA IZQUIERDA: Filtros apilados
     # ═══════════════════════════════════════════════════
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        # Filtrar por especialidad antes de listar máquinas disponibles
-        df_maq = df.copy()
-        if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_maq.columns:
-            df_maq = df_maq[df_maq["Especialidad"] == st.session_state.filtro_especialidad]
-        maquinas_asig = obtener_maquinas_disponibles(df_maq)
+        # Obtener máquinas del dataframe YA filtrado por especialidad, estado, nodo, subsistema
+        maquinas_asig = obtener_maquinas_disponibles(df_asig_base)
         for maq in maquinas_asig:
             is_active = st.session_state.filtro_maquina == maq
             btn_type = "primary" if is_active else "secondary"
@@ -1871,26 +1889,10 @@ def pantalla_asignacion():
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Buscar</div>", unsafe_allow_html=True)
         busq_asig = st.text_input("", placeholder="OT o equipo...", key=gen_key("txt_busq_asig"), label_visibility="collapsed")
 
-    # Preparar df_asig con filtros
-    df_asig = df.copy()
-    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
-        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
+    # Ahora aplicar filtro de máquina sobre df_asig_base
+    df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
-    if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
-        df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
-    if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
-        df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
-
-    estado_sel = st.session_state.filtro_estado_asig
-    if estado_sel != "Todos" and "Estado" in df_asig.columns:
-        def estado_efectivo_asig(row):
-            estado_bd = limpiar(row.get("Estado"), "Pendiente")
-            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
-            if not tecnico_bd and estado_bd in ["Ejecutado", "Verificado"]:
-                return "Pendiente"
-            return estado_bd
-        df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
 
     if busq_asig:
         busq_lower = busq_asig.lower()
@@ -2044,7 +2046,6 @@ def pantalla_asignacion():
             💾 Los cambios se guardan automáticamente en Supabase
         </div>
         """, unsafe_allow_html=True)
-
 
 # ==================== EJECUCION PRINCIPAL ====================
 if st.session_state.pagina == "login":
