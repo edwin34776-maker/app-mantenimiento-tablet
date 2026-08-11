@@ -238,10 +238,10 @@ st.markdown("""
     .prioridad-critico { border-left: 4px solid #dc3545 !important; background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%) !important; }
     .prioridad-secundario { border-left: 4px solid #ffc107 !important; background: linear-gradient(90deg, #fffbea 0%, #ffffff 100%) !important; }
     .prioridad-estandar { border-left: 4px solid #28a745 !important; background: linear-gradient(90deg, #f0fff4 0%, #ffffff 100%) !important; }
-    .tabla-header { display: grid; background: #FFFFFF; color: #475569; grid-template-columns: 120px 80px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 700; font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
-    .tabla-fila { display: grid; background: #FFFFFF; border-color: #0EA5E9; grid-template-columns: 120px 80px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; transition: all 0.2s; }
+    .tabla-header { display: grid; background: #FFFFFF; color: #475569; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: #f8f9fa; border-bottom: 2px solid #dee2e6; font-weight: 700; font-size: 10px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
+    .tabla-fila { display: grid; background: #FFFFFF; border-color: #0EA5E9; grid-template-columns: 70px 45px 1fr 90px 110px; gap: 6px; padding: 8px 10px; background: white; border: 1px solid #e9ecef; border-radius: 6px; align-items: center; font-size: 12px; margin-bottom: 6px; transition: all 0.2s; }
     .tabla-fila:hover { background: #f8f9fa; border-color: #adb5bd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .tabla-fila .col-id { font-size: 11px; color: #495057; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tabla-fila .col-id { font-family: monospace; font-size: 11px; color: #495057; }
     .tabla-fila .col-esp { font-weight: 600; font-size: 11px; color: #1a237e; }
     .tabla-fila .col-desc { font-size: 11px; color: #212529; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .tabla-fila .col-estado { text-align: center; }
@@ -287,8 +287,8 @@ st.markdown("""
         .big-counter { font-size: 48px; }
         .tablet-header { font-size: 16px; padding: 10px 12px; }
         .home-screen { padding: 5px; }
-        .tabla-header { font-size: 9px; grid-template-columns: 100px 70px 1fr 80px 90px; padding: 6px 8px; }
-        .tabla-fila { font-size: 11px; grid-template-columns: 100px 70px 1fr 80px 90px; padding: 6px 8px; }
+        .tabla-header { font-size: 9px; grid-template-columns: 60px 40px 1fr 80px 90px; padding: 6px 8px; }
+        .tabla-fila { font-size: 11px; grid-template-columns: 60px 40px 1fr 80px 90px; padding: 6px 8px; }
     }
     @media (max-width: 480px) {
         .tabla-header { display: none; }
@@ -1288,7 +1288,7 @@ def pantalla_ordenes():
         df_filtrado = df_filtrado[mask]
     st.markdown("""
     <div class="tabla-header">
-        <div class="col-id">UBICACIÓN</div><div class="col-esp">EQUIPO / ESP</div><div class="col-desc">DESCRIPCION</div>
+        <div class="col-id">ID OT</div><div class="col-esp">ESP</div><div class="col-desc">DESCRIPCION</div>
         <div class="col-estado">ESTADO</div><div class="col-tec">TECNICO</div>
     </div>
     """, unsafe_allow_html=True)
@@ -1296,8 +1296,6 @@ def pantalla_ordenes():
         id_ot = limpiar(row.get("ID OT"), "SIN ID")
         internal_id = limpiar(row.get("ID"), "")
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
-        equipo = limpiar(row.get("Equipo"), "")
-        ubicacion = limpiar(row.get("Ubicacion"), "")
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
@@ -1311,15 +1309,10 @@ def pantalla_ordenes():
         nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
         comentario_admin = limpiar(row.get("Comentarios"), "")
         com_html = f"<div style='font-size:10px;color:#0EA5E9;margin-top:2px;font-style:italic;'>&#128172; {comentario_admin}</div>" if comentario_admin else ""
-        info_esp_html = f"""<div style="display:flex;flex-direction:column;gap:1px;line-height:1.2;">
-            <span style="font-size:9px;color:#1a237e;font-weight:700;">{equipo}</span>
-            <span style="font-size:8px;color:#666;">{ubicacion}</span>
-            <span style="font-size:8px;color:#999;">{tipo}</span>
-        </div>"""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id" title="{ubicacion}">{ubicacion}</div>
-            <div class="col-esp">{info_esp_html}</div>
+            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
+            <div class="col-esp">{tipo}</div>
             <div class="col-desc" title="{descripcion}">{desc_corta}{com_html}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
             <div class="col-tec">{tecnico}</div>
@@ -1392,8 +1385,6 @@ def pantalla_mis_ordenes():
         id_ot = limpiar(row.get("ID OT"), "SIN ID")
         internal_id = limpiar(row.get("ID"), "")
         tipo = limpiar(row.get("Especialidad"), "SIN ESP")
-        equipo = limpiar(row.get("Equipo"), "")
-        ubicacion = limpiar(row.get("Ubicacion"), "")
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         estado = limpiar(row.get("Estado"), "Pendiente")
         tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
@@ -1405,15 +1396,10 @@ def pantalla_mis_ordenes():
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
         nodo = limpiar(row.get("Nodo"), "")
         nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
-        info_esp_html = f"""<div style="display:flex;flex-direction:column;gap:1px;line-height:1.2;">
-            <span style="font-size:9px;color:#1a237e;font-weight:700;">{equipo}</span>
-            <span style="font-size:8px;color:#666;">{ubicacion}</span>
-            <span style="font-size:8px;color:#999;">{tipo}</span>
-        </div>"""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id" title="{ubicacion}">{ubicacion}</div>
-            <div class="col-esp">{info_esp_html}</div>
+            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
+            <div class="col-esp">{tipo}</div>
             <div class="col-desc" title="{descripcion}">{desc_corta}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
             <div class="col-tec">{tecnico[:15]}...</div>
