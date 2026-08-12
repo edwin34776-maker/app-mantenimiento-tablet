@@ -312,6 +312,28 @@ st.markdown("""
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
     .eq-bloque-contenido { padding: 10px 14px; }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        padding-left: 0px !important;
+        padding-right: 0px !important;
+        margin-left: 0px !important;
+        margin-right: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
+        min-width: 28px !important;
+        max-width: 32px !important;
+        flex: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
+        min-height: unset !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { margin-bottom: 1px !important; }
     .eq-bloque-contenido div[data-testid="stTextInput"] { margin-bottom: 0px !important; }
     .eq-bloque-contenido div[data-testid="stTextInput"] > div > div > input {
@@ -499,7 +521,7 @@ st.markdown("""
     .fila-compacta {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 4px;
         padding: 6px 10px;
         margin-bottom: 4px;
         border-radius: 6px;
@@ -1113,7 +1135,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.06, 1], gap="small")
+                        cols_fila = st.columns([0.035, 1], gap="small")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
