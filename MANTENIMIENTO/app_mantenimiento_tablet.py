@@ -380,7 +380,7 @@ st.markdown("""
     /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
     .asig-rapida-header {
         display: grid;
-        grid-template-columns: 1fr 60px 80px 90px 160px;
+        grid-template-columns: 1fr 50px 1.5fr 80px 160px;
         gap: 8px;
         padding: 8px 12px;
         background: #F1F5F9;
@@ -395,7 +395,7 @@ st.markdown("""
     }
     .asig-rapida-fila {
         display: grid;
-        grid-template-columns: 1fr 60px 80px 90px 160px;
+        grid-template-columns: 1fr 50px 1.5fr 80px 160px;
         gap: 8px;
         padding: 8px 12px;
         background: #FFFFFF;
@@ -2012,7 +2012,7 @@ def pantalla_asignacion():
         <div class="asig-rapida-header">
             <div>PROCEDIMIENTO</div>
             <div>ESP</div>
-            <div>ID OT</div>
+            <div>ACTIVIDAD</div>
             <div>ESTADO</div>
             <div>TÉCNICO</div>
         </div>
@@ -2043,12 +2043,13 @@ def pantalla_asignacion():
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
             fila_class = "asig-rapida-fila asignada" if tec_actual != "Sin asignar" else "asig-rapida-fila"
 
-            proc_display = procedimiento if procedimiento else descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
+            proc_display = procedimiento if procedimiento else "SIN PROC"
+            desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
             st.markdown(f"""
             <div class="{fila_class}">
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{procedimiento if procedimiento else descripcion}"><strong>{proc_display}</strong></div>
+                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{procedimiento if procedimiento else 'Sin procedimiento'}"><strong>{proc_display}</strong></div>
                 <div><span style="background:#E0E7FF; color:#3730A3; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span></div>
-                <div><span style="font-family:monospace; font-size:11px; color:#64748B;">{id_ot}</span></div>
+                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; color:#0F172A;" title="{descripcion}">{desc_corta}</div>
                 <div><span class="estado-badge {estado_clase}">{estado}</span></div>
                 <div></div>
             </div>
