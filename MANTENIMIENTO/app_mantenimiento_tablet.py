@@ -379,7 +379,7 @@ st.markdown("""
     /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
     .asig-rapida-header {
         display: grid;
-        grid-template-columns: 80px 60px 1fr 90px 160px;
+        grid-template-columns: 1fr 60px 80px 90px 160px;
         gap: 8px;
         padding: 8px 12px;
         background: #F1F5F9;
@@ -394,7 +394,7 @@ st.markdown("""
     }
     .asig-rapida-fila {
         display: grid;
-        grid-template-columns: 80px 60px 1fr 90px 160px;
+        grid-template-columns: 1fr 60px 80px 90px 160px;
         gap: 8px;
         padding: 8px 12px;
         background: #FFFFFF;
@@ -427,9 +427,9 @@ st.markdown("""
             gap: 6px;
             padding: 10px;
         }
-        .asig-rapida-fila > div:nth-child(1) { grid-column: 1; }
-        .asig-rapida-fila > div:nth-child(2) { grid-column: 2; text-align: right; }
-        .asig-rapida-fila > div:nth-child(3) { grid-column: 1 / -1; }
+        .asig-rapida-fila > div:nth-child(1) { grid-column: 1 / -1; }
+        .asig-rapida-fila > div:nth-child(2) { grid-column: 1; }
+        .asig-rapida-fila > div:nth-child(3) { grid-column: 2; text-align: right; }
         .asig-rapida-fila > div:nth-child(4) { grid-column: 1; }
         .asig-rapida-fila > div:nth-child(5) { grid-column: 2; }
     }
@@ -1912,7 +1912,7 @@ def pantalla_asignacion():
                 st.rerun()
 
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Buscar</div>", unsafe_allow_html=True)
-        busq_asig = st.text_input("", placeholder="OT o equipo...", key=gen_key("txt_busq_asig"), label_visibility="collapsed")
+        busq_asig = st.text_input("", placeholder="Procedimiento...", key=gen_key("txt_busq_asig"), label_visibility="collapsed")
 
     # Ahora aplicar filtro de máquina sobre df_asig_base
     df_asig = df_asig_base.copy()
@@ -1922,9 +1922,8 @@ def pantalla_asignacion():
     if busq_asig:
         busq_lower = busq_asig.lower()
         mask = pd.Series([False] * len(df_asig), index=df_asig.index)
-        if "ID OT" in df_asig.columns: mask |= df_asig["ID OT"].astype(str).str.contains(busq_asig, na=False)
-        if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
         if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
+        if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
 
     # ═══════════════════════════════════════════════════
@@ -2009,9 +2008,9 @@ def pantalla_asignacion():
         # ========== HEADER DE LA TABLA RÁPIDA ==========
         st.markdown("""
         <div class="asig-rapida-header">
-            <div>ID OT</div>
+            <div>PROCEDIMIENTO</div>
             <div>ESP</div>
-            <div>DESCRIPCIÓN</div>
+            <div>ID OT</div>
             <div>ESTADO</div>
             <div>TÉCNICO</div>
         </div>
@@ -2041,11 +2040,12 @@ def pantalla_asignacion():
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
             fila_class = "asig-rapida-fila asignada" if tec_actual != "Sin asignar" else "asig-rapida-fila"
 
+            proc_corta = descripcion[:28] + "..." if len(descripcion) > 28 else descripcion
             st.markdown(f"""
             <div class="{fila_class}">
-                <div><strong>{id_ot}</strong></div>
+                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{descripcion}"><strong>{proc_corta}</strong></div>
                 <div><span style="background:#E0E7FF; color:#3730A3; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span></div>
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{descripcion}">{desc_corta}</div>
+                <div><span style="font-family:monospace; font-size:11px; color:#64748B;">{id_ot}</span></div>
                 <div><span class="estado-badge {estado_clase}">{estado}</span></div>
                 <div></div>
             </div>
