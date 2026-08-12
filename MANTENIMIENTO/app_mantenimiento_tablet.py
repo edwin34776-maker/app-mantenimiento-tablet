@@ -476,26 +476,6 @@ st.markdown("""
     .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] {
         display: none !important;
     }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] {
-        margin: 0px !important;
-        padding: 0px !important;
-        min-height: unset !important;
-    }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
-        margin: 0px !important;
-        padding: 0px !important;
-        min-height: unset !important;
-        display: flex !important;
-        align-items: center !important;
-    }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
-        margin: 0px !important;
-        padding: 0px !important;
-    }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div > div {
-        margin: 0px !important;
-        padding: 0px !important;
-    }
     .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
         margin-top: 0px !important;
         margin-bottom: 0px !important;
@@ -504,28 +484,13 @@ st.markdown("""
     }
     .eq-bloque-contenido div[data-testid="element-container"] {
         margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-    }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="stVerticalBlock"] {
-        gap: 0px !important;
-    }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
-        margin-top: 0px !important;
-        margin-bottom: 0px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-        gap: 0rem !important;
-    }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
-        padding-left: 2px !important;
-        padding-right: 2px !important;
     }
     .fila-compacta {
         display: flex;
         align-items: center;
         gap: 6px;
-        padding: 3px 8px;
-        margin-bottom: 0px;
+        padding: 4px 8px;
+        margin-bottom: 2px;
         border-radius: 6px;
         border: 1px solid #E2E8F0;
         background: #FFFFFF;
@@ -1137,7 +1102,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.03, 1], gap="small")
+                        cols_fila = st.columns([0.04, 1], gap="small")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
