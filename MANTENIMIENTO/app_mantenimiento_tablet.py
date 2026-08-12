@@ -781,6 +781,7 @@ if "asignacion_exitosa" not in st.session_state: st.session_state.asignacion_exi
 if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_opciones_ordenes = False
 if "actividad_expandida" not in st.session_state: st.session_state.actividad_expandida = None
 if "admin_autenticado" not in st.session_state: st.session_state.admin_autenticado = False
+if "mostrar_login_admin" not in st.session_state: st.session_state.mostrar_login_admin = False
 
 # ===== Session state para asignacion rapida =====
 if "asignaciones_temp" not in st.session_state:
@@ -819,11 +820,29 @@ def pantalla_login():
         </div>
         """, unsafe_allow_html=True)
 
-        if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
-            st.session_state.perfil = "admin"
-            st.session_state.admin_autenticado = True
-            st.session_state.pagina = "home"
-            st.rerun()
+        if not st.session_state.mostrar_login_admin:
+            if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
+                st.session_state.mostrar_login_admin = True
+                st.rerun()
+        else:
+            st.markdown("<div style='font-size:12px; color:#64748B; margin-bottom:4px;'>🔐 Contraseña de administrador</div>", unsafe_allow_html=True)
+            pwd_admin = st.text_input("", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_admin"), label_visibility="collapsed")
+            col_ing, col_vol = st.columns(2)
+            with col_ing:
+                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_admin")):
+                    ok, msg = autenticar_admin(pwd_admin)
+                    if ok:
+                        st.session_state.perfil = "admin"
+                        st.session_state.admin_autenticado = True
+                        st.session_state.pagina = "home"
+                        st.session_state.mostrar_login_admin = False
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg}")
+            with col_vol:
+                if st.button("Cancelar", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_admin")):
+                    st.session_state.mostrar_login_admin = False
+                    st.rerun()
 
     with col2:
         st.markdown("""
@@ -2052,6 +2071,18 @@ def pantalla_asignacion():
             💾 Los cambios se guardan automáticamente en Supabase
         </div>
         """, unsafe_allow_html=True)
+
+# ==================== PROTECCION DE RUTAS ADMIN ====================
+# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
+paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle"]
+if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
+    st.session_state.pagina = "login"
+    st.session_state.perfil = None
+    st.session_state.mostrar_login_admin = False
+elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
+    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
+    st.session_state.pagina = "login"
+    st.session_state.perfil = None
 
 # ==================== EJECUCION PRINCIPAL ====================
 if st.session_state.pagina == "login":
