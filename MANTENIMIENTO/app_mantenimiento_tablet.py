@@ -1953,11 +1953,8 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
-    # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
-    col_izq, col_der = st.columns([1, 3])
-
     # ═══════════════════════════════════════════════════
-    # PREPARAR DATAFRAME CON TODOS LOS FILTROS EXCEPTO MÁQUINA
+    # PREPARAR DATAFRAME BASE (filtros globales)
     # ═══════════════════════════════════════════════════
     df_asig_base = df.copy()
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig_base.columns:
@@ -1978,17 +1975,34 @@ def pantalla_asignacion():
         df_asig_base = df_asig_base[df_asig_base.apply(estado_efectivo_asig, axis=1) == estado_sel]
 
     # ═══════════════════════════════════════════════════
-    # COLUMNA IZQUIERDA: Filtros apilados
+    # APLICAR FILTRO DE MÁQUINA (automático según botón clickeado)
+    # ═══════════════════════════════════════════════════
+    df_asig = df_asig_base.copy()
+    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+
+    # ═══════════════════════════════════════════════════
+    # APLICAR FILTRO DE PROCEDIMIENTO (automático según session_state)
+    # ═══════════════════════════════════════════════════
+    proc_sel = st.session_state.get("filtro_procedimiento", "Todos")
+    if proc_sel != "Todos" and "Procedimiento" in df_asig.columns:
+        df_asig = df_asig[df_asig["Procedimiento"].astype(str).str.strip() == proc_sel]
+
+    # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
+    col_izq, col_der = st.columns([1, 3])
+
+    # ═══════════════════════════════════════════════════
+    # COLUMNA IZQUIERDA: Filtros apilados (automáticos)
     # ═══════════════════════════════════════════════════
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        # Obtener máquinas del dataframe YA filtrado por especialidad, estado, nodo, subsistema
         maquinas_asig = obtener_maquinas_disponibles(df_asig_base)
         for maq in maquinas_asig:
             is_active = st.session_state.filtro_maquina == maq
             btn_type = "primary" if is_active else "secondary"
             if st.button(maq, key=gen_key("btn_maq", maq), type=btn_type, use_container_width=True):
                 st.session_state.filtro_maquina = maq
+                st.session_state.filtro_procedimiento = "Todos"  # reset procedimiento al cambiar máquina
                 st.rerun()
 
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>📋 Estado</div>", unsafe_allow_html=True)
@@ -2000,21 +2014,19 @@ def pantalla_asignacion():
                 st.session_state.filtro_estado_asig = est
                 st.rerun()
 
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Buscar</div>", unsafe_allow_html=True)
-        busq_asig = st.text_input("", placeholder="Procedimiento...", key=gen_key("txt_busq_asig"), label_visibility="collapsed")
-
-    # Ahora aplicar filtro de máquina sobre df_asig_base
-    df_asig = df_asig_base.copy()
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
-
-    if busq_asig:
-        busq_lower = busq_asig.lower()
-        mask = pd.Series([False] * len(df_asig), index=df_asig.index)
-        if "Procedimiento" in df_asig.columns: mask |= df_asig["Procedimiento"].astype(str).str.lower().str.contains(busq_lower, na=False)
-        if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
-        if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
-        df_asig = df_asig[mask]
+        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Procedimiento</div>", unsafe_allow_html=True)
+        # Procedimientos ÚNICOS de la máquina YA seleccionada (cascada automática)
+        procs_unicos = ["Todos"]
+        if "Procedimiento" in df_asig.columns:
+            procs = df_asig["Procedimiento"].dropna().astype(str).str.strip()
+            procs = procs[procs != ""].unique().tolist()
+            procs_unicos = ["Todos"] + sorted(procs)
+        proc_nuevo = st.selectbox("Filtrar por procedimiento", procs_unicos, 
+                                   index=procs_unicos.index(proc_sel) if proc_sel in procs_unicos else 0,
+                                   key=gen_key("sel_proc_asig"), label_visibility="collapsed")
+        if proc_nuevo != proc_sel:
+            st.session_state.filtro_procedimiento = proc_nuevo
+            st.rerun()
 
     # ═══════════════════════════════════════════════════
     # COLUMNA DERECHA: Lista rápida + asignación masiva
