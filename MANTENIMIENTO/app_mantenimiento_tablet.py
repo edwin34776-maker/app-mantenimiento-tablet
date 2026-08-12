@@ -2101,8 +2101,7 @@ def pantalla_asignacion():
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
                 # Descripción de la actividad
-                st.markdown(f"**📝 Actividad:**
-{descripcion}")
+                st.markdown(f"**📝 Actividad:** {descripcion}")
                 st.markdown(f"**📋 Procedimiento:** `{proc_display}`")
 
                 st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
