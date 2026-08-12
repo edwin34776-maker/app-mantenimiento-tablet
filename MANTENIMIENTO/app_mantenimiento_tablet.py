@@ -514,7 +514,11 @@ st.markdown("""
         margin-bottom: 0px !important;
         padding-top: 0px !important;
         padding-bottom: 0px !important;
-        gap: 0.15rem !important;
+        gap: 0rem !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
+        padding-left: 2px !important;
+        padding-right: 2px !important;
     }
     .fila-compacta {
         display: flex;
@@ -1133,7 +1137,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.03, 1], gap="zero")
+                        cols_fila = st.columns([0.03, 1], gap="small")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
