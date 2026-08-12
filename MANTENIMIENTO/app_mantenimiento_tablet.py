@@ -1870,7 +1870,9 @@ def auto_guardar_fila(internal_id, key_widget):
         st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = nuevo_tec
         if "Estado" in datos:
             st.session_state.df_mantenimientos.loc[idx, "Estado"] = datos["Estado"]
-        st.toast(f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')} → {nuevo_tec if nuevo_tec else 'Sin asignar'}", icon="💾")
+        msg = f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')} → {nuevo_tec if nuevo_tec else 'Sin asignar'}"
+        st.session_state.asig_rapida_msg = msg
+        st.toast(msg, icon="💾")
 
 
 def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
@@ -1945,6 +1947,11 @@ def pantalla_asignacion():
     </div>
     """, unsafe_allow_html=True)
     boton_volver_inicio("asignacion")
+
+    # Mostrar mensaje de asignación previa
+    if st.session_state.get("asig_rapida_msg"):
+        st.toast(st.session_state.asig_rapida_msg, icon="💾")
+        st.session_state.asig_rapida_msg = None
 
     # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
     col_izq, col_der = st.columns([1, 3])
@@ -2081,9 +2088,12 @@ def pantalla_asignacion():
             tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
 
-            # Label corto y limpio del expander
-            tec_indicador = "👤" if tec_actual != "Sin asignar" else "❌"
-            expander_label = f"{proc_display}  |  {estado}  {tec_indicador}"
+            # Label corto y limpio del expander con nombre del técnico
+            if tec_actual != "Sin asignar":
+                tec_corto = tec_actual[:22] + "..." if len(tec_actual) > 25 else tec_actual
+                expander_label = f"{proc_display}  |  {estado}  →  {tec_corto}"
+            else:
+                expander_label = f"{proc_display}  |  {estado}  ❌ Sin técnico"
 
             with st.expander(expander_label, expanded=False):
                 # Fila superior: info clave en badges
@@ -2094,9 +2104,9 @@ def pantalla_asignacion():
                     st.markdown(f"<div style='text-align:center;'><span class='estado-badge {estado_clase}' style='font-size:11px;'>{estado}</span></div>", unsafe_allow_html=True)
                 with col_badge3:
                     if tec_actual != "Sin asignar":
-                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#0F172A; font-weight:600;'>👤 {tec_actual}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#0F172A; font-weight:700; background:#DBEAFE; padding:2px 8px; border-radius:4px; display:inline-block;'>👤 {tec_actual}</div>", unsafe_allow_html=True)
                     else:
-                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#94A3B8;'>Sin técnico asignado</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#94A3B8; font-weight:600;'>❌ Sin técnico asignado</div>", unsafe_allow_html=True)
 
                 st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
