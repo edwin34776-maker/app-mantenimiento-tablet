@@ -446,6 +446,17 @@ st.markdown("""
         padding-bottom: 0px !important;
     }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
+        padding-left: 0px !important;
+        padding-right: 0px !important;
+        margin-left: 0px !important;
+        margin-right: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div:first-child {
+        min-width: 24px !important;
+        max-width: 28px !important;
+        flex: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
     }
@@ -488,7 +499,7 @@ st.markdown("""
     .fila-compacta {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 0px;
         padding: 1px 6px;
         margin-bottom: 0px;
         border-radius: 4px;
@@ -1102,7 +1113,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.04, 1], gap="small")
+                        cols_fila = st.columns([0.02, 1], gap="small")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
@@ -1117,7 +1128,7 @@ def pantalla_home():
                             st.markdown(f"""
                             <div class="fila-compacta {clase_ej}">
                                 <span class="fila-desc" style="flex:1; font-size:11px; line-height:1.2;">{desc}</span>
-                                <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:8px;">{estado}</span>
+                                <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
 # === COMENTARIO GENERAL DEL BLOQUE ===
