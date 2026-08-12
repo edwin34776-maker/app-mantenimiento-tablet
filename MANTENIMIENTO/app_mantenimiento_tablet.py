@@ -1870,7 +1870,7 @@ def auto_guardar_fila(internal_id, key_widget):
         st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = nuevo_tec
         if "Estado" in datos:
             st.session_state.df_mantenimientos.loc[idx, "Estado"] = datos["Estado"]
-        msg = f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')} → {nuevo_tec if nuevo_tec else 'Sin asignar'}"
+        msg = f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}"
         st.session_state.asig_rapida_msg = msg
         st.toast(msg, icon="💾")
 
@@ -2088,12 +2088,9 @@ def pantalla_asignacion():
             tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
 
-            # Label corto y limpio del expander con nombre del técnico
-            if tec_actual != "Sin asignar":
-                tec_corto = tec_actual[:22] + "..." if len(tec_actual) > 25 else tec_actual
-                expander_label = f"{proc_display}  |  {estado}  →  {tec_corto}"
-            else:
-                expander_label = f"{proc_display}  |  {estado}  ❌ Sin técnico"
+            # Label limpio del expander (sin nombre de técnico visible)
+            tec_indicador = "✅" if tec_actual != "Sin asignar" else "⭕"
+            expander_label = f"{proc_display}  |  {estado}  {tec_indicador}"
 
             with st.expander(expander_label, expanded=False):
                 # Fila superior: info clave en badges
@@ -2104,7 +2101,7 @@ def pantalla_asignacion():
                     st.markdown(f"<div style='text-align:center;'><span class='estado-badge {estado_clase}' style='font-size:11px;'>{estado}</span></div>", unsafe_allow_html=True)
                 with col_badge3:
                     if tec_actual != "Sin asignar":
-                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#0F172A; font-weight:700; background:#DBEAFE; padding:2px 8px; border-radius:4px; display:inline-block;'>👤 {tec_actual}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#0F172A; font-weight:700; background:#DBEAFE; padding:2px 8px; border-radius:4px; display:inline-block;'>👤 Asignado</div>", unsafe_allow_html=True)
                     else:
                         st.markdown(f"<div style='text-align:right; font-size:11px; color:#94A3B8; font-weight:600;'>❌ Sin técnico asignado</div>", unsafe_allow_html=True)
 
