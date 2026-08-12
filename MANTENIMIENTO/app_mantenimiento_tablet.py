@@ -869,8 +869,6 @@ if "asignaciones_temp" not in st.session_state:
     st.session_state.asignaciones_temp = {}
 if "asig_rapida_msg" not in st.session_state:
     st.session_state.asig_rapida_msg = None
-if "filtro_procedimiento" not in st.session_state:
-    st.session_state.filtro_procedimiento = "Todos"
 
 # ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
