@@ -1054,6 +1054,7 @@ def pantalla_home():
                     total_act = len(grupo_df)
                     tecnico_bloque = grupo_df["Tecnico_Asignado"].mode()
                     tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
+                    equipo_bloque = limpiar(grupo_df["Equipo"].iloc[0], "Sin equipo") if "Equipo" in grupo_df.columns and not grupo_df.empty else "Sin equipo"
                     bloque_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
 
                     # ===== FUENTE DE VERDAD: diccionario de checks por bloque =====
@@ -1072,7 +1073,7 @@ def pantalla_home():
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
                             <div style="flex:1; min-width:0;">
-                                <div class="eq-bloque-titulo">🔧 {limpiar(row.get("Equipo"), "Sin equipo")} — {ubicacion}</div>
+                                <div class="eq-bloque-titulo">🔧 {equipo_bloque} — {ubicacion}</div>
                                 <div class="eq-bloque-meta">
                                     👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
                                 </div>
