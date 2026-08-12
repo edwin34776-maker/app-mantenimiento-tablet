@@ -312,6 +312,9 @@ st.markdown("""
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
     .eq-bloque-contenido { padding: 10px 14px; }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
+        gap: 0rem !important;
+    }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
         padding-left: 0px !important;
         padding-right: 0px !important;
@@ -319,9 +322,13 @@ st.markdown("""
         margin-right: 0px !important;
     }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
-        min-width: 28px !important;
-        max-width: 32px !important;
+        min-width: 22px !important;
+        max-width: 26px !important;
         flex: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+        padding-left: 2px !important;
+        margin-left: 0px !important;
     }
     .eq-bloque-contenido div[data-testid="stCheckbox"] {
         margin-top: 0px !important;
@@ -333,6 +340,10 @@ st.markdown("""
         min-height: unset !important;
         margin-bottom: 0px !important;
         padding-bottom: 0px !important;
+        padding-right: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
+        margin-right: 0px !important;
     }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { margin-bottom: 1px !important; }
     .eq-bloque-contenido div[data-testid="stTextInput"] { margin-bottom: 0px !important; }
@@ -521,8 +532,8 @@ st.markdown("""
     .fila-compacta {
         display: flex;
         align-items: center;
-        gap: 4px;
-        padding: 6px 10px;
+        gap: 2px;
+        padding: 6px 10px 6px 4px;
         margin-bottom: 4px;
         border-radius: 6px;
         border: 1px solid #E2E8F0;
@@ -1106,7 +1117,7 @@ def pantalla_home():
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
                             <div style="flex:1; min-width:0;">
-                                <div class="eq-bloque-titulo">🔧 {equipo_bloque} — {ubicacion}</div>
+                                <div class="eq-bloque-titulo">🔧 {ubicacion} — {equipo_bloque}</div>
                                 <div class="eq-bloque-meta">
                                     👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
                                 </div>
@@ -1135,7 +1146,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.035, 1], gap="small")
+                        cols_fila = st.columns([0.02, 1], gap="small")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
