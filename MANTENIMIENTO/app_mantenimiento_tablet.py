@@ -2070,9 +2070,6 @@ def pantalla_asignacion():
             st.info("📭 No hay actividades con los filtros seleccionados.")
         else:
             st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
-            💾 Los cambios se guardan automáticamente en Supabase
-        </div>
-        """, unsafe_allow_html=True)
 
 # ==================== PROTECCION DE RUTAS ADMIN ====================
 # Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
