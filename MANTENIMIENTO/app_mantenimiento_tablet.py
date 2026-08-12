@@ -412,7 +412,7 @@ st.markdown("""
     }
     /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
     .asig-rapida-header {
-        display: grid;
+        display: none !important;
         grid-template-columns: 1fr 50px 1.5fr 80px 160px;
         gap: 8px;
         padding: 8px 12px;
@@ -2015,53 +2015,11 @@ def pantalla_asignacion():
                         st.warning("Selecciona un técnico primero")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ========== PAGINACIÓN ==========
-        ordenes_por_pagina = 25
-        total_paginas = max(1, (total_ordenes + ordenes_por_pagina - 1) // ordenes_por_pagina)
-        pagina_key = "pagina_asig"
-        if pagina_key not in st.session_state:
-            st.session_state[pagina_key] = 1
-        pagina_actual = st.session_state[pagina_key]
-        if pagina_actual > total_paginas:
-            pagina_actual = 1
-            st.session_state[pagina_key] = 1
-
-        st.subheader(f"Órdenes ({total_ordenes}) — Página {pagina_actual} de {total_paginas}")
-
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
-        # Calcular slice
-        inicio = (pagina_actual - 1) * ordenes_por_pagina
-        fin = min(inicio + ordenes_por_pagina, total_ordenes)
-        df_pagina = df_asig.iloc[inicio:fin]
-
-        # Controles paginación
-        cols_pag = st.columns([1, 2, 1])
-        with cols_pag[0]:
-            if st.button("⬅️ Anterior", disabled=(pagina_actual <= 1), use_container_width=True, key=gen_key("btn_pag_prev")):
-                st.session_state[pagina_key] = pagina_actual - 1
-                st.rerun()
-        with cols_pag[1]:
-            st.markdown(f"<div style='text-align:center; padding:8px; font-weight:700;'>Página {pagina_actual} / {total_paginas}</div>", unsafe_allow_html=True)
-        with cols_pag[2]:
-            if st.button("Siguiente ➡️", disabled=(pagina_actual >= total_paginas), use_container_width=True, key=gen_key("btn_pag_next")):
-                st.session_state[pagina_key] = pagina_actual + 1
-                st.rerun()
-
-        st.markdown("<hr style='margin:8px 0; border:none; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
-
-        # ========== HEADER DE LA TABLA RÁPIDA ==========
-        st.markdown("""
-        <div class="asig-rapida-header">
-            <div>PROCEDIMIENTO</div>
-            <div>ESP</div>
-            <div>ACTIVIDAD</div>
-            <div>ESTADO</div>
-            <div>TÉCNICO</div>
-        </div>
-        """, unsafe_allow_html=True)
+        df_pagina = df_asig
 
         # ========== FILAS DE ACTIVIDADES ==========
         for idx, row in df_pagina.iterrows():
@@ -2077,7 +2035,8 @@ def pantalla_asignacion():
                 estado = "Pendiente"
 
             estado_clase = obtener_estado_visual(estado)
-            desc_corta = descripcion[:45] + "..." if len(descripcion) > 45 else descripcion
+            desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
+            proc_display = procedimiento if procedimiento else "SIN PROC"
 
             # Técnicos disponibles según especialidad
             esp_fila = tipo if tipo in ["ELE", "MEC"] else "Todas"
@@ -2086,33 +2045,35 @@ def pantalla_asignacion():
 
             tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
-            fila_class = "asig-rapida-fila asignada" if tec_actual != "Sin asignar" else "asig-rapida-fila"
 
-            proc_display = procedimiento if procedimiento else "SIN PROC"
-            desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
-            st.markdown(f"""
-            <div class="{fila_class}">
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{procedimiento if procedimiento else 'Sin procedimiento'}"><strong>{proc_display}</strong></div>
-                <div><span style="background:#E0E7FF; color:#3730A3; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span></div>
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; color:#0F172A;" title="{descripcion}">{desc_corta}</div>
-                <div><span class="estado-badge {estado_clase}">{estado}</span></div>
-                <div></div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Título del expander
+            expander_label = f"{proc_display}  |  {tipo}  |  {desc_corta}  |  {estado}"
+            if tec_actual != "Sin asignar":
+                expander_label += f"  →  {tec_actual}"
 
-            # Selectbox de técnico con AUTO-GUARDADO on_change
-            select_key = gen_key("sel_tec_rapido", internal_id)
-            st.selectbox(
-                f"Técnico para {procedimiento if procedimiento else id_ot}",
-                opciones_tec,
-                index=idx_tec,
-                key=select_key,
-                label_visibility="collapsed",
-                on_change=auto_guardar_fila,
-                args=(internal_id, select_key)
-            )
+            with st.expander(expander_label, expanded=False):
+                # Info detallada dentro del expander
+                st.markdown(f"""
+                <div style="background:#F8FAFC; border-radius:8px; padding:10px 12px; margin-bottom:8px; border:1px solid #E2E8F0;">
+                    <div style="font-size:11px; color:#64748B; margin-bottom:4px;"><strong>Procedimiento:</strong> {proc_display}</div>
+                    <div style="font-size:11px; color:#64748B; margin-bottom:4px;"><strong>Actividad:</strong> {descripcion}</div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <span style="background:#E0E7FF; color:#3730A3; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span>
+                        <span class="estado-badge {estado_clase}" style="font-size:10px;">{estado}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
+                # Selectbox de técnico con AUTO-GUARDADO on_change
+                select_key = gen_key("sel_tec_rapido", internal_id)
+                st.selectbox(
+                    "👤 Asignar técnico",
+                    opciones_tec,
+                    index=idx_tec,
+                    key=select_key,
+                    on_change=auto_guardar_fila,
+                    args=(internal_id, select_key)
+                )
 
         # ========== MENSAJE DE AUTO-GUARDADO ==========
         st.markdown("""
