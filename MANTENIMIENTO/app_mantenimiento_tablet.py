@@ -553,6 +553,42 @@ st.markdown("""
         text-decoration: line-through;
         color: #166534;
     }
+
+    /* === EXPANDERS COMPACTOS Y ORDENADOS === */
+    [data-testid="stExpander"] {
+        margin-bottom: 4px !important;
+    }
+    [data-testid="stExpander"] > details {
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        background: #FFFFFF;
+        overflow: hidden;
+    }
+    [data-testid="stExpander"] > details > summary {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: #0F172A !important;
+        min-height: unset !important;
+    }
+    [data-testid="stExpander"] > details > summary:hover {
+        background: #F8FAFC;
+    }
+    [data-testid="stExpander"] > details[open] > summary {
+        background: #F0F9FF;
+        border-bottom: 1px solid #E2E8F0;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent {
+        padding: 10px 12px !important;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent p {
+        margin-bottom: 4px !important;
+        font-size: 12px !important;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent .stSelectbox {
+        margin-top: 8px !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -2035,7 +2071,6 @@ def pantalla_asignacion():
                 estado = "Pendiente"
 
             estado_clase = obtener_estado_visual(estado)
-            desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
             proc_display = procedimiento if procedimiento else "SIN PROC"
 
             # Técnicos disponibles según especialidad
@@ -2046,28 +2081,36 @@ def pantalla_asignacion():
             tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
 
-            # Título del expander
-            expander_label = f"{proc_display}  |  {tipo}  |  {desc_corta}  |  {estado}"
-            if tec_actual != "Sin asignar":
-                expander_label += f"  →  {tec_actual}"
+            # Label corto y limpio del expander
+            tec_indicador = "👤" if tec_actual != "Sin asignar" else "❌"
+            expander_label = f"{proc_display}  |  {estado}  {tec_indicador}"
 
             with st.expander(expander_label, expanded=False):
-                # Info detallada dentro del expander
-                st.markdown(f"""
-                <div style="background:#F8FAFC; border-radius:8px; padding:10px 12px; margin-bottom:8px; border:1px solid #E2E8F0;">
-                    <div style="font-size:11px; color:#64748B; margin-bottom:4px;"><strong>Procedimiento:</strong> {proc_display}</div>
-                    <div style="font-size:11px; color:#64748B; margin-bottom:4px;"><strong>Actividad:</strong> {descripcion}</div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <span style="background:#E0E7FF; color:#3730A3; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span>
-                        <span class="estado-badge {estado_clase}" style="font-size:10px;">{estado}</span>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                # Fila superior: info clave en badges
+                col_badge1, col_badge2, col_badge3 = st.columns([1, 1, 2])
+                with col_badge1:
+                    st.markdown(f"<div style='text-align:center;'><span style='background:#E0E7FF; color:#3730A3; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:700;'>{tipo}</span></div>", unsafe_allow_html=True)
+                with col_badge2:
+                    st.markdown(f"<div style='text-align:center;'><span class='estado-badge {estado_clase}' style='font-size:11px;'>{estado}</span></div>", unsafe_allow_html=True)
+                with col_badge3:
+                    if tec_actual != "Sin asignar":
+                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#0F172A; font-weight:600;'>👤 {tec_actual}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='text-align:right; font-size:11px; color:#94A3B8;'>Sin técnico asignado</div>", unsafe_allow_html=True)
+
+                st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+
+                # Descripción de la actividad
+                st.markdown(f"**📝 Actividad:**
+{descripcion}")
+                st.markdown(f"**📋 Procedimiento:** `{proc_display}`")
+
+                st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
                 # Selectbox de técnico con AUTO-GUARDADO on_change
                 select_key = gen_key("sel_tec_rapido", internal_id)
                 st.selectbox(
-                    "👤 Asignar técnico",
+                    "👤 Cambiar técnico asignado",
                     opciones_tec,
                     index=idx_tec,
                     key=select_key,
