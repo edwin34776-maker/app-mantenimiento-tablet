@@ -476,6 +476,26 @@ st.markdown("""
     .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] {
         display: none !important;
     }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] {
+        margin: 0px !important;
+        padding: 0px !important;
+        min-height: unset !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
+        margin: 0px !important;
+        padding: 0px !important;
+        min-height: unset !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
+        margin: 0px !important;
+        padding: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div > div {
+        margin: 0px !important;
+        padding: 0px !important;
+    }
     .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
         margin-top: 0px !important;
         margin-bottom: 0px !important;
@@ -1113,7 +1133,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.06, 1], gap="small")
+                        cols_fila = st.columns([0.03, 1], gap="zero")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
