@@ -412,7 +412,7 @@ st.markdown("""
     }
     /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
     .asig-rapida-header {
-        display: grid;
+        display: none !important;
         grid-template-columns: 1fr 50px 1.5fr 80px 160px;
         gap: 8px;
         padding: 8px 12px;
@@ -553,6 +553,42 @@ st.markdown("""
         text-decoration: line-through;
         color: #166534;
     }
+
+    /* === EXPANDERS COMPACTOS Y ORDENADOS === */
+    [data-testid="stExpander"] {
+        margin-bottom: 4px !important;
+    }
+    [data-testid="stExpander"] > details {
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        background: #FFFFFF;
+        overflow: hidden;
+    }
+    [data-testid="stExpander"] > details > summary {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: #0F172A !important;
+        min-height: unset !important;
+    }
+    [data-testid="stExpander"] > details > summary:hover {
+        background: #F8FAFC;
+    }
+    [data-testid="stExpander"] > details[open] > summary {
+        background: #F0F9FF;
+        border-bottom: 1px solid #E2E8F0;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent {
+        padding: 10px 12px !important;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent p {
+        margin-bottom: 4px !important;
+        font-size: 12px !important;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent .stSelectbox {
+        margin-top: 8px !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -1834,7 +1870,9 @@ def auto_guardar_fila(internal_id, key_widget):
         st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = nuevo_tec
         if "Estado" in datos:
             st.session_state.df_mantenimientos.loc[idx, "Estado"] = datos["Estado"]
-        st.toast(f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')} → {nuevo_tec if nuevo_tec else 'Sin asignar'}", icon="💾")
+        msg = f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}"
+        st.session_state.asig_rapida_msg = msg
+        st.toast(msg, icon="💾")
 
 
 def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
@@ -1909,6 +1947,11 @@ def pantalla_asignacion():
     </div>
     """, unsafe_allow_html=True)
     boton_volver_inicio("asignacion")
+
+    # Mostrar mensaje de asignación previa
+    if st.session_state.get("asig_rapida_msg"):
+        st.toast(st.session_state.asig_rapida_msg, icon="💾")
+        st.session_state.asig_rapida_msg = None
 
     # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
     col_izq, col_der = st.columns([1, 3])
@@ -2015,108 +2058,18 @@ def pantalla_asignacion():
                         st.warning("Selecciona un técnico primero")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # ========== PAGINACIÓN ==========
-        ordenes_por_pagina = 25
-        total_paginas = max(1, (total_ordenes + ordenes_por_pagina - 1) // ordenes_por_pagina)
-        pagina_key = "pagina_asig"
-        if pagina_key not in st.session_state:
-            st.session_state[pagina_key] = 1
-        pagina_actual = st.session_state[pagina_key]
-        if pagina_actual > total_paginas:
-            pagina_actual = 1
-            st.session_state[pagina_key] = 1
-
-        st.subheader(f"Órdenes ({total_ordenes}) — Página {pagina_actual} de {total_paginas}")
-
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
-        # Calcular slice
-        inicio = (pagina_actual - 1) * ordenes_por_pagina
-        fin = min(inicio + ordenes_por_pagina, total_ordenes)
-        df_pagina = df_asig.iloc[inicio:fin]
+        df_pagina = df_asig
 
-        # Controles paginación
-        cols_pag = st.columns([1, 2, 1])
-        with cols_pag[0]:
-            if st.button("⬅️ Anterior", disabled=(pagina_actual <= 1), use_container_width=True, key=gen_key("btn_pag_prev")):
-                st.session_state[pagina_key] = pagina_actual - 1
-                st.rerun()
-        with cols_pag[1]:
-            st.markdown(f"<div style='text-align:center; padding:8px; font-weight:700;'>Página {pagina_actual} / {total_paginas}</div>", unsafe_allow_html=True)
-        with cols_pag[2]:
-            if st.button("Siguiente ➡️", disabled=(pagina_actual >= total_paginas), use_container_width=True, key=gen_key("btn_pag_next")):
-                st.session_state[pagina_key] = pagina_actual + 1
-                st.rerun()
-
-        st.markdown("<hr style='margin:8px 0; border:none; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
-
-        # ========== HEADER DE LA TABLA RÁPIDA ==========
-        st.markdown("""
-        <div class="asig-rapida-header">
-            <div>PROCEDIMIENTO</div>
-            <div>ESP</div>
-            <div>ACTIVIDAD</div>
-            <div>ESTADO</div>
-            <div>TÉCNICO</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ========== FILAS DE ACTIVIDADES ==========
-        for idx, row in df_pagina.iterrows():
-            id_ot = limpiar(row.get("ID OT"), "SIN ID")
-            procedimiento = limpiar(row.get("Procedimiento"), "")
-            internal_id = limpiar(row.get("ID"), "")
-            tipo = limpiar(row.get("Especialidad"), "SIN ESP")
-            descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
-            estado = limpiar(row.get("Estado"), "Pendiente")
-            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
-
-            if not tecnico_bd and estado in ["Ejecutado", "Verificado"]:
-                estado = "Pendiente"
-
-            estado_clase = obtener_estado_visual(estado)
-            desc_corta = descripcion[:45] + "..." if len(descripcion) > 45 else descripcion
-
-            # Técnicos disponibles según especialidad
-            esp_fila = tipo if tipo in ["ELE", "MEC"] else "Todas"
-            tecnicos_info_fila = obtener_tecnicos_con_carga(df, esp_fila)
-            opciones_tec = ["Sin asignar"] + [t["nombre"] for t in tecnicos_info_fila]
-
-            tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
-            idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
-            fila_class = "asig-rapida-fila asignada" if tec_actual != "Sin asignar" else "asig-rapida-fila"
-
-            proc_display = procedimiento if procedimiento else "SIN PROC"
-            desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
-            st.markdown(f"""
-            <div class="{fila_class}">
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{procedimiento if procedimiento else 'Sin procedimiento'}"><strong>{proc_display}</strong></div>
-                <div><span style="background:#E0E7FF; color:#3730A3; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span></div>
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11px; color:#0F172A;" title="{descripcion}">{desc_corta}</div>
-                <div><span class="estado-badge {estado_clase}">{estado}</span></div>
-                <div></div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            # Selectbox de técnico con AUTO-GUARDADO on_change
-            select_key = gen_key("sel_tec_rapido", internal_id)
-            st.selectbox(
-                f"Técnico para {procedimiento if procedimiento else id_ot}",
-                opciones_tec,
-                index=idx_tec,
-                key=select_key,
-                label_visibility="collapsed",
-                on_change=auto_guardar_fila,
-                args=(internal_id, select_key)
-            )
-
-            st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
-
-        # ========== MENSAJE DE AUTO-GUARDADO ==========
-        st.markdown("""
-        <div style="text-align:center; padding:8px; color:#64748B; font-size:11px;">
+        # Lista de actividades oculta (asignación masiva arriba)
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        if df_pagina.empty:
+            st.info("📭 No hay actividades con los filtros seleccionados.")
+        else:
+            st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
             💾 Los cambios se guardan automáticamente en Supabase
         </div>
         """, unsafe_allow_html=True)
