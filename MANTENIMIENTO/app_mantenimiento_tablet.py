@@ -2088,9 +2088,8 @@ def pantalla_asignacion():
             tec_actual = tecnico_bd if tecnico_bd else "Sin asignar"
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
 
-            # Label limpio del expander (sin nombre de técnico visible)
-            tec_indicador = "✅" if tec_actual != "Sin asignar" else "⭕"
-            expander_label = f"{proc_display}  |  {estado}  {tec_indicador}"
+            # Label minimalista del expander
+            expander_label = "🔧 Ver actividad"
 
             with st.expander(expander_label, expanded=False):
                 # Fila superior: info clave en badges
