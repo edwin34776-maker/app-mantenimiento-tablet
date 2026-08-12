@@ -211,7 +211,7 @@ st.markdown("""
     footer {visibility: hidden;}
     [data-testid="stToolbar"] {visibility: hidden !important;}
     .stApp { background-color: #F1F5F9; max-width: 100vw; overflow-x: hidden; }
-    .main .block-container { padding-left: 0.8rem !important; padding-right: 0.8rem !important; max-width: 100% !important; }
+    .main .block-container { padding-left: 0.3rem !important; padding-right: 0.3rem !important; max-width: 100% !important; }
     div[data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
     .tablet-header {
         background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
@@ -307,11 +307,11 @@ st.markdown("""
     div[data-testid="stVerticalBlock"] > div { margin-bottom: 0.2rem !important; }
     .eq-bloque { background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 8px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25); }
     .eq-bloque-header { background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
-    .eq-bloque-titulo { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .eq-bloque-titulo { font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.3px; line-height: 1.3; }
     .eq-bloque-meta { font-size: 11px; color: #0F172A; margin-top: 4px; }
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
-    .eq-bloque-contenido { padding: 4px 8px; }
+    .eq-bloque-contenido { padding: 10px 14px; }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { margin-bottom: 1px !important; }
     .eq-bloque-contenido div[data-testid="stTextInput"] { margin-bottom: 0px !important; }
     .eq-bloque-contenido div[data-testid="stTextInput"] > div > div > input {
@@ -437,13 +437,13 @@ st.markdown("""
 
     /* === COMPACTAR FILAS DE ACTIVIDADES TÉCNICO === */
     .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div {
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
+        margin-bottom: 2px !important;
+        padding-bottom: 2px !important;
     }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
-        gap: 0rem !important;
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
+        gap: 0.3rem !important;
+        margin-bottom: 2px !important;
+        padding-bottom: 2px !important;
     }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
         padding-left: 0px !important;
@@ -499,10 +499,10 @@ st.markdown("""
     .fila-compacta {
         display: flex;
         align-items: center;
-        gap: 0px;
-        padding: 1px 6px;
-        margin-bottom: 0px;
-        border-radius: 4px;
+        gap: 8px;
+        padding: 6px 10px;
+        margin-bottom: 4px;
+        border-radius: 6px;
         border: 1px solid #E2E8F0;
         background: #FFFFFF;
         transition: all 0.15s;
@@ -1113,7 +1113,7 @@ def pantalla_home():
                         chk_key = gen_key("chk_eq", internal_id)
                         clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                        cols_fila = st.columns([0.02, 1], gap="small")
+                        cols_fila = st.columns([0.06, 1], gap="small")
                         with cols_fila[0]:
                             chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
 
@@ -1127,7 +1127,7 @@ def pantalla_home():
                         with cols_fila[1]:
                             st.markdown(f"""
                             <div class="fila-compacta {clase_ej}">
-                                <span class="fila-desc" style="flex:1; font-size:11px; line-height:1.2;">{desc}</span>
+                                <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
                                 <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
                             </div>
                             """, unsafe_allow_html=True)
