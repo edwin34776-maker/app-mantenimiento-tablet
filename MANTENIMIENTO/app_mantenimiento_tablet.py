@@ -102,6 +102,7 @@ def cargar_ordenes_supabase():
             if col == "id": columnas_mapeo[col] = "ID"
             elif col == "id_ot": columnas_mapeo[col] = "ID OT"
             elif col == "actividades": columnas_mapeo[col] = "Actividades"
+            elif col == "procedimiento": columnas_mapeo[col] = "Procedimiento"
             elif col == "tecnico_asignado": columnas_mapeo[col] = "Tecnico_Asignado"
             elif col == "prioridad_actividad": columnas_mapeo[col] = "Prioridad_Actividad"
             elif col == "actividades_hechas": columnas_mapeo[col] = "Actividades_Hechas"
@@ -113,7 +114,7 @@ def cargar_ordenes_supabase():
         columnas_default = {
             "Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
             "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
-            "Hora_Fin": "", "Prioridad_Actividad": "", "ID OT": ""
+            "Hora_Fin": "", "Prioridad_Actividad": "", "ID OT": "", "Procedimiento": ""
         }
         for col, default in columnas_default.items():
             if col not in df.columns:
@@ -157,7 +158,7 @@ def guardar_orden_supabase(id_interno, datos):
 
 def mapear_campo_supabase(campo):
     mapeo = {
-        "ID": "id", "ID OT": "id_ot", "Actividades": "actividades",
+        "ID": "id", "ID OT": "id_ot", "Actividades": "actividades", "Procedimiento": "procedimiento",
         "Tecnico_Asignado": "tecnico_asignado", "Prioridad_Actividad": "prioridad_actividad",
         "Actividades_Hechas": "actividades_hechas", "Fecha_Ejecucion": "fecha_ejecucion",
         "Hora_Inicio": "hora_inicio", "Hora_Fin": "hora_fin", "Estado": "estado",
@@ -1922,6 +1923,7 @@ def pantalla_asignacion():
     if busq_asig:
         busq_lower = busq_asig.lower()
         mask = pd.Series([False] * len(df_asig), index=df_asig.index)
+        if "Procedimiento" in df_asig.columns: mask |= df_asig["Procedimiento"].astype(str).str.lower().str.contains(busq_lower, na=False)
         if "Actividades" in df_asig.columns: mask |= df_asig["Actividades"].astype(str).str.lower().str.contains(busq_lower, na=False)
         if "Equipo" in df_asig.columns: mask |= df_asig["Equipo"].astype(str).str.lower().str.contains(busq_lower, na=False)
         df_asig = df_asig[mask]
@@ -2019,6 +2021,7 @@ def pantalla_asignacion():
         # ========== FILAS DE ACTIVIDADES ==========
         for idx, row in df_pagina.iterrows():
             id_ot = limpiar(row.get("ID OT"), "SIN ID")
+            procedimiento = limpiar(row.get("Procedimiento"), "")
             internal_id = limpiar(row.get("ID"), "")
             tipo = limpiar(row.get("Especialidad"), "SIN ESP")
             descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
@@ -2040,10 +2043,10 @@ def pantalla_asignacion():
             idx_tec = opciones_tec.index(tec_actual) if tec_actual in opciones_tec else 0
             fila_class = "asig-rapida-fila asignada" if tec_actual != "Sin asignar" else "asig-rapida-fila"
 
-            proc_corta = descripcion[:28] + "..." if len(descripcion) > 28 else descripcion
+            proc_display = procedimiento if procedimiento else descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
             st.markdown(f"""
             <div class="{fila_class}">
-                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{descripcion}"><strong>{proc_corta}</strong></div>
+                <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{procedimiento if procedimiento else descripcion}"><strong>{proc_display}</strong></div>
                 <div><span style="background:#E0E7FF; color:#3730A3; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700;">{tipo}</span></div>
                 <div><span style="font-family:monospace; font-size:11px; color:#64748B;">{id_ot}</span></div>
                 <div><span class="estado-badge {estado_clase}">{estado}</span></div>
@@ -2054,7 +2057,7 @@ def pantalla_asignacion():
             # Selectbox de técnico con AUTO-GUARDADO on_change
             select_key = gen_key("sel_tec_rapido", internal_id)
             st.selectbox(
-                f"Técnico para OT {id_ot}",
+                f"Técnico para {procedimiento if procedimiento else id_ot}",
                 opciones_tec,
                 index=idx_tec,
                 key=select_key,
