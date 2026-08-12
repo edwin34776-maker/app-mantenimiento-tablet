@@ -1072,7 +1072,7 @@ def pantalla_home():
                     <div class="eq-bloque">
                         <div class="eq-bloque-header">
                             <div style="flex:1; min-width:0;">
-                                <div class="eq-bloque-titulo">🔧 {ubicacion}</div>
+                                <div class="eq-bloque-titulo">🔧 {limpiar(row.get("Equipo"), "Sin equipo")} — {ubicacion}</div>
                                 <div class="eq-bloque-meta">
                                     👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
                                 </div>
