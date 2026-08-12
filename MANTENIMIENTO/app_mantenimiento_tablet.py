@@ -412,7 +412,7 @@ st.markdown("""
     }
     /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
     .asig-rapida-header {
-        display: none !important;
+        display: grid;
         grid-template-columns: 1fr 50px 1.5fr 80px 160px;
         gap: 8px;
         padding: 8px 12px;
@@ -2015,11 +2015,53 @@ def pantalla_asignacion():
                         st.warning("Selecciona un técnico primero")
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # ========== PAGINACIÓN ==========
+        ordenes_por_pagina = 25
+        total_paginas = max(1, (total_ordenes + ordenes_por_pagina - 1) // ordenes_por_pagina)
+        pagina_key = "pagina_asig"
+        if pagina_key not in st.session_state:
+            st.session_state[pagina_key] = 1
+        pagina_actual = st.session_state[pagina_key]
+        if pagina_actual > total_paginas:
+            pagina_actual = 1
+            st.session_state[pagina_key] = 1
+
+        st.subheader(f"Órdenes ({total_ordenes}) — Página {pagina_actual} de {total_paginas}")
+
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
-        df_pagina = df_asig
+        # Calcular slice
+        inicio = (pagina_actual - 1) * ordenes_por_pagina
+        fin = min(inicio + ordenes_por_pagina, total_ordenes)
+        df_pagina = df_asig.iloc[inicio:fin]
+
+        # Controles paginación
+        cols_pag = st.columns([1, 2, 1])
+        with cols_pag[0]:
+            if st.button("⬅️ Anterior", disabled=(pagina_actual <= 1), use_container_width=True, key=gen_key("btn_pag_prev")):
+                st.session_state[pagina_key] = pagina_actual - 1
+                st.rerun()
+        with cols_pag[1]:
+            st.markdown(f"<div style='text-align:center; padding:8px; font-weight:700;'>Página {pagina_actual} / {total_paginas}</div>", unsafe_allow_html=True)
+        with cols_pag[2]:
+            if st.button("Siguiente ➡️", disabled=(pagina_actual >= total_paginas), use_container_width=True, key=gen_key("btn_pag_next")):
+                st.session_state[pagina_key] = pagina_actual + 1
+                st.rerun()
+
+        st.markdown("<hr style='margin:8px 0; border:none; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+        # ========== HEADER DE LA TABLA RÁPIDA ==========
+        st.markdown("""
+        <div class="asig-rapida-header">
+            <div>PROCEDIMIENTO</div>
+            <div>ESP</div>
+            <div>ACTIVIDAD</div>
+            <div>ESTADO</div>
+            <div>TÉCNICO</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # ========== FILAS DE ACTIVIDADES ==========
         for idx, row in df_pagina.iterrows():
