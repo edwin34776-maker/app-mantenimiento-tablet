@@ -1964,15 +1964,7 @@ def pantalla_asignacion():
     if "Nodo" in df_asig_base.columns and st.session_state.filtro_subsistema_nodo != "Todos":
         df_asig_base = df_asig_base[df_asig_base["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
-    estado_sel = st.session_state.filtro_estado_asig
-    if estado_sel != "Todos" and "Estado" in df_asig_base.columns:
-        def estado_efectivo_asig(row):
-            estado_bd = limpiar(row.get("Estado"), "Pendiente")
-            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
-            if not tecnico_bd and estado_bd in ["Ejecutado", "Verificado"]:
-                return "Pendiente"
-            return estado_bd
-        df_asig_base = df_asig_base[df_asig_base.apply(estado_efectivo_asig, axis=1) == estado_sel]
+    # Filtro de estado eliminado — se muestran todos los estados
 
     # ═══════════════════════════════════════════════════
     # APLICAR FILTRO DE MÁQUINA (automático según botón clickeado)
@@ -1981,12 +1973,7 @@ def pantalla_asignacion():
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
-    # ═══════════════════════════════════════════════════
-    # APLICAR FILTRO DE PROCEDIMIENTO (automático según session_state)
-    # ═══════════════════════════════════════════════════
-    proc_sel = st.session_state.get("filtro_procedimiento", "Todos")
-    if proc_sel != "Todos" and "Procedimiento" in df_asig.columns:
-        df_asig = df_asig[df_asig["Procedimiento"].astype(str).str.strip() == proc_sel]
+    # Filtro de procedimiento eliminado — se muestran todos los procedimientos
 
     # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
     col_izq, col_der = st.columns([1, 3])
@@ -2002,31 +1989,11 @@ def pantalla_asignacion():
             btn_type = "primary" if is_active else "secondary"
             if st.button(maq, key=gen_key("btn_maq", maq), type=btn_type, use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                st.session_state.filtro_procedimiento = "Todos"  # reset procedimiento al cambiar máquina
                 st.rerun()
 
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>📋 Estado</div>", unsafe_allow_html=True)
-        estados_filtro = ["Todos", "Pendiente", "Ejecutado", "Verificado"]
-        for est in estados_filtro:
-            is_active = st.session_state.filtro_estado_asig == est
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(est, key=gen_key("btn_est", est), type=btn_type, use_container_width=True):
-                st.session_state.filtro_estado_asig = est
-                st.rerun()
+        # Filtro de estado eliminado — se muestran todos los estados
 
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Procedimiento</div>", unsafe_allow_html=True)
-        # Procedimientos ÚNICOS de la máquina YA seleccionada (cascada automática)
-        procs_unicos = ["Todos"]
-        if "Procedimiento" in df_asig.columns:
-            procs = df_asig["Procedimiento"].dropna().astype(str).str.strip()
-            procs = procs[procs != ""].unique().tolist()
-            procs_unicos = ["Todos"] + sorted(procs)
-        proc_nuevo = st.selectbox("Filtrar por procedimiento", procs_unicos, 
-                                   index=procs_unicos.index(proc_sel) if proc_sel in procs_unicos else 0,
-                                   key=gen_key("sel_proc_asig"), label_visibility="collapsed")
-        if proc_nuevo != proc_sel:
-            st.session_state.filtro_procedimiento = proc_nuevo
-            st.rerun()
+        # Filtro de procedimiento eliminado — se muestran todos los procedimientos
 
     # ═══════════════════════════════════════════════════
     # COLUMNA DERECHA: Lista rápida + asignación masiva
