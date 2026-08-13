@@ -10,9 +10,6 @@ from email import encoders
 import io
 import hashlib
 
-# ═══════════════════════════════════════════════════════════════════════
-#  CONFIGURACIÓN SUPABASE
-# ═══════════════════════════════════════════════════════════════════════
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
@@ -27,36 +24,150 @@ DESTINATARIOS_DEFAULT = [
     "supermantobogota@gmail.com"
 ]
 
-# ═══════════════════════════════════════════════════════════════════════
-#  INICIALIZAR SESSION STATE
-# ═══════════════════════════════════════════════════════════════════════
-def init_session_state():
-    defaults = {
-        "pagina": "login",
-        "perfil": None,
-        "admin_autenticado": False,
-        "mostrar_login_admin": False,
-        "orden_seleccionada": None,
-        "busqueda": "",
-        "tecnico_seleccionado": None,
-        "filtro_especialidad": "Todas",
-        "filtro_estado": "Todos",
-        "filtro_maquina": "Todas",
-        "filtro_maquina_nodo": "Todas",
-        "filtro_subsistema_nodo": "Todos",
-        "filtro_estado_asig": "Todos",
-        "df_mantenimientos": pd.DataFrame(),
-        "asig_rapida_msg": None,
-    }
-    for key, val in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
 
-init_session_state()
 
-# ═══════════════════════════════════════════════════════════════════════
-#  FUNCIONES UTILITARIAS
-# ═══════════════════════════════════════════════════════════════════════
+# ==================== PROTECCION DE RUTAS ADMIN ====================
+# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
+paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle", "sincronizar"]
+if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
+    st.session_state.pagina = "login"
+    st.session_state.perfil = None
+    st.session_state.mostrar_login_admin = False
+elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
+    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
+    st.session_state.pagina = "login"
+    st.session_state.perfil = None
+
+def pantalla_sincronizar():
+    st.markdown("""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>🔄 Sincronizar desde Excel</span>
+    </div>
+    """, unsafe_allow_html=True)
+    # Botón volver inline (evita NameError por orden de definición)
+    col_v1, col_v2, col_v3 = st.columns([1, 2, 1])
+    with col_v2:
+        if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary", key=gen_key("volver_inicio_sincronizar")):
+            st.session_state.pagina = "home"
+            st.session_state.orden_seleccionada = None
+            st.session_state.busqueda = ""
+            st.rerun()
+
+    st.markdown("""
+    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
+        <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
+        <div style="font-size: 12px; color: #475569; line-height: 1.6;">
+            Como tu <b>id_ot</b> es el mismo en todas las filas (392368), la app genera automáticamente 
+            un <b>ID único</b> para cada actividad basado en: <code>equipo + ubicación + actividades + nodo</code>.<br><br>
+            ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
+            🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Upload
+    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key=gen_key("upload_excel"))
+
+    if archivo is None:
+        st.info("⬆️ Sube un archivo Excel para comenzar")
+        return
+
+    try:
+        nombre_archivo = archivo.name.lower()
+        if nombre_archivo.endswith('.xls'):
+            df_excel = pd.read_excel(archivo, engine='xlrd')
+        else:
+            df_excel = pd.read_excel(archivo, engine='openpyxl')
+        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
+    except ImportError as e:
+        if 'xlrd' in str(e):
+            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
+        else:
+            st.error(f"❌ Error de importación: {e}")
+        return
+    except Exception as e:
+        st.error(f"❌ Error leyendo Excel: {e}")
+        return
+
+    with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
+        st.dataframe(df_excel.head(10), use_container_width=True)
+
+    # Detectar columnas
+    cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
+    esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+    faltantes = [c for c in esperadas if c not in cols_norm]
+
+    if faltantes:
+        st.warning(f"⚠️ Columnas no detectadas: **{', '.join(faltantes)}**")
+    else:
+        st.success("✅ Todas las columnas principales detectadas.")
+
+    # Mostrar ejemplo de id_unico generado
+    st.subheader("🔑 IDs Únicos generados")
+    st.caption("La app crea estos IDs automáticamente para cada fila. Si el contenido no cambia, el ID se mantiene.")
+
+    # Generar preview de id_unico
+    df_preview = df_excel.head(5).copy()
+    df_preview.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_preview.columns]
+
+    def preview_id_unico(row):
+        partes = [
+            str(row.get("id_ot", "")),
+            str(row.get("equipo", "")),
+            str(row.get("ubicacion", "")),
+            str(row.get("actividades", "")),
+            str(row.get("nodo", ""))
+        ]
+        raw = "|".join(partes)
+        return hashlib.md5(raw.encode()).hexdigest()[:20]
+
+    if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
+        df_preview["id_unico_generado"] = df_preview.apply(preview_id_unico, axis=1)
+        cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
+        st.dataframe(df_preview[cols_show], use_container_width=True)
+
+    # Modo
+    st.subheader("⚙️ Modo de Sincronización")
+    modo = st.radio(
+        "Elige qué hacer:",
+        [
+            "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
+            "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
+        ],
+        key=gen_key("modo_sync")
+    )
+    modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
+
+    if modo_valor == "reemplazar":
+        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. Úsalo solo la primera vez o si quieres empezar de cero.")
+    else:
+        st.info("ℹ️ Este modo usa el ID único generado automáticamente. Actualiza lo que cambió, crea lo nuevo, y respeta asignaciones de técnicos.")
+        st.markdown("""
+        <div style="font-size: 11px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 6px;">
+            💡 <b>Requisito para Actualizar/Insertar:</b><br>
+            Debes haber usado "Reemplazar Todo" al menos una vez con esta versión de la app,<br>
+            o ejecutar en SQL Editor:<br>
+            <code>ALTER TABLE ordenes_trabajo ADD CONSTRAINT unique_id_unico UNIQUE (id_unico);</code>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
+        if st.button(btn_text, use_container_width=True, type="primary", key=gen_key("btn_sync")):
+            with st.spinner("Sincronizando, por favor espera..."):
+                exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
+
+            if exito:
+                st.success(mensaje)
+                st.balloons()
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.info("🔄 Datos actualizados. Puedes volver al inicio.")
+            else:
+                st.error(mensaje)
+
+
 def limpiar(valor, default=""):
     if valor is None:
         return default
@@ -70,87 +181,6 @@ def limpiar(valor, default=""):
         return default
     return s
 
-def gen_key(prefix, suffix=""):
-    """Genera una key única para widgets de Streamlit."""
-    import time
-    return f"{prefix}_{suffix}_{int(time.time()*1000)}" if suffix else f"{prefix}_{int(time.time()*1000)}"
-
-def get_row_by_internal_id(df, internal_id):
-    """Busca una fila por su ID interno (columna 'ID')."""
-    if df.empty or "ID" not in df.columns:
-        return None, None
-    mask = df["ID"].astype(str) == str(internal_id)
-    if mask.any():
-        idx = df[mask].index[0]
-        return idx, df.loc[idx]
-    return None, None
-
-def extraer_maquina_nodo(nodo):
-    """Extrae la máquina principal del código de nodo. Ej: 'M1-SUB1' -> 'M1'"""
-    if pd.isna(nodo):
-        return "Sin Nodo"
-    s = str(nodo).strip()
-    if "-" in s:
-        return s.split("-")[0]
-    return s
-
-def extraer_subsistema_nodo(nodo):
-    """Extrae el subsistema del código de nodo. Ej: 'M1-SUB1' -> 'SUB1'"""
-    if pd.isna(nodo):
-        return "Sin Subsistema"
-    s = str(nodo).strip()
-    if "-" in s:
-        parts = s.split("-")
-        return "-".join(parts[1:]) if len(parts) > 1 else s
-    return s
-
-def obtener_maquinas_disponibles(df):
-    """Devuelve lista de máquinas únicas ordenadas."""
-    if df.empty or "Ubicacion" not in df.columns:
-        return ["Todas"]
-    maqs = df["Ubicacion"].dropna().unique().tolist()
-    maqs = sorted([str(m).strip() for m in maqs if str(m).strip()])
-    return ["Todas"] + maqs
-
-def obtener_tecnicos_con_carga(df, especialidad="Todas"):
-    """Devuelve lista de técnicos con conteo de órdenes asignadas."""
-    tecnicos = []
-    if especialidad == "ELE" or especialidad == "Todas":
-        for t in TECNICOS_ELE:
-            tecnicos.append({"nombre": t, "especialidad": "ELE"})
-    if especialidad == "MEC" or especialidad == "Todas":
-        for t in TECNICOS_MEC:
-            tecnicos.append({"nombre": t, "especialidad": "MEC"})
-    if not df.empty and "Tecnico_Asignado" in df.columns:
-        for t in tecnicos:
-            t["carga"] = len(df[df["Tecnico_Asignado"] == t["nombre"]])
-    else:
-        for t in tecnicos:
-            t["carga"] = 0
-    return tecnicos
-
-def boton_volver_inicio(origen=""):
-    """Muestra un botón para volver a la pantalla de inicio."""
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary",
-                     key=gen_key("volver_inicio", origen)):
-            st.session_state.pagina = "home"
-            st.session_state.orden_seleccionada = None
-            st.session_state.busqueda = ""
-            st.rerun()
-
-def cargar_excel_mantenimiento():
-    """Alias: carga las órdenes desde Supabase."""
-    return cargar_ordenes_supabase()
-
-def recargar_datos():
-    """Alias: recarga las órdenes desde Supabase."""
-    return cargar_ordenes_supabase()
-
-# ═══════════════════════════════════════════════════════════════════════
-#  FUNCIONES DE EMAIL
-# ═══════════════════════════════════════════════════════════════════════
 def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", email_remitente=None):
     if email_remitente == "supermantobogota@gmail.com":
         email_user = st.secrets.get("EMAIL_USER_2", "")
@@ -204,9 +234,6 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
     except Exception as e:
         return False, f"Error al enviar: {str(e)}"
 
-# ═══════════════════════════════════════════════════════════════════════
-#  FUNCIONES SUPABASE
-# ═══════════════════════════════════════════════════════════════════════
 def cargar_ordenes_supabase():
     try:
         response = supabase.table("ordenes_trabajo").select("*").order("id", desc=False).execute()
@@ -318,9 +345,6 @@ def guardar_asignaciones_supabase(df):
         st.error(f"Error guardando asignaciones: {e}")
         return False
 
-# ═══════════════════════════════════════════════════════════════════════
-#  CONFIGURACIÓN DE PÁGINA Y ESTILOS
-# ═══════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="App Tablet Mtto Preventivo", page_icon="🔧", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
@@ -432,16 +456,47 @@ st.markdown("""
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
     .eq-bloque-contenido { padding: 10px 14px; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { gap: 0rem !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"] { padding-left: 0px !important; padding-right: 0px !important; margin-left: 0px !important; margin-right: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child { min-width: 22px !important; max-width: 26px !important; flex: none !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) { padding-left: 2px !important; margin-left: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] { margin-top: 0px !important; margin-bottom: 0px !important; padding-top: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label { min-height: unset !important; margin-bottom: 0px !important; padding-bottom: 0px !important; padding-right: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div { margin-right: 0px !important; }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
+        gap: 0rem !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        padding-left: 0px !important;
+        padding-right: 0px !important;
+        margin-left: 0px !important;
+        margin-right: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
+        min-width: 22px !important;
+        max-width: 26px !important;
+        flex: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
+        padding-left: 2px !important;
+        margin-left: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
+        min-height: unset !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+        padding-right: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
+        margin-right: 0px !important;
+    }
     .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { margin-bottom: 1px !important; }
     .eq-bloque-contenido div[data-testid="stTextInput"] { margin-bottom: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stTextInput"] > div > div > input { padding: 2px 6px !important; height: 28px !important; font-size: 11px !important; min-height: 28px !important; }
+    .eq-bloque-contenido div[data-testid="stTextInput"] > div > div > input {
+        padding: 2px 6px !important;
+        height: 28px !important;
+        font-size: 11px !important;
+        min-height: 28px !important;
+    }
     .eq-tabla-header { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 6px 10px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 4px; }
     .eq-tabla-fila { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 4px 8px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
     .eq-tabla-fila:hover { background: #27354f; color: #e2e8f0; }
@@ -455,62 +510,229 @@ st.markdown("""
     .eq-estado-pd { background-color: #d97706; color: #ffffff; font-weight: 700; }
     .eq-estado-vf { background-color: #2563eb; color: #ffffff; font-weight: 700; }
     .eq-estado-cr { background-color: #0891b2; color: #ffffff; font-weight: 700; }
-    .chk-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #FFFFFF; border-radius: 8px; margin-bottom: 4px; border: 1px solid #E2E8F0; transition: all 0.15s; }
+    .chk-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 12px; background: #FFFFFF;
+        border-radius: 8px; margin-bottom: 4px;
+        border: 1px solid #E2E8F0;
+        transition: all 0.15s;
+    }
     .chk-item:hover { border-color: #0EA5E9; background: #F0F9FF; }
     .chk-item.ejecutada { opacity: 0.65; background: #F0FDF4; border-color: #86EFAC; }
     .chk-item.ejecutada .chk-desc { text-decoration: line-through; color: #166534; }
     .chk-box { width: 18px; height: 18px; accent-color: #0EA5E9; flex-shrink: 0; cursor: pointer; }
     .chk-desc { font-size: 13px; color: #0F172A; flex: 1; line-height: 1.3; }
-    .chk-com-btn { width: 28px; height: 28px; border-radius: 6px; background: #F1F5F9; border: 1px solid #CBD5E1; display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; flex-shrink: 0; color: #64748B; }
+    .chk-com-btn {
+        width: 28px; height: 28px; border-radius: 6px; background: #F1F5F9;
+        border: 1px solid #CBD5E1; display: flex; align-items: center; justify-content: center;
+        font-size: 13px; cursor: pointer; flex-shrink: 0; color: #64748B;
+    }
     .chk-com-btn:hover { background: #E0F2FE; border-color: #0EA5E9; }
     .chk-com-btn.tiene { background: #DBEAFE; border-color: #3B82F6; color: #1D4ED8; }
-    .chk-expand { padding: 8px 12px 8px 44px; background: #F8FAFC; border-radius: 0 0 8px 8px; margin-top: -2px; margin-bottom: 6px; border: 1px solid #E2E8F0; border-top: none; }
+    .chk-expand {
+        padding: 8px 12px 8px 44px; background: #F8FAFC;
+        border-radius: 0 0 8px 8px; margin-top: -2px; margin-bottom: 6px;
+        border: 1px solid #E2E8F0; border-top: none;
+    }
     .chk-expand-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
     .chk-expand-label { font-size: 10px; color: #64748B; font-weight: 700; text-transform: uppercase; width: 60px; }
     .chk-expand-val { font-size: 12px; color: #0F172A; font-weight: 600; }
-    .chk-expand-input { width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 12px; background: white; color: #0F172A; }
-    .am-cantidad-box { background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
-    .am-fila { display: flex; gap: 8px; align-items: flex-end; background: white; padding: 8px 10px; border-radius: 8px; border: 1px solid #E2E8F0; margin-bottom: 6px; }
-    .am-resumen { background: #FFF7ED; border: 1px solid #F97316; border-radius: 10px; padding: 10px 14px; margin: 10px 0; font-size: 13px; }
-    .asig-rapida-header { display: none !important; grid-template-columns: 1fr 50px 1.5fr 80px 160px; gap: 8px; padding: 8px 12px; background: #F1F5F9; border-radius: 8px; font-weight: 700; font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 6px; }
-    .asig-rapida-fila { display: grid; grid-template-columns: 1fr 50px 1.5fr 80px 160px; gap: 8px; padding: 8px 12px; background: #FFFFFF; border-radius: 8px; border: 1px solid #E2E8F0; align-items: center; font-size: 12px; margin-bottom: 4px; transition: all 0.15s; }
-    .asig-rapida-fila:hover { border-color: #0EA5E9; box-shadow: 0 2px 6px rgba(14,165,233,0.08); }
-    .asig-rapida-fila.asignada { border-left: 3px solid #10B981; background: #F0FDF4; }
-    .batch-bar-rapida { background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
+    .chk-expand-input {
+        width: 100%; padding: 6px 10px; border: 1px solid #CBD5E1; border-radius: 6px;
+        font-size: 12px; background: white; color: #0F172A;
+    }
+    .am-cantidad-box {
+        background: #F0F9FF; border: 2px solid #0EA5E9; border-radius: 12px;
+        padding: 14px; margin-bottom: 16px;
+    }
+    .am-fila {
+        display: flex; gap: 8px; align-items: flex-end;
+        background: white; padding: 8px 10px; border-radius: 8px;
+        border: 1px solid #E2E8F0; margin-bottom: 6px;
+    }
+    .am-resumen {
+        background: #FFF7ED; border: 1px solid #F97316; border-radius: 10px;
+        padding: 10px 14px; margin: 10px 0; font-size: 13px;
+    }
+    /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
+    .asig-rapida-header {
+        display: none !important;
+        grid-template-columns: 1fr 50px 1.5fr 80px 160px;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #F1F5F9;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 10px;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .asig-rapida-fila {
+        display: grid;
+        grid-template-columns: 1fr 50px 1.5fr 80px 160px;
+        gap: 8px;
+        padding: 8px 12px;
+        background: #FFFFFF;
+        border-radius: 8px;
+        border: 1px solid #E2E8F0;
+        align-items: center;
+        font-size: 12px;
+        margin-bottom: 4px;
+        transition: all 0.15s;
+    }
+    .asig-rapida-fila:hover {
+        border-color: #0EA5E9;
+        box-shadow: 0 2px 6px rgba(14,165,233,0.08);
+    }
+    .asig-rapida-fila.asignada {
+        border-left: 3px solid #10B981;
+        background: #F0FDF4;
+    }
+    .batch-bar-rapida {
+        background: linear-gradient(135deg, #F0F9FF, #E0F2FE);
+        border: 1px solid #BAE6FD;
+        border-radius: 10px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+    }
     @media (max-width: 768px) {
         .asig-rapida-header { display: none; }
-        .asig-rapida-fila { grid-template-columns: 1fr 1fr; gap: 6px; padding: 10px; }
+        .asig-rapida-fila {
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            padding: 10px;
+        }
         .asig-rapida-fila > div:nth-child(1) { grid-column: 1 / -1; }
         .asig-rapida-fila > div:nth-child(2) { grid-column: 1; }
         .asig-rapida-fila > div:nth-child(3) { grid-column: 2; text-align: right; }
         .asig-rapida-fila > div:nth-child(4) { grid-column: 1; }
         .asig-rapida-fila > div:nth-child(5) { grid-column: 2; }
     }
-    .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div { margin-bottom: 2px !important; padding-bottom: 2px !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { gap: 0.3rem !important; margin-bottom: 2px !important; padding-bottom: 2px !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div { padding-left: 0px !important; padding-right: 0px !important; margin-left: 0px !important; margin-right: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div:first-child { min-width: 24px !important; max-width: 28px !important; flex: none !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div { margin-bottom: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido .stCheckbox { margin-bottom: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido .stCheckbox > label { margin-bottom: 0px !important; padding-bottom: 0px !important; min-height: unset !important; }
-    .eq-bloque-contenido .stCheckbox > label > div { margin-bottom: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] { margin-top: 0px !important; margin-bottom: 0px !important; padding-top: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label { min-height: 20px !important; margin-bottom: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] { display: none !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div { margin-top: 0px !important; margin-bottom: 0px !important; padding-top: 0px !important; padding-bottom: 0px !important; }
-    .eq-bloque-contenido div[data-testid="element-container"] { margin-bottom: 0px !important; }
-    .fila-compacta { display: flex; align-items: center; gap: 2px; padding: 6px 10px 6px 4px; margin-bottom: 4px; border-radius: 6px; border: 1px solid #E2E8F0; background: #FFFFFF; transition: all 0.15s; }
-    .fila-compacta:hover { border-color: #0EA5E9; background: #F0F9FF; }
-    .fila-compacta.ejecutada { opacity: 0.65; background: #F0FDF4; border-color: #86EFAC; }
-    .fila-compacta.ejecutada .fila-desc { text-decoration: line-through; color: #166534; }
-    [data-testid="stExpander"] { margin-bottom: 4px !important; }
-    [data-testid="stExpander"] > details { border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF; overflow: hidden; }
-    [data-testid="stExpander"] > details > summary { padding: 8px 12px !important; font-size: 12px !important; font-weight: 600 !important; color: #0F172A !important; min-height: unset !important; }
-    [data-testid="stExpander"] > details > summary:hover { background: #F8FAFC; }
-    [data-testid="stExpander"] > details[open] > summary { background: #F0F9FF; border-bottom: 1px solid #E2E8F0; }
-    [data-testid="stExpander"] .streamlit-expanderContent { padding: 10px 12px !important; }
-    [data-testid="stExpander"] .streamlit-expanderContent p { margin-bottom: 4px !important; font-size: 12px !important; }
-    [data-testid="stExpander"] .streamlit-expanderContent .stSelectbox { margin-top: 8px !important; }
+
+    /* === COMPACTAR FILAS DE ACTIVIDADES TÉCNICO === */
+    .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div {
+        margin-bottom: 2px !important;
+        padding-bottom: 2px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
+        gap: 0.3rem !important;
+        margin-bottom: 2px !important;
+        padding-bottom: 2px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
+        padding-left: 0px !important;
+        padding-right: 0px !important;
+        margin-left: 0px !important;
+        margin-right: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div:first-child {
+        min-width: 24px !important;
+        max-width: 28px !important;
+        flex: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido .stCheckbox {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido .stCheckbox > label {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+        min-height: unset !important;
+    }
+    .eq-bloque-contenido .stCheckbox > label > div {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
+        min-height: 20px !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] {
+        display: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
+        margin-top: 0px !important;
+        margin-bottom: 0px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="element-container"] {
+        margin-bottom: 0px !important;
+    }
+    .fila-compacta {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 6px 10px 6px 4px;
+        margin-bottom: 4px;
+        border-radius: 6px;
+        border: 1px solid #E2E8F0;
+        background: #FFFFFF;
+        transition: all 0.15s;
+    }
+    .fila-compacta:hover {
+        border-color: #0EA5E9;
+        background: #F0F9FF;
+    }
+    .fila-compacta.ejecutada {
+        opacity: 0.65;
+        background: #F0FDF4;
+        border-color: #86EFAC;
+    }
+    .fila-compacta.ejecutada .fila-desc {
+        text-decoration: line-through;
+        color: #166534;
+    }
+
+    /* === EXPANDERS COMPACTOS Y ORDENADOS === */
+    [data-testid="stExpander"] {
+        margin-bottom: 4px !important;
+    }
+    [data-testid="stExpander"] > details {
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        background: #FFFFFF;
+        overflow: hidden;
+    }
+    [data-testid="stExpander"] > details > summary {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        color: #0F172A !important;
+        min-height: unset !important;
+    }
+    [data-testid="stExpander"] > details > summary:hover {
+        background: #F8FAFC;
+    }
+    [data-testid="stExpander"] > details[open] > summary {
+        background: #F0F9FF;
+        border-bottom: 1px solid #E2E8F0;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent {
+        padding: 10px 12px !important;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent p {
+        margin-bottom: 4px !important;
+        font-size: 12px !important;
+    }
+    [data-testid="stExpander"] .streamlit-expanderContent .stSelectbox {
+        margin-top: 8px !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -531,13 +753,25 @@ TECNICOS_MEC = [
     "VELASQUEZ OSPINA CRISTIAN JAIR"
 ]
 
+
 # ═══════════════════════════════════════════════════════════════════════
-#  SINCRONIZACIÓN EXCEL ↔ SUPABASE
+#  SINCRONIZACIÓN EXCEL ↔ SUPABASE  (CON ID ÚNICO REAL)
 # ═══════════════════════════════════════════════════════════════════════
+
 def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
+    """
+    Sincroniza Excel → Supabase.
+    Genera un id_unico automático por cada fila.
+    Mapea automáticamente las columnas del Excel a las de Supabase.
+    """
     try:
         df = df_excel.copy()
+
+        # ═══ MAPEO AUTOMÁTICO DE COLUMNAS DEL EXCEL ═══
+        # Normalizar nombres: minúsculas, sin espacios extras
         cols_originales = {c.strip().lower(): c for c in df.columns}
+
+        # Diccionario de mapeo: {nombre_esperado_supabase: [posibles_nombres_en_excel]}
         mapeo_columnas = {
             "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot"],
             "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina"],
@@ -548,15 +782,22 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
             "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"]
         }
+
+        # Construir el mapeo real: {columna_excel_original: columna_supabase}
         columnas_renombrar = {}
         for supabase_col, posibles_nombres in mapeo_columnas.items():
             for posible in posibles_nombres:
                 if posible in cols_originales:
                     columnas_renombrar[cols_originales[posible]] = supabase_col
                     break
+
+        # Renombrar columnas
         df = df.rename(columns=columnas_renombrar)
+
+        # Mostrar qué columnas se detectaron
         detectadas = list(columnas_renombrar.values())
         faltantes = [c for c in mapeo_columnas.keys() if c not in detectadas]
+
         st.markdown(f"""
         <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px; margin: 8px 0;">
             <div style="font-size: 12px; color: #166534;">
@@ -565,31 +806,51 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             </div>
         </div>
         """, unsafe_allow_html=True)
-        campos_base = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+
+        # Campos que espera Supabase
+        campos_base = ["id_ot", "equipo", "ubicacion", "especialidad", 
+                       "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+
         cols_validas = [c for c in campos_base if c in df.columns]
         if not cols_validas:
             st.error(f"❌ No se detectaron columnas válidas. Columnas en tu Excel: {list(df_excel.columns)}")
             return False, "No se detectaron columnas válidas"
+
         df = df[cols_validas]
         df = df.where(pd.notnull(df), None)
         for col in df.columns:
             if df[col].dtype == object:
                 df[col] = df[col].apply(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+
+        # ═══ GENERAR id_unico AUTOMÁTICO ═══
         def generar_id_unico(row):
-            partes = [str(row.get("id_ot", "")), str(row.get("equipo", "")), str(row.get("ubicacion", "")), str(row.get("actividades", "")), str(row.get("nodo", ""))]
+            partes = [
+                str(row.get("id_ot", "")),
+                str(row.get("equipo", "")),
+                str(row.get("ubicacion", "")),
+                str(row.get("actividades", "")),
+                str(row.get("nodo", ""))
+            ]
             raw = "|".join(partes)
             return hashlib.md5(raw.encode()).hexdigest()[:20]
+
         df["id_unico"] = df.apply(generar_id_unico, axis=1)
+
+        # id_ot a entero si existe
         if "id_ot" in df.columns:
             df["id_ot"] = pd.to_numeric(df["id_ot"], errors="coerce")
             df["id_ot"] = df["id_ot"].apply(lambda x: int(x) if pd.notna(x) else None)
+
         registros = df.to_dict(orient="records")
         total = len(registros)
+
         if total == 0:
             return False, "❌ No hay registros válidos para sincronizar"
+
         if modo == "reemplazar":
             with st.spinner("🗑️ Borrando datos antiguos..."):
                 supabase.table("ordenes_trabajo").delete().neq("id", 0).execute()
+
             insertados = 0
             batch_size = 500
             progress_bar = st.progress(0)
@@ -600,6 +861,7 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 progress_bar.progress(min((i + batch_size) / total, 1.0))
             progress_bar.empty()
             return True, f"✅ Sincronización completa: {insertados} registros insertados con ID único."
+
         elif modo == "upsert":
             upsertados = 0
             batch_size = 500
@@ -611,25 +873,30 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 progress_bar.progress(min((i + batch_size) / total, 1.0))
             progress_bar.empty()
             return True, f"✅ Sincronización completa: {upsertados} registros actualizados/insertados. Las asignaciones de técnicos se mantuvieron."
+
         else:
             return False, "Modo no válido"
+
     except Exception as e:
         return False, f"❌ Error: {str(e)}"
 
-# ═══════════════════════════════════════════════════════════════════════
-#  CALLBACKS AUTO-GUARDAR
-# ═══════════════════════════════════════════════════════════════════════
+
+# ==================== CALLBACK AUTO-GUARDAR ====================
 def auto_guardar_fila(internal_id, key_widget):
+    """Se ejecuta automáticamente cuando cambia el técnico en una fila"""
     nuevo_tec = st.session_state.get(key_widget, "")
     if nuevo_tec == "Sin asignar":
         nuevo_tec = ""
+
     df = st.session_state.df_mantenimientos
     idx, row = get_row_by_internal_id(df, internal_id)
     if idx is None:
         return
+
     tec_bd = limpiar(row.get("Tecnico_Asignado"), "")
     if nuevo_tec == tec_bd:
         return
+
     datos = {"Tecnico_Asignado": nuevo_tec}
     estado_bd = limpiar(row.get("Estado"), "Pendiente")
     if estado_bd in ["Ejecutado", "Verificado"]:
@@ -640,6 +907,7 @@ def auto_guardar_fila(internal_id, key_widget):
         datos["Comentarios"] = None
     elif nuevo_tec == "" and estado_bd != "Pendiente":
         datos["Estado"] = "Pendiente"
+
     if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
         st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = nuevo_tec
         if "Estado" in datos:
@@ -648,10 +916,14 @@ def auto_guardar_fila(internal_id, key_widget):
         st.session_state.asig_rapida_msg = msg
         st.toast(msg, icon="💾")
 
+
 def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
+    """Asigna o desasigna técnico a todas las actividades visibles de la máquina y guarda en Supabase"""
     if not desasignar and not tecnico_masivo:
         return
+
     df = st.session_state.df_mantenimientos
+    # Reconstruir el df filtrado igual que en pantalla_asignacion
     df_asig = df.copy()
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
@@ -661,6 +933,7 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
     if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
         df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
+
     estado_sel = st.session_state.filtro_estado_asig
     if estado_sel != "Todos" and "Estado" in df_asig.columns:
         def estado_efectivo_asig(row):
@@ -670,6 +943,7 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
                 return "Pendiente"
             return estado_bd
         df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
+
     guardados = 0
     valor_nuevo = "" if desasignar else tecnico_masivo
     for _, row_a in df_asig.iterrows():
@@ -696,6 +970,7 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
                 if "Estado" in datos:
                     st.session_state.df_mantenimientos.loc[idx_local, "Estado"] = datos["Estado"]
             guardados += 1
+
     if guardados > 0:
         if desasignar:
             st.success(f"✅ {guardados} actividades desasignadas de **{maquina_sel}**")
@@ -704,129 +979,8 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
         st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
         st.rerun()
 
-# ═══════════════════════════════════════════════════════════════════════
-#  PANTALLA: SINCRONIZAR
-# ═══════════════════════════════════════════════════════════════════════
-def pantalla_sincronizar():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>🔄 Sincronizar desde Excel</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("sincronizar")
 
-    st.markdown("""
-    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
-        <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
-        <div style="font-size: 12px; color: #475569; line-height: 1.6;">
-            Como tu <b>id_ot</b> es el mismo en todas las filas (392368), la app genera automáticamente 
-            un <b>ID único</b> para cada actividad basado en: <code>equipo + ubicación + actividades + nodo</code>.<br><br>
-            ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
-            🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key=gen_key("upload_excel"))
-
-    if archivo is None:
-        st.info("⬆️ Sube un archivo Excel para comenzar")
-        return
-
-    try:
-        nombre_archivo = archivo.name.lower()
-        if nombre_archivo.endswith('.xls'):
-            df_excel = pd.read_excel(archivo, engine='xlrd')
-        else:
-            df_excel = pd.read_excel(archivo, engine='openpyxl')
-        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
-    except ImportError as e:
-        if 'xlrd' in str(e):
-            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
-        else:
-            st.error(f"❌ Error de importación: {e}")
-        return
-    except Exception as e:
-        st.error(f"❌ Error leyendo Excel: {e}")
-        return
-
-    with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
-        st.dataframe(df_excel.head(10), use_container_width=True)
-
-    cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
-    esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
-    faltantes = [c for c in esperadas if c not in cols_norm]
-
-    if faltantes:
-        st.warning(f"⚠️ Columnas no detectadas: **{', '.join(faltantes)}**")
-    else:
-        st.success("✅ Todas las columnas principales detectadas.")
-
-    st.subheader("🔑 IDs Únicos generados")
-    st.caption("La app crea estos IDs automáticamente para cada fila. Si el contenido no cambia, el ID se mantiene.")
-
-    df_preview = df_excel.head(5).copy()
-    df_preview.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_preview.columns]
-
-    def preview_id_unico(row):
-        partes = [
-            str(row.get("id_ot", "")),
-            str(row.get("equipo", "")),
-            str(row.get("ubicacion", "")),
-            str(row.get("actividades", "")),
-            str(row.get("nodo", ""))
-        ]
-        raw = "|".join(partes)
-        return hashlib.md5(raw.encode()).hexdigest()[:20]
-
-    if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
-        df_preview["id_unico_generado"] = df_preview.apply(preview_id_unico, axis=1)
-        cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
-        st.dataframe(df_preview[cols_show], use_container_width=True)
-
-    st.subheader("⚙️ Modo de Sincronización")
-    modo = st.radio(
-        "Elige qué hacer:",
-        [
-            "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
-            "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
-        ],
-        key=gen_key("modo_sync")
-    )
-    modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
-
-    if modo_valor == "reemplazar":
-        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. Úsalo solo la primera vez o si quieres empezar de cero.")
-    else:
-        st.info("ℹ️ Este modo usa el ID único generado automáticamente. Actualiza lo que cambió, crea lo nuevo, y respeta asignaciones de técnicos.")
-        st.markdown("""
-        <div style="font-size: 11px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 6px;">
-            💡 <b>Requisito para Actualizar/Insertar:</b><br>
-            Debes haber usado "Reemplazar Todo" al menos una vez con esta versión de la app,<br>
-            o ejecutar en SQL Editor:<br>
-            <code>ALTER TABLE ordenes_trabajo ADD CONSTRAINT unique_id_unico UNIQUE (id_unico);</code>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
-        if st.button(btn_text, use_container_width=True, type="primary", key=gen_key("btn_sync")):
-            with st.spinner("Sincronizando, por favor espera..."):
-                exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
-
-            if exito:
-                st.success(mensaje)
-                st.balloons()
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                st.info("🔄 Datos actualizados. Puedes volver al inicio.")
-            else:
-                st.error(mensaje)
-
-# ═══════════════════════════════════════════════════════════════════════
-#  PANTALLA: ASIGNACIÓN RÁPIDA
-# ═══════════════════════════════════════════════════════════════════════
+# ==================== NUEVA PANTALLA ASIGNACIÓN RÁPIDA ====================
 def pantalla_asignacion():
     df = recargar_datos()
     st.markdown("""
@@ -836,10 +990,14 @@ def pantalla_asignacion():
     """, unsafe_allow_html=True)
     boton_volver_inicio("asignacion")
 
+    # Mostrar mensaje de asignación previa
     if st.session_state.get("asig_rapida_msg"):
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
+    # ═══════════════════════════════════════════════════
+    # PREPARAR DATAFRAME BASE (filtros globales)
+    # ═══════════════════════════════════════════════════
     df_asig_base = df.copy()
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig_base.columns:
         df_asig_base = df_asig_base[df_asig_base["Especialidad"] == st.session_state.filtro_especialidad]
@@ -848,12 +1006,23 @@ def pantalla_asignacion():
     if "Nodo" in df_asig_base.columns and st.session_state.filtro_subsistema_nodo != "Todos":
         df_asig_base = df_asig_base[df_asig_base["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
+    # Filtro de estado eliminado — se muestran todos los estados
+
+    # ═══════════════════════════════════════════════════
+    # APLICAR FILTRO DE MÁQUINA (automático según botón clickeado)
+    # ═══════════════════════════════════════════════════
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
+    # Filtro de procedimiento eliminado — se muestran todos los procedimientos
+
+    # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
     col_izq, col_der = st.columns([1, 3])
 
+    # ═══════════════════════════════════════════════════
+    # COLUMNA IZQUIERDA: Filtros apilados (automáticos)
+    # ═══════════════════════════════════════════════════
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
         maquinas_asig = obtener_maquinas_disponibles(df_asig_base)
@@ -864,6 +1033,13 @@ def pantalla_asignacion():
                 st.session_state.filtro_maquina = maq
                 st.rerun()
 
+        # Filtro de estado eliminado — se muestran todos los estados
+
+        # Filtro de procedimiento eliminado — se muestran todos los procedimientos
+
+    # ═══════════════════════════════════════════════════
+    # COLUMNA DERECHA: Lista rápida + asignación masiva
+    # ═══════════════════════════════════════════════════
     with col_der:
         maq_sel = st.session_state.filtro_maquina
         total_ordenes = len(df_asig)
@@ -879,6 +1055,7 @@ def pantalla_asignacion():
         </div>
         """, unsafe_allow_html=True)
 
+        # ========== BARRA DE ASIGNACIÓN MASIVA ==========
         if total_ordenes > 0 and maq_sel != "Todas":
             esp_filtro = st.session_state.filtro_especialidad
             if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
@@ -907,12 +1084,15 @@ def pantalla_asignacion():
             st.stop()
 
         df_pagina = df_asig
+
+        # Lista de actividades oculta (asignación masiva arriba)
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         if df_pagina.empty:
             st.info("📭 No hay actividades con los filtros seleccionados.")
         else:
             st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
 
+        # ========== LISTA DE ACTIVIDADES ==========
         for idx, row in df_pagina.iterrows():
             internal_id = limpiar(row.get("ID"), "")
             id_ot       = limpiar(row.get("ID OT"), "SIN ID")
@@ -927,9 +1107,8 @@ def pantalla_asignacion():
             if estado == "Ejecutado": estado_cls = "eq-estado-ej"
             if estado == "Verificado": estado_cls = "eq-estado-vf"
 
-            clase_asignada = "asignada" if tec_asig else ""
-            st.markdown(f"""
-            <div class="asig-rapida-fila {clase_asignada}">
+            st.markdown(f'''
+            <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
                 <div>
                     <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge}</div>
                     <div style="font-size:11px;color:#64748B;">{proc}</div>
@@ -942,190 +1121,9 @@ def pantalla_asignacion():
                     </div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+            ''', unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════════════════════════
-#  PANTALLAS STUB (mínimas para que la app no falle)
-#  Reemplaza estas con tus implementaciones reales cuando las tengas
-# ═══════════════════════════════════════════════════════════════════════
-def pantalla_login():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>🔧 App Tablet Mtto Preventivo</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<div class='home-screen'><h2>Iniciar Sesión</h2></div>", unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        perfil = st.selectbox("Perfil", ["", "Admin", "Técnico"], key=gen_key("sel_perfil"))
-        if perfil == "Admin":
-            pwd = st.text_input("Contraseña Admin", type="password", key=gen_key("pwd_admin"))
-            if st.button("Entrar como Admin", use_container_width=True, type="primary"):
-                # Reemplaza con tu lógica real de autenticación
-                if pwd == "admin123":  # Cambia esto
-                    st.session_state.perfil = "admin"
-                    st.session_state.admin_autenticado = True
-                    st.session_state.pagina = "home"
-                    st.rerun()
-                else:
-                    st.error("Contraseña incorrecta")
-        elif perfil == "Técnico":
-            tecnicos = TECNICOS_ELE + TECNICOS_MEC
-            tec = st.selectbox("Selecciona tu nombre", [""] + tecnicos, key=gen_key("sel_tec"))
-            if st.button("Entrar como Técnico", use_container_width=True, type="primary"):
-                if tec:
-                    st.session_state.perfil = "tecnico"
-                    st.session_state.tecnico_seleccionado = tec
-                    st.session_state.pagina = "mis_ordenes"
-                    st.rerun()
-                else:
-                    st.warning("Selecciona un técnico")
-
-def pantalla_home():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>🏠 Inicio</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    df = cargar_ordenes_supabase()
-    st.session_state.df_mantenimientos = df
-
-    total = len(df)
-    ejecutadas = len(df[df["Estado"] == "Ejecutado"]) if not df.empty else 0
-    pendientes = len(df[df["Estado"] == "Pendiente"]) if not df.empty else 0
-    verificar = len(df[df["Estado"] == "Verificado"]) if not df.empty else 0
-
-    st.markdown(f"""
-    <div class="home-screen">
-        <div style="margin: 20px 0;">
-            <div class="big-counter">{total}</div>
-            <div class="counter-label">Órdenes Totales</div>
-        </div>
-        <div class="progress-bar-container">
-            <div class="progress-item">
-                <div class="progress-value" style="color: #28a745;">{ejecutadas}</div>
-                <div class="progress-label">Ejecutadas</div>
-            </div>
-            <div class="progress-item">
-                <div class="progress-value" style="color: #ffc107;">{pendientes}</div>
-                <div class="progress-label">Pendientes</div>
-            </div>
-            <div class="progress-item">
-                <div class="progress-value" style="color: #007bff;">{verificar}</div>
-                <div class="progress-label">Verificar</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("📋 Ver Órdenes", use_container_width=True, type="primary"):
-            st.session_state.pagina = "ordenes"
-            st.rerun()
-        if st.button("⚙️ Sincronizar Excel", use_container_width=True):
-            st.session_state.pagina = "sincronizar"
-            st.rerun()
-    with col2:
-        if st.button("👥 Asignar Técnicos", use_container_width=True):
-            st.session_state.pagina = "asignacion"
-            st.rerun()
-        if st.button("✅ Verificar", use_container_width=True):
-            st.session_state.pagina = "verificar"
-            st.rerun()
-
-    if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
-
-def pantalla_ordenes():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>📋 Órdenes de Trabajo</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("ordenes")
-    df = cargar_ordenes_supabase()
-    if df.empty:
-        st.info("No hay órdenes cargadas.")
-        return
-    st.dataframe(df, use_container_width=True)
-
-def pantalla_mis_ordenes():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>🔧 Mis Órdenes</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("mis_ordenes")
-    df = cargar_ordenes_supabase()
-    tec = st.session_state.get("tecnico_seleccionado", "")
-    if tec and not df.empty:
-        df_mias = df[df["Tecnico_Asignado"] == tec]
-        st.dataframe(df_mias, use_container_width=True)
-    else:
-        st.info("No tienes órdenes asignadas.")
-
-def pantalla_ejecutar():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>▶️ Ejecutar OT</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("ejecutar")
-    st.info("Pantalla de ejecución. Implementa tu lógica aquí.")
-
-def pantalla_detalle_tecnico():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>👤 Detalle Técnico</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("detalle_tecnico")
-    st.info("Pantalla de detalle técnico. Implementa tu lógica aquí.")
-
-def pantalla_detalle():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>📄 Detalle OT</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("detalle")
-    st.info("Pantalla de detalle. Implementa tu lógica aquí.")
-
-def pantalla_verificar():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>✅ Verificar Órdenes</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("verificar")
-    df = cargar_ordenes_supabase()
-    if not df.empty:
-        df_ver = df[df["Estado"] == "Ejecutado"]
-        st.dataframe(df_ver, use_container_width=True)
-    else:
-        st.info("No hay órdenes para verificar.")
-
-# ═══════════════════════════════════════════════════════════════════════
-#  PROTECCIÓN DE RUTAS
-# ═══════════════════════════════════════════════════════════════════════
-paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle", "sincronizar"]
-if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
-    st.session_state.pagina = "login"
-    st.session_state.perfil = None
-    st.session_state.mostrar_login_admin = False
-elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar", "sincronizar", "ordenes"]:
-    st.session_state.pagina = "login"
-    st.session_state.perfil = None
-
-# ═══════════════════════════════════════════════════════════════════════
-#  EJECUCIÓN PRINCIPAL
-# ═══════════════════════════════════════════════════════════════════════
+# ==================== EJECUCION PRINCIPAL ====================
 if st.session_state.pagina == "login":
     pantalla_login()
 elif st.session_state.pagina == "home":
