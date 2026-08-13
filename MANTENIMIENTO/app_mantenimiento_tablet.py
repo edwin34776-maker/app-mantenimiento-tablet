@@ -24,6 +24,150 @@ DESTINATARIOS_DEFAULT = [
     "supermantobogota@gmail.com"
 ]
 
+
+
+# ==================== PROTECCION DE RUTAS ADMIN ====================
+# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
+paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle", "sincronizar"]
+if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
+    st.session_state.pagina = "login"
+    st.session_state.perfil = None
+    st.session_state.mostrar_login_admin = False
+elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
+    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
+    st.session_state.pagina = "login"
+    st.session_state.perfil = None
+
+def pantalla_sincronizar():
+    st.markdown("""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>🔄 Sincronizar desde Excel</span>
+    </div>
+    """, unsafe_allow_html=True)
+    # Botón volver inline (evita NameError por orden de definición)
+    col_v1, col_v2, col_v3 = st.columns([1, 2, 1])
+    with col_v2:
+        if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary", key=gen_key("volver_inicio_sincronizar")):
+            st.session_state.pagina = "home"
+            st.session_state.orden_seleccionada = None
+            st.session_state.busqueda = ""
+            st.rerun()
+
+    st.markdown("""
+    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
+        <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
+        <div style="font-size: 12px; color: #475569; line-height: 1.6;">
+            Como tu <b>id_ot</b> es el mismo en todas las filas (392368), la app genera automáticamente 
+            un <b>ID único</b> para cada actividad basado en: <code>equipo + ubicación + actividades + nodo</code>.<br><br>
+            ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
+            🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Upload
+    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key=gen_key("upload_excel"))
+
+    if archivo is None:
+        st.info("⬆️ Sube un archivo Excel para comenzar")
+        return
+
+    try:
+        nombre_archivo = archivo.name.lower()
+        if nombre_archivo.endswith('.xls'):
+            df_excel = pd.read_excel(archivo, engine='xlrd')
+        else:
+            df_excel = pd.read_excel(archivo, engine='openpyxl')
+        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
+    except ImportError as e:
+        if 'xlrd' in str(e):
+            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
+        else:
+            st.error(f"❌ Error de importación: {e}")
+        return
+    except Exception as e:
+        st.error(f"❌ Error leyendo Excel: {e}")
+        return
+
+    with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
+        st.dataframe(df_excel.head(10), use_container_width=True)
+
+    # Detectar columnas
+    cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
+    esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+    faltantes = [c for c in esperadas if c not in cols_norm]
+
+    if faltantes:
+        st.warning(f"⚠️ Columnas no detectadas: **{', '.join(faltantes)}**")
+    else:
+        st.success("✅ Todas las columnas principales detectadas.")
+
+    # Mostrar ejemplo de id_unico generado
+    st.subheader("🔑 IDs Únicos generados")
+    st.caption("La app crea estos IDs automáticamente para cada fila. Si el contenido no cambia, el ID se mantiene.")
+
+    # Generar preview de id_unico
+    df_preview = df_excel.head(5).copy()
+    df_preview.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_preview.columns]
+
+    def preview_id_unico(row):
+        partes = [
+            str(row.get("id_ot", "")),
+            str(row.get("equipo", "")),
+            str(row.get("ubicacion", "")),
+            str(row.get("actividades", "")),
+            str(row.get("nodo", ""))
+        ]
+        raw = "|".join(partes)
+        return hashlib.md5(raw.encode()).hexdigest()[:20]
+
+    if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
+        df_preview["id_unico_generado"] = df_preview.apply(preview_id_unico, axis=1)
+        cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
+        st.dataframe(df_preview[cols_show], use_container_width=True)
+
+    # Modo
+    st.subheader("⚙️ Modo de Sincronización")
+    modo = st.radio(
+        "Elige qué hacer:",
+        [
+            "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
+            "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
+        ],
+        key=gen_key("modo_sync")
+    )
+    modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
+
+    if modo_valor == "reemplazar":
+        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. Úsalo solo la primera vez o si quieres empezar de cero.")
+    else:
+        st.info("ℹ️ Este modo usa el ID único generado automáticamente. Actualiza lo que cambió, crea lo nuevo, y respeta asignaciones de técnicos.")
+        st.markdown("""
+        <div style="font-size: 11px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 6px;">
+            💡 <b>Requisito para Actualizar/Insertar:</b><br>
+            Debes haber usado "Reemplazar Todo" al menos una vez con esta versión de la app,<br>
+            o ejecutar en SQL Editor:<br>
+            <code>ALTER TABLE ordenes_trabajo ADD CONSTRAINT unique_id_unico UNIQUE (id_unico);</code>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
+        if st.button(btn_text, use_container_width=True, type="primary", key=gen_key("btn_sync")):
+            with st.spinner("Sincronizando, por favor espera..."):
+                exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
+
+            if exito:
+                st.success(mensaje)
+                st.balloons()
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.info("🔄 Datos actualizados. Puedes volver al inicio.")
+            else:
+                st.error(mensaje)
+
+
 def limpiar(valor, default=""):
     if valor is None:
         return default
@@ -736,127 +880,6 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
     except Exception as e:
         return False, f"❌ Error: {str(e)}"
 
-def pantalla_sincronizar():
-    st.markdown("""
-    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
-        <span>🔄 Sincronizar desde Excel</span>
-    </div>
-    """, unsafe_allow_html=True)
-    boton_volver_inicio("sincronizar")
-
-    st.markdown("""
-    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
-        <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
-        <div style="font-size: 12px; color: #475569; line-height: 1.6;">
-            Como tu <b>id_ot</b> es el mismo en todas las filas (392368), la app genera automáticamente 
-            un <b>ID único</b> para cada actividad basado en: <code>equipo + ubicación + actividades + nodo</code>.<br><br>
-            ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
-            🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Upload
-    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key=gen_key("upload_excel"))
-
-    if archivo is None:
-        st.info("⬆️ Sube un archivo Excel para comenzar")
-        return
-
-    try:
-        nombre_archivo = archivo.name.lower()
-        if nombre_archivo.endswith('.xls'):
-            df_excel = pd.read_excel(archivo, engine='xlrd')
-        else:
-            df_excel = pd.read_excel(archivo, engine='openpyxl')
-        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
-    except ImportError as e:
-        if 'xlrd' in str(e):
-            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
-        else:
-            st.error(f"❌ Error de importación: {e}")
-        return
-    except Exception as e:
-        st.error(f"❌ Error leyendo Excel: {e}")
-        return
-
-    with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
-        st.dataframe(df_excel.head(10), use_container_width=True)
-
-    # Detectar columnas
-    cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
-    esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
-    faltantes = [c for c in esperadas if c not in cols_norm]
-
-    if faltantes:
-        st.warning(f"⚠️ Columnas no detectadas: **{', '.join(faltantes)}**")
-    else:
-        st.success("✅ Todas las columnas principales detectadas.")
-
-    # Mostrar ejemplo de id_unico generado
-    st.subheader("🔑 IDs Únicos generados")
-    st.caption("La app crea estos IDs automáticamente para cada fila. Si el contenido no cambia, el ID se mantiene.")
-
-    # Generar preview de id_unico
-    df_preview = df_excel.head(5).copy()
-    df_preview.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_preview.columns]
-
-    def preview_id_unico(row):
-        partes = [
-            str(row.get("id_ot", "")),
-            str(row.get("equipo", "")),
-            str(row.get("ubicacion", "")),
-            str(row.get("actividades", "")),
-            str(row.get("nodo", ""))
-        ]
-        raw = "|".join(partes)
-        return hashlib.md5(raw.encode()).hexdigest()[:20]
-
-    if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
-        df_preview["id_unico_generado"] = df_preview.apply(preview_id_unico, axis=1)
-        cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
-        st.dataframe(df_preview[cols_show], use_container_width=True)
-
-    # Modo
-    st.subheader("⚙️ Modo de Sincronización")
-    modo = st.radio(
-        "Elige qué hacer:",
-        [
-            "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
-            "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
-        ],
-        key=gen_key("modo_sync")
-    )
-    modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
-
-    if modo_valor == "reemplazar":
-        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. Úsalo solo la primera vez o si quieres empezar de cero.")
-    else:
-        st.info("ℹ️ Este modo usa el ID único generado automáticamente. Actualiza lo que cambió, crea lo nuevo, y respeta asignaciones de técnicos.")
-        st.markdown("""
-        <div style="font-size: 11px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 6px;">
-            💡 <b>Requisito para Actualizar/Insertar:</b><br>
-            Debes haber usado "Reemplazar Todo" al menos una vez con esta versión de la app,<br>
-            o ejecutar en SQL Editor:<br>
-            <code>ALTER TABLE ordenes_trabajo ADD CONSTRAINT unique_id_unico UNIQUE (id_unico);</code>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
-        if st.button(btn_text, use_container_width=True, type="primary", key=gen_key("btn_sync")):
-            with st.spinner("Sincronizando, por favor espera..."):
-                exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
-
-            if exito:
-                st.success(mensaje)
-                st.balloons()
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                st.info("🔄 Datos actualizados. Puedes volver al inicio.")
-            else:
-                st.error(mensaje)
 
 # ==================== CALLBACK AUTO-GUARDAR ====================
 def auto_guardar_fila(internal_id, key_widget):
@@ -1099,18 +1122,6 @@ def pantalla_asignacion():
                 </div>
             </div>
             ''', unsafe_allow_html=True)
-
-# ==================== PROTECCION DE RUTAS ADMIN ====================
-# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
-paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle", "sincronizar"]
-if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
-    st.session_state.pagina = "login"
-    st.session_state.perfil = None
-    st.session_state.mostrar_login_admin = False
-elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
-    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
-    st.session_state.pagina = "login"
-    st.session_state.perfil = None
 
 # ==================== EJECUCION PRINCIPAL ====================
 if st.session_state.pagina == "login":
