@@ -1134,18 +1134,6 @@ def pantalla_home():
 
                     ubi_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
 
-                    # Dict de checks para esta ubicación (persiste en session_state)
-                    checks_ubi_key = f"checks_ubi_{ubi_key}"
-                    if checks_ubi_key not in st.session_state:
-                        st.session_state[checks_ubi_key] = {}
-                    checks_dict = st.session_state[checks_ubi_key]
-
-                    # Inicializar checks no vistos con el estado de BD
-                    for _, r in grupo_ubi_df.iterrows():
-                        iid = limpiar(r.get("ID"), "")
-                        if iid and iid not in checks_dict:
-                            checks_dict[iid] = limpiar(r.get("Estado"), "Pendiente") == "Ejecutado"
-
                     # Contenedor principal de la ubicación
                     st.markdown(f"""
                     <div style="background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 12px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25);">
@@ -1167,8 +1155,15 @@ def pantalla_home():
                         total_act = len(grupo_eq_df)
                         tecnico_bloque = grupo_eq_df["Tecnico_Asignado"].mode()
                         tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
+                        eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
-                        # Calcular progreso visual (lee de checks_dict)
+                        # Fuente de verdad: diccionario de checks por equipo
+                        checks_key = f"checks_{eq_key}"
+                        if checks_key not in st.session_state:
+                            st.session_state[checks_key] = {}
+                        checks_dict = st.session_state[checks_key]
+
+                        # Calcular progreso visual
                         realizadas_chk = sum(1 for _, r in grupo_eq_df.iterrows() if checks_dict.get(limpiar(r.get("ID"), ""), False))
                         pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
                         estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
@@ -1200,26 +1195,24 @@ def pantalla_home():
                             desc = limpiar(row.get("Actividades"), "Sin descripcion")
                             estado = limpiar(row.get("Estado"), "Pendiente")
                             ya_ejecutado = estado == "Ejecutado"
+                            valor_inicial = checks_dict.get(internal_id, ya_ejecutado)
+                            chk_key = gen_key("chk_eq", internal_id)
+                            clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
 
-                            # Valor actual del checkbox (del dict en session_state)
-                            current_val = checks_dict.get(internal_id, ya_ejecutado)
-
-                            # Checkbox SIN key — Streamlit lo identifica por posición
-                            new_val = st.checkbox("", value=current_val, label_visibility="collapsed")
-
-                            # Si cambió, actualizar dict
-                            if new_val != current_val:
-                                checks_dict[internal_id] = new_val
-                                if new_val and not ya_ejecutado and estado not in ["Ejecutado", "Verificado"]:
+                            cols_fila = st.columns([0.02, 1], gap="small")
+                            with cols_fila[0]:
+                                chk_val = st.checkbox("", value=valor_inicial, key=chk_key, label_visibility="collapsed")
+                                if chk_val and not checks_dict.get(internal_id, False) and estado not in ["Ejecutado", "Verificado"]:
                                     st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
+                                checks_dict[internal_id] = chk_val
 
-                            clase_ej = "ejecutada" if (new_val or estado == "Ejecutado") else ""
-                            st.markdown(f"""
-                            <div class="fila-compacta {clase_ej}">
-                                <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
-                                <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            with cols_fila[1]:
+                                st.markdown(f"""
+                                <div class="fila-compacta {clase_ej}">
+                                    <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
+                                    <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                         st.markdown("</div></div>", unsafe_allow_html=True)
 
@@ -1242,7 +1235,10 @@ def pantalla_home():
                             for _, row in grupo_ubi_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
                                 if internal_id:
-                                    checks_dict[internal_id] = True
+                                    eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
+                                    ck = f"checks_{eq_k}"
+                                    if ck in st.session_state:
+                                        st.session_state[ck][internal_id] = True
                                     st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
                             st.rerun()
 
@@ -1251,7 +1247,10 @@ def pantalla_home():
                             for _, row in grupo_ubi_df.iterrows():
                                 internal_id = limpiar(row.get("ID"), "")
                                 if internal_id:
-                                    checks_dict[internal_id] = False
+                                    eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
+                                    ck = f"checks_{eq_k}"
+                                    if ck in st.session_state:
+                                        st.session_state[ck][internal_id] = False
                                     if f"hora_ini_auto_{internal_id}" in st.session_state:
                                         del st.session_state[f"hora_ini_auto_{internal_id}"]
                             st.rerun()
@@ -1265,7 +1264,9 @@ def pantalla_home():
                                 if not internal_id:
                                     continue
 
-                                chk_val = checks_dict.get(internal_id, False)
+                                eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
+                                ck = f"checks_{eq_k}"
+                                chk_val = st.session_state.get(ck, {}).get(internal_id, False)
                                 estado_actual = limpiar(row.get("Estado"), "Pendiente")
                                 h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
                                 h_fin_bd = limpiar(row.get("Hora_Fin"), "")
@@ -1287,8 +1288,8 @@ def pantalla_home():
                                         guardados += 1
                                         if f"hora_ini_auto_{internal_id}" in st.session_state:
                                             del st.session_state[f"hora_ini_auto_{internal_id}"]
-                                        if internal_id in checks_dict:
-                                            del checks_dict[internal_id]
+                                        if ck in st.session_state and internal_id in st.session_state[ck]:
+                                            del st.session_state[ck][internal_id]
 
                                 elif not chk_val and estado_actual == "Ejecutado":
                                     datos = {"Estado": "Pendiente"}
