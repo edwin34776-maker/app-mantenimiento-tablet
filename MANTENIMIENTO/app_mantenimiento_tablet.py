@@ -902,7 +902,6 @@ if "mostrar_todos_tecnicos" not in st.session_state: st.session_state.mostrar_to
 if "asignacion_exitosa" not in st.session_state: st.session_state.asignacion_exitosa = None
 if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_opciones_ordenes = False
 if "actividad_expandida" not in st.session_state: st.session_state.actividad_expandida = None
-if "proc_seleccionado" not in st.session_state: st.session_state.proc_seleccionado = None
 if "admin_autenticado" not in st.session_state: st.session_state.admin_autenticado = False
 if "mostrar_login_admin" not in st.session_state: st.session_state.mostrar_login_admin = False
 
@@ -2109,7 +2108,6 @@ def pantalla_asignacion():
             if st.button(maq, key=gen_key("btn_maq", maq), type=btn_type, use_container_width=True):
                 st.session_state.filtro_maquina = maq
                 st.session_state.filtro_procedimiento = "Todos"
-                st.session_state.proc_seleccionado = None  # reset procedimiento seleccionado
                 st.rerun()
 
         # Los procedimientos se muestran como grupos desplegables en la columna derecha
@@ -2133,35 +2131,7 @@ def pantalla_asignacion():
         </div>
         """, unsafe_allow_html=True)
 
-        # ========== BARRA DE ASIGNACIÓN AL PROCEDIMIENTO SELECCIONADO ==========
-        proc_sel_name = st.session_state.get("proc_seleccionado", None)
-        if proc_sel_name and maq_sel != "Todas":
-            esp_filtro = st.session_state.filtro_especialidad
-            if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
-                esps_unicas = df_asig["Especialidad"].dropna().unique()
-                if len(esps_unicas) == 1:
-                    esp_filtro = esps_unicas[0]
-            tecnicos_info = obtener_tecnicos_con_carga(df, esp_filtro)
-            lista_tecnicos = [""] + [t["nombre"] for t in tecnicos_info]
-
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #FEF2F2, #FEE2E2); border: 2px solid #EF4444; border-radius: 12px; padding: 14px 18px; margin-bottom: 14px;">
-                <div style="font-size: 13px; font-weight: 700; color: #991B1B; margin-bottom: 8px;">
-                    🎯 Procedimiento seleccionado: <span style="color: #EF4444;">{proc_sel_name}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            cols_batch = st.columns([3, 2])
-            with cols_batch[0]:
-                tecnico_masivo = st.selectbox("👤 Asignar técnico:", lista_tecnicos, key=gen_key("batch_tec"), label_visibility="collapsed")
-            with cols_batch[1]:
-                if st.button("✓ Asignar", type="primary", use_container_width=True, key=gen_key("btn_batch_asig")):
-                    if tecnico_masivo:
-                        auto_guardar_por_procedimiento(proc_sel_name, tecnico_masivo, maq_sel)
-                    else:
-                        st.warning("Selecciona un técnico primero")
-        elif maq_sel == "Todas":
-            st.info("👆 Selecciona una máquina para ver los procedimientos.")
+        # Los selectores de técnico están dentro de cada procedimiento desplegable
 
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
@@ -2189,9 +2159,7 @@ def pantalla_asignacion():
             asig_proc = len(grupo_df[grupo_df["Tecnico_Asignado"].notna() & (grupo_df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in grupo_df.columns else 0
             pct_proc = round((asig_proc / total_proc) * 100) if total_proc > 0 else 0
 
-            is_selected = st.session_state.get("proc_seleccionado") == proc_name
-
-            with st.expander(f"📋 {proc_name}  —  {total_proc} actividades  ({asig_proc} asignadas)", expanded=is_selected):
+            with st.expander(f"📋 {proc_name}  —  {total_proc} actividades  ({asig_proc} asignadas)"):
                 # Barra de progreso mini
                 st.markdown(f'''
                 <div style="width:100%; height:4px; background:#E2E8F0; border-radius:2px; margin:4px 0 10px 0;">
@@ -2199,19 +2167,24 @@ def pantalla_asignacion():
                 </div>
                 ''', unsafe_allow_html=True)
 
-                # === BOTÓN SELECCIONAR PROCEDIMIENTO ===
-                cols_sel = st.columns([3, 2])
-                with cols_sel[0]:
-                    if is_selected:
-                        st.markdown("<div style='font-size:12px; color:#EF4444; font-weight:700; padding-top:6px;'>🎯 Procedimiento seleccionado</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown("<div style='font-size:12px; color:#64748B; padding-top:6px;'>Haz clic para seleccionar</div>", unsafe_allow_html=True)
-                with cols_sel[1]:
-                    btn_label = "✓ Seleccionado" if is_selected else "Seleccionar"
-                    btn_type = "primary" if is_selected else "secondary"
-                    if st.button(btn_label, type=btn_type, use_container_width=True, key=gen_key("btn_sel_proc", proc_name)):
-                        st.session_state.proc_seleccionado = proc_name
-                        st.rerun()
+                # === SELECTOR DE TÉCNICO PARA ESTE PROCEDIMIENTO ===
+                esp_filtro = st.session_state.filtro_especialidad
+                if esp_filtro == "Todas" and "Especialidad" in grupo_df.columns:
+                    esps_unicas = grupo_df["Especialidad"].dropna().unique()
+                    if len(esps_unicas) == 1:
+                        esp_filtro = esps_unicas[0]
+                tecnicos_info = obtener_tecnicos_con_carga(st.session_state.df_mantenimientos, esp_filtro)
+                lista_tecnicos = [""] + [t["nombre"] for t in tecnicos_info]
+
+                cols_tec = st.columns([3, 2])
+                with cols_tec[0]:
+                    tec_sel_proc = st.selectbox("👤 Asignar técnico:", lista_tecnicos, key=gen_key("tec_proc", proc_name), label_visibility="collapsed")
+                with cols_tec[1]:
+                    if st.button("✓ Asignar", type="primary", use_container_width=True, key=gen_key("btn_asig_proc", proc_name)):
+                        if tec_sel_proc:
+                            auto_guardar_por_procedimiento(proc_name, tec_sel_proc, maq_sel)
+                        else:
+                            st.warning("Selecciona un técnico primero")
 
                 st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
