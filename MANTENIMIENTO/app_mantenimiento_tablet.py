@@ -1982,8 +1982,18 @@ def pantalla_sincronizar():
         return
 
     try:
-        df_excel = pd.read_excel(archivo)
+        nombre_archivo = archivo.name.lower()
+        if nombre_archivo.endswith('.xls'):
+            df_excel = pd.read_excel(archivo, engine='xlrd')
+        else:
+            df_excel = pd.read_excel(archivo, engine='openpyxl')
         st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
+    except ImportError as e:
+        if 'xlrd' in str(e):
+            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
+        else:
+            st.error(f"❌ Error de importación: {e}")
+        return
     except Exception as e:
         st.error(f"❌ Error leyendo Excel: {e}")
         return
