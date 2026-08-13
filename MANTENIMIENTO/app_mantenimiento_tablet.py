@@ -2049,7 +2049,7 @@ def pantalla_asignacion():
             procs_unicos = ["Todos"] + sorted(procs)
         # Botones de procedimiento en 2 columnas, más compactos
         for i in range(0, len(procs_unicos), 2):
-            cols_proc = st.columns(2)
+            cols_proc = st.columns(2, gap="small")
             for j in range(2):
                 if i + j < len(procs_unicos):
                     proc = procs_unicos[i + j]
