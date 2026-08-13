@@ -2050,6 +2050,37 @@ def pantalla_asignacion():
         else:
             st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
 
+        # ========== LISTA DE ACTIVIDADES ==========
+        for idx, row in df_pagina.iterrows():
+            internal_id = limpiar(row.get("ID"), "")
+            id_ot       = limpiar(row.get("ID OT"), "SIN ID")
+            desc        = limpiar(row.get("Actividades"), "Sin descripción")
+            estado      = limpiar(row.get("Estado"), "Pendiente")
+            tec_asig    = limpiar(row.get("Tecnico_Asignado"), "")
+            proc        = limpiar(row.get("Procedimiento"), "")
+            nodo        = limpiar(row.get("Nodo"), "")
+            nodo_badge  = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
+
+            estado_cls = "eq-estado-pd"
+            if estado == "Ejecutado": estado_cls = "eq-estado-ej"
+            if estado == "Verificado": estado_cls = "eq-estado-vf"
+
+            st.markdown(f'''
+            <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
+                <div>
+                    <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge}</div>
+                    <div style="font-size:11px;color:#64748B;">{proc}</div>
+                    <div style="font-size:12px;color:#0F172A;margin-top:2px;">{desc}</div>
+                </div>
+                <div style="text-align:right;">
+                    <span class="estado-badge {estado_cls}">{estado}</span>
+                    <div style="font-size:10px;color:#64748B;margin-top:4px;">
+                        {tec_asig if tec_asig else "Sin asignar"}
+                    </div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+
 # ==================== PROTECCION DE RUTAS ADMIN ====================
 # Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
 paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle"]
