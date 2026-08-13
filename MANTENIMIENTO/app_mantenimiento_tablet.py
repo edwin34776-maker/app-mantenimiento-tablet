@@ -618,6 +618,18 @@ st.markdown("""
         border-color: #475569 !important;
         transform: translateY(-1px);
     }
+    /* === EXPANDER SELECCIONADO === */
+    [data-testid="stExpander"].proc-seleccionado > details {
+        border: 2px solid #EF4444 !important;
+        background: linear-gradient(180deg, #FEF2F2, #FFFFFF) !important;
+        box-shadow: 0 4px 12px rgba(239,68,68,0.15) !important;
+    }
+    [data-testid="stExpander"].proc-seleccionado > details > summary {
+        background: #FEF2F2 !important;
+        color: #991B1B !important;
+        font-weight: 700 !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -890,6 +902,7 @@ if "mostrar_todos_tecnicos" not in st.session_state: st.session_state.mostrar_to
 if "asignacion_exitosa" not in st.session_state: st.session_state.asignacion_exitosa = None
 if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_opciones_ordenes = False
 if "actividad_expandida" not in st.session_state: st.session_state.actividad_expandida = None
+if "proc_seleccionado" not in st.session_state: st.session_state.proc_seleccionado = None
 if "admin_autenticado" not in st.session_state: st.session_state.admin_autenticado = False
 if "mostrar_login_admin" not in st.session_state: st.session_state.mostrar_login_admin = False
 
@@ -1931,11 +1944,7 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
             return estado_bd
         df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
 
-    # >>> FILTRO DE PROCEDIMIENTO AÑADIDO <<<
-    proc_sel = st.session_state.get("filtro_procedimiento", "Todos")
-    if proc_sel != "Todos" and "Procedimiento" in df_asig.columns:
-        df_asig = df_asig[df_asig["Procedimiento"].astype(str).str.strip() == proc_sel]
-
+    # No se filtra por procedimiento (mostramos todos los grupos)
     guardados = 0
     valor_nuevo = "" if desasignar else tecnico_masivo
     for _, row_a in df_asig.iterrows():
@@ -1973,6 +1982,70 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
 
 
 # ==================== NUEVA PANTALLA ASIGNACIÓN RÁPIDA ====================
+
+
+def auto_guardar_por_procedimiento(proc_name, tecnico_masivo, maquina_sel):
+    """Asigna técnico solo a las actividades de un procedimiento específico"""
+    if not tecnico_masivo:
+        return
+
+    df = st.session_state.df_mantenimientos
+    df_asig = df.copy()
+
+    # Filtros globales
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
+        df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
+    if maquina_sel != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == maquina_sel]
+    if "Nodo" in df_asig.columns and st.session_state.filtro_maquina_nodo != "Todas":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+    if "Nodo" in df_asig.columns and st.session_state.filtro_subsistema_nodo != "Todos":
+        df_asig = df_asig[df_asig["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
+
+    # Filtro de estado
+    estado_sel = st.session_state.filtro_estado_asig
+    if estado_sel != "Todos" and "Estado" in df_asig.columns:
+        def estado_efectivo_asig(row):
+            estado_bd = limpiar(row.get("Estado"), "Pendiente")
+            tecnico_bd = limpiar(row.get("Tecnico_Asignado"), "")
+            if not tecnico_bd and estado_bd in ["Ejecutado", "Verificado"]:
+                return "Pendiente"
+            return estado_bd
+        df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
+
+    # >>> FILTRAR POR PROCEDIMIENTO <<<
+    if "Procedimiento" in df_asig.columns:
+        df_asig = df_asig[df_asig["Procedimiento"].astype(str).str.strip() == proc_name]
+
+    guardados = 0
+    for _, row_a in df_asig.iterrows():
+        internal_id = limpiar(row_a.get("ID"), "")
+        if not internal_id:
+            continue
+        tec_bd = limpiar(row_a.get("Tecnico_Asignado"), "")
+        if tecnico_masivo == tec_bd:
+            continue
+        datos = {"Tecnico_Asignado": tecnico_masivo}
+        estado_bd = limpiar(row_a.get("Estado"), "Pendiente")
+        if estado_bd in ["Ejecutado", "Verificado"]:
+            datos["Estado"] = "Pendiente"
+            datos["Hora_Inicio"] = None
+            datos["Hora_Fin"] = None
+            datos["Fecha_Ejecucion"] = None
+            datos["Comentarios"] = None
+        if actualizar_campos_supabase(internal_id, datos, row_a.to_dict()):
+            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+            if idx_local is not None:
+                st.session_state.df_mantenimientos.loc[idx_local, "Tecnico_Asignado"] = tecnico_masivo
+                if "Estado" in datos:
+                    st.session_state.df_mantenimientos.loc[idx_local, "Estado"] = datos["Estado"]
+            guardados += 1
+
+    if guardados > 0:
+        st.success(f"✅ {tecnico_masivo} asignado a {guardados} actividades de **{proc_name}**")
+        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+        st.rerun()
+
 def pantalla_asignacion():
     df = recargar_datos()
     st.markdown("""
@@ -2016,11 +2089,9 @@ def pantalla_asignacion():
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
     # ═══════════════════════════════════════════════════
-    # APLICAR FILTRO DE PROCEDIMIENTO (automático según session_state)
+    # NO hay filtro de procedimiento por botón — se muestran todos como grupos desplegables
     # ═══════════════════════════════════════════════════
     proc_sel = st.session_state.get("filtro_procedimiento", "Todos")
-    if proc_sel != "Todos" and "Procedimiento" in df_asig.columns:
-        df_asig = df_asig[df_asig["Procedimiento"].astype(str).str.strip() == proc_sel]
 
     # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
     col_izq, col_der = st.columns([1, 3])
@@ -2037,28 +2108,11 @@ def pantalla_asignacion():
             btn_type = "primary" if is_active else "secondary"
             if st.button(maq, key=gen_key("btn_maq", maq), type=btn_type, use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                st.session_state.filtro_procedimiento = "Todos"  # reset procedimiento al cambiar máquina
+                st.session_state.filtro_procedimiento = "Todos"
+                st.session_state.proc_seleccionado = None  # reset procedimiento seleccionado
                 st.rerun()
 
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Procedimiento</div>", unsafe_allow_html=True)
-        # Procedimientos ÚNICOS de la máquina YA seleccionada (cascada automática)
-        procs_unicos = ["Todos"]
-        if "Procedimiento" in df_asig.columns:
-            procs = df_asig["Procedimiento"].dropna().astype(str).str.strip()
-            procs = procs[procs != ""].unique().tolist()
-            procs_unicos = ["Todos"] + sorted(procs)
-        # Botones de procedimiento en 2 columnas, más compactos
-        for i in range(0, len(procs_unicos), 2):
-            cols_proc = st.columns(2, gap="small")
-            for j in range(2):
-                if i + j < len(procs_unicos):
-                    proc = procs_unicos[i + j]
-                    is_active = st.session_state.get("filtro_procedimiento", "Todos") == proc
-                    btn_type = "primary" if is_active else "secondary"
-                    with cols_proc[j]:
-                        if st.button(proc, key=gen_key("btn_proc", proc), type=btn_type, use_container_width=True):
-                            st.session_state.filtro_procedimiento = proc
-                            st.rerun()
+        # Los procedimientos se muestran como grupos desplegables en la columna derecha
         st.markdown('</div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════
@@ -2079,8 +2133,9 @@ def pantalla_asignacion():
         </div>
         """, unsafe_allow_html=True)
 
-        # ========== BARRA DE ASIGNACIÓN MASIVA ==========
-        if total_ordenes > 0 and maq_sel != "Todas":
+        # ========== BARRA DE ASIGNACIÓN AL PROCEDIMIENTO SELECCIONADO ==========
+        proc_sel_name = st.session_state.get("proc_seleccionado", None)
+        if proc_sel_name and maq_sel != "Todas":
             esp_filtro = st.session_state.filtro_especialidad
             if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
                 esps_unicas = df_asig["Especialidad"].dropna().unique()
@@ -2089,19 +2144,24 @@ def pantalla_asignacion():
             tecnicos_info = obtener_tecnicos_con_carga(df, esp_filtro)
             lista_tecnicos = [""] + [t["nombre"] for t in tecnicos_info]
 
-            st.markdown("<div class='batch-bar-rapida'>", unsafe_allow_html=True)
-            cols_batch = st.columns([2, 2, 1])
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #FEF2F2, #FEE2E2); border: 2px solid #EF4444; border-radius: 12px; padding: 14px 18px; margin-bottom: 14px;">
+                <div style="font-size: 13px; font-weight: 700; color: #991B1B; margin-bottom: 8px;">
+                    🎯 Procedimiento seleccionado: <span style="color: #EF4444;">{proc_sel_name}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            cols_batch = st.columns([3, 2])
             with cols_batch[0]:
-                st.markdown("<div style='font-weight:600; color:#0369a1; font-size:13px; padding-top:6px;'>👤 Asignar técnico a todas:</div>", unsafe_allow_html=True)
+                tecnico_masivo = st.selectbox("👤 Asignar técnico:", lista_tecnicos, key=gen_key("batch_tec"), label_visibility="collapsed")
             with cols_batch[1]:
-                tecnico_masivo = st.selectbox("Técnico masivo", lista_tecnicos, key=gen_key("batch_tec"), label_visibility="collapsed")
-            with cols_batch[2]:
                 if st.button("✓ Asignar", type="primary", use_container_width=True, key=gen_key("btn_batch_asig")):
                     if tecnico_masivo:
-                        auto_guardar_masivo(maq_sel, tecnico_masivo)
+                        auto_guardar_por_procedimiento(proc_sel_name, tecnico_masivo, maq_sel)
                     else:
                         st.warning("Selecciona un técnico primero")
-            st.markdown("</div>", unsafe_allow_html=True)
+        elif maq_sel == "Todas":
+            st.info("👆 Selecciona una máquina para ver los procedimientos.")
 
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
@@ -2129,13 +2189,31 @@ def pantalla_asignacion():
             asig_proc = len(grupo_df[grupo_df["Tecnico_Asignado"].notna() & (grupo_df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in grupo_df.columns else 0
             pct_proc = round((asig_proc / total_proc) * 100) if total_proc > 0 else 0
 
-            with st.expander(f"📋 {proc_name}  —  {total_proc} actividades  ({asig_proc} asignadas)", expanded=(proc_sel != "Todos")):
+            is_selected = st.session_state.get("proc_seleccionado") == proc_name
+
+            with st.expander(f"📋 {proc_name}  —  {total_proc} actividades  ({asig_proc} asignadas)", expanded=is_selected):
                 # Barra de progreso mini
                 st.markdown(f'''
                 <div style="width:100%; height:4px; background:#E2E8F0; border-radius:2px; margin:4px 0 10px 0;">
                     <div style="width:{pct_proc}%; height:100%; background:linear-gradient(90deg,#22c55e,#16a34a); border-radius:2px;"></div>
                 </div>
                 ''', unsafe_allow_html=True)
+
+                # === BOTÓN SELECCIONAR PROCEDIMIENTO ===
+                cols_sel = st.columns([3, 2])
+                with cols_sel[0]:
+                    if is_selected:
+                        st.markdown("<div style='font-size:12px; color:#EF4444; font-weight:700; padding-top:6px;'>🎯 Procedimiento seleccionado</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div style='font-size:12px; color:#64748B; padding-top:6px;'>Haz clic para seleccionar</div>", unsafe_allow_html=True)
+                with cols_sel[1]:
+                    btn_label = "✓ Seleccionado" if is_selected else "Seleccionar"
+                    btn_type = "primary" if is_selected else "secondary"
+                    if st.button(btn_label, type=btn_type, use_container_width=True, key=gen_key("btn_sel_proc", proc_name)):
+                        st.session_state.proc_seleccionado = proc_name
+                        st.rerun()
+
+                st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
 
                 for idx, row in grupo_df.iterrows():
                     internal_id = limpiar(row.get("ID"), "")
