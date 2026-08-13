@@ -1133,6 +1133,8 @@ def pantalla_home():
                     if grupo_ubi_df.empty:
                         continue
 
+                    ubi_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
+
                     # Contenedor principal de la ubicación
                     st.markdown(f"""
                     <div style="background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 12px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25);">
@@ -1154,7 +1156,7 @@ def pantalla_home():
                         total_act = len(grupo_eq_df)
                         tecnico_bloque = grupo_eq_df["Tecnico_Asignado"].mode()
                         tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-                        eq_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "") + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
+                        eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
                         # Fuente de verdad: diccionario de checks por equipo
                         checks_key = f"checks_{eq_key}"
@@ -1213,93 +1215,100 @@ def pantalla_home():
                                 </div>
                                 """, unsafe_allow_html=True)
 
-                        # === COMENTARIO GENERAL DEL EQUIPO ===
-                        comentario_bloque_key = f"com_bloque_{eq_key}"
-                        if comentario_bloque_key not in st.session_state:
-                            st.session_state[comentario_bloque_key] = ""
-                        st.text_input(
-                            "💬 Comentario general del equipo:",
-                            value=st.session_state[comentario_bloque_key],
-                            key=comentario_bloque_key,
-                            placeholder="Escribe un comentario para todas las actividades de este equipo..."
-                        )
-                        st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+                        st.markdown("</div></div>", unsafe_allow_html=True)
 
-                        # ========== BOTONES DE ACCIÓN POR EQUIPO ==========
-                        col_marcar, col_desmarcar, col_guardar = st.columns(3)
-                        with col_marcar:
-                            if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas", eq_key)):
-                                ahora = datetime.now().strftime("%H:%M")
-                                for _, row in grupo_eq_df.iterrows():
-                                    internal_id = limpiar(row.get("ID"), "")
-                                    if internal_id:
-                                        checks_dict[internal_id] = True
-                                        st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
-                                st.rerun()
+                    # === COMENTARIO GENERAL Y BOTONES POR UBICACIÓN (solo uno) ===
+                    comentario_ubi_key = f"com_ubi_{ubi_key}"
+                    if comentario_ubi_key not in st.session_state:
+                        st.session_state[comentario_ubi_key] = ""
+                    st.text_input(
+                        "💬 Comentario general del bloque:",
+                        value=st.session_state[comentario_ubi_key],
+                        key=comentario_ubi_key,
+                        placeholder="Escribe un comentario para todas las actividades de este bloque..."
+                    )
+                    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
-                        with col_desmarcar:
-                            if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas", eq_key)):
-                                for _, row in grupo_eq_df.iterrows():
-                                    internal_id = limpiar(row.get("ID"), "")
-                                    if internal_id:
-                                        checks_dict[internal_id] = False
+                    col_marcar, col_desmarcar, col_guardar = st.columns(3)
+                    with col_marcar:
+                        if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas_ubi", ubi_key)):
+                            ahora = datetime.now().strftime("%H:%M")
+                            for _, row in grupo_ubi_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                if internal_id:
+                                    eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
+                                    ck = f"checks_{eq_k}"
+                                    if ck in st.session_state:
+                                        st.session_state[ck][internal_id] = True
+                                    st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
+                            st.rerun()
+
+                    with col_desmarcar:
+                        if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas_ubi", ubi_key)):
+                            for _, row in grupo_ubi_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                if internal_id:
+                                    eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
+                                    ck = f"checks_{eq_k}"
+                                    if ck in st.session_state:
+                                        st.session_state[ck][internal_id] = False
+                                    if f"hora_ini_auto_{internal_id}" in st.session_state:
+                                        del st.session_state[f"hora_ini_auto_{internal_id}"]
+                            st.rerun()
+
+                    with col_guardar:
+                        if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_ubi", ubi_key)):
+                            guardados = 0
+                            comentario_general = st.session_state.get(comentario_ubi_key, "")
+                            for _, row in grupo_ubi_df.iterrows():
+                                internal_id = limpiar(row.get("ID"), "")
+                                if not internal_id:
+                                    continue
+
+                                eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
+                                ck = f"checks_{eq_k}"
+                                chk_val = st.session_state.get(ck, {}).get(internal_id, False)
+                                estado_actual = limpiar(row.get("Estado"), "Pendiente")
+                                h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
+                                h_fin_bd = limpiar(row.get("Hora_Fin"), "")
+                                hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
+                                comentario_bd = limpiar(row.get("Comentarios"), "")
+
+                                if chk_val and estado_actual not in ["Ejecutado", "Verificado"]:
+                                    hora_fin = datetime.now().strftime("%H:%M")
+                                    hora_ini = hora_ini_auto if hora_ini_auto else (h_ini_bd if h_ini_bd else hora_fin)
+                                    datos = {
+                                        "Estado": "Ejecutado",
+                                        "Hora_Inicio": hora_ini,
+                                        "Hora_Fin": hora_fin,
+                                        "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
+                                    }
+                                    if comentario_general != comentario_bd:
+                                        datos["Comentarios"] = comentario_general
+                                    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+                                        guardados += 1
                                         if f"hora_ini_auto_{internal_id}" in st.session_state:
                                             del st.session_state[f"hora_ini_auto_{internal_id}"]
-                                st.rerun()
+                                        if ck in st.session_state and internal_id in st.session_state[ck]:
+                                            del st.session_state[ck][internal_id]
 
-                        with col_guardar:
-                            if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_bloque", eq_key)):
-                                guardados = 0
-                                comentario_general = st.session_state.get(comentario_bloque_key, "")
-                                for _, row in grupo_eq_df.iterrows():
-                                    internal_id = limpiar(row.get("ID"), "")
-                                    if not internal_id:
-                                        continue
+                                elif not chk_val and estado_actual == "Ejecutado":
+                                    datos = {"Estado": "Pendiente"}
+                                    if comentario_general != comentario_bd:
+                                        datos["Comentarios"] = comentario_general
+                                    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+                                        guardados += 1
 
-                                    chk_val = checks_dict.get(internal_id, False)
-                                    estado_actual = limpiar(row.get("Estado"), "Pendiente")
-                                    h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
-                                    h_fin_bd = limpiar(row.get("Hora_Fin"), "")
-                                    hora_ini_auto = st.session_state.get(f"hora_ini_auto_{internal_id}", "")
-                                    comentario_bd = limpiar(row.get("Comentarios"), "")
-
-                                    if chk_val and estado_actual not in ["Ejecutado", "Verificado"]:
-                                        hora_fin = datetime.now().strftime("%H:%M")
-                                        hora_ini = hora_ini_auto if hora_ini_auto else (h_ini_bd if h_ini_bd else hora_fin)
-                                        datos = {
-                                            "Estado": "Ejecutado",
-                                            "Hora_Inicio": hora_ini,
-                                            "Hora_Fin": hora_fin,
-                                            "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
-                                        }
-                                        if comentario_general != comentario_bd:
-                                            datos["Comentarios"] = comentario_general
-                                        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
-                                            guardados += 1
-                                            if f"hora_ini_auto_{internal_id}" in st.session_state:
-                                                del st.session_state[f"hora_ini_auto_{internal_id}"]
-                                            if internal_id in checks_dict:
-                                                del checks_dict[internal_id]
-
-                                    elif not chk_val and estado_actual == "Ejecutado":
-                                        datos = {"Estado": "Pendiente"}
-                                        if comentario_general != comentario_bd:
-                                            datos["Comentarios"] = comentario_general
-                                        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
-                                            guardados += 1
-
-                                    else:
-                                        if comentario_general != comentario_bd:
-                                            if actualizar_orden_supabase(internal_id, "Comentarios", comentario_general):
-                                                guardados += 1
-
-                                if guardados > 0:
-                                    st.success(f"✅ {guardados} cambios guardados en Supabase")
-                                    st.rerun()
                                 else:
-                                    st.info("No hay cambios para guardar")
+                                    if comentario_general != comentario_bd:
+                                        if actualizar_orden_supabase(internal_id, "Comentarios", comentario_general):
+                                            guardados += 1
 
-                        st.markdown("</div></div>", unsafe_allow_html=True)
+                            if guardados > 0:
+                                st.success(f"✅ {guardados} cambios guardados en Supabase")
+                                st.rerun()
+                            else:
+                                st.info("No hay cambios para guardar")
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
     if perfil == "admin" and st.session_state.mostrar_envio_correo:
