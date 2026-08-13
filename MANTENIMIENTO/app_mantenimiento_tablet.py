@@ -590,33 +590,34 @@ st.markdown("""
     }
 
 
-    /* === BOTONES DE PROCEDIMIENTO COMPACTOS === */
-    div[data-testid="stButton"] > button[kind="primary"] {
+
+
+    /* === PANEL DE FILTROS: botones tipo pill === */
+    .filtro-panel div[data-testid="stButton"] > button {
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+        min-height: 32px !important;
+        border-radius: 8px !important;
+        transition: all 0.15s ease !important;
+    }
+    .filtro-panel div[data-testid="stButton"] > button[kind="primary"] {
         background: linear-gradient(135deg, #ef4444 0%, #f87171 100%) !important;
         color: #ffffff !important;
         border: none !important;
         box-shadow: 0 2px 8px rgba(239,68,68,0.35) !important;
-        font-size: 11px !important;
-        padding: 4px 8px !important;
-        min-height: 32px !important;
-        border-radius: 8px !important;
         font-weight: 700 !important;
     }
-    div[data-testid="stButton"] > button[kind="secondary"] {
+    .filtro-panel div[data-testid="stButton"] > button[kind="secondary"] {
         background: #1e293b !important;
         color: #e2e8f0 !important;
         border: 1px solid #334155 !important;
-        font-size: 11px !important;
-        padding: 4px 8px !important;
-        min-height: 32px !important;
-        border-radius: 8px !important;
         font-weight: 600 !important;
     }
-    div[data-testid="stButton"] > button[kind="secondary"]:hover {
+    .filtro-panel div[data-testid="stButton"] > button[kind="secondary"]:hover {
         background: #334155 !important;
         border-color: #475569 !important;
+        transform: translateY(-1px);
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -2028,6 +2029,7 @@ def pantalla_asignacion():
     # COLUMNA IZQUIERDA: Filtros apilados (automáticos)
     # ═══════════════════════════════════════════════════
     with col_izq:
+        st.markdown('<div class="filtro-panel">', unsafe_allow_html=True)
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
         maquinas_asig = obtener_maquinas_disponibles(df_asig_base)
         for maq in maquinas_asig:
@@ -2057,6 +2059,7 @@ def pantalla_asignacion():
                         if st.button(proc, key=gen_key("btn_proc", proc), type=btn_type, use_container_width=True):
                             st.session_state.filtro_procedimiento = proc
                             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════
     # COLUMNA DERECHA: Lista rápida + asignación masiva
