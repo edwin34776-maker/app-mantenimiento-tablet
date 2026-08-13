@@ -2026,12 +2026,12 @@ def pantalla_asignacion():
             procs = df_asig["Procedimiento"].dropna().astype(str).str.strip()
             procs = procs[procs != ""].unique().tolist()
             procs_unicos = ["Todos"] + sorted(procs)
-        proc_nuevo = st.selectbox("Filtrar por procedimiento", procs_unicos, 
-                                   index=procs_unicos.index(proc_sel) if proc_sel in procs_unicos else 0,
-                                   key=gen_key("sel_proc_asig"), label_visibility="collapsed")
-        if proc_nuevo != proc_sel:
-            st.session_state.filtro_procedimiento = proc_nuevo
-            st.rerun()
+        for proc in procs_unicos:
+            is_active = st.session_state.get("filtro_procedimiento", "Todos") == proc
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(proc, key=gen_key("btn_proc", proc), type=btn_type, use_container_width=True):
+                st.session_state.filtro_procedimiento = proc
+                st.rerun()
 
     # ═══════════════════════════════════════════════════
     # COLUMNA DERECHA: Lista rápida + asignación masiva
