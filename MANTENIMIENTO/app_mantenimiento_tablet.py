@@ -1902,6 +1902,11 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
             return estado_bd
         df_asig = df_asig[df_asig.apply(estado_efectivo_asig, axis=1) == estado_sel]
 
+    # >>> FILTRO DE PROCEDIMIENTO AÑADIDO <<<
+    proc_sel = st.session_state.get("filtro_procedimiento", "Todos")
+    if proc_sel != "Todos" and "Procedimiento" in df_asig.columns:
+        df_asig = df_asig[df_asig["Procedimiento"].astype(str).str.strip() == proc_sel]
+
     guardados = 0
     valor_nuevo = "" if desasignar else tecnico_masivo
     for _, row_a in df_asig.iterrows():
@@ -2082,6 +2087,40 @@ def pantalla_asignacion():
             st.info("📭 No hay actividades con los filtros seleccionados.")
         else:
             st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
+
+        # ========== LISTA DE ACTIVIDADES FILTRADAS ==========
+        for idx, row in df_pagina.iterrows():
+            internal_id = limpiar(row.get("ID"), "")
+            id_ot       = limpiar(row.get("ID OT"), "SIN ID")
+            desc        = limpiar(row.get("Actividades"), "Sin descripción")
+            estado      = limpiar(row.get("Estado"), "Pendiente")
+            tec_asig    = limpiar(row.get("Tecnico_Asignado"), "")
+            proc        = limpiar(row.get("Procedimiento"), "")
+            nodo        = limpiar(row.get("Nodo"), "")
+            nodo_badge  = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
+
+            # Color según estado efectivo
+            if not tec_asig and estado in ["Ejecutado", "Verificado"]:
+                estado = "Pendiente"
+            estado_cls = "eq-estado-pd"
+            if estado == "Ejecutado": estado_cls = "eq-estado-ej"
+            if estado == "Verificado": estado_cls = "eq-estado-vf"
+
+            st.markdown(f'''
+            <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
+                <div>
+                    <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge}</div>
+                    <div style="font-size:11px;color:#64748B;">{proc}</div>
+                    <div style="font-size:12px;color:#0F172A;margin-top:2px;">{desc}</div>
+                </div>
+                <div style="text-align:right;">
+                    <span class="estado-badge {estado_cls}">{estado}</span>
+                    <div style="font-size:10px;color:#64748B;margin-top:4px;">
+                        {tec_asig if tec_asig else "Sin asignar"}
+                    </div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
 
 # ==================== PROTECCION DE RUTAS ADMIN ====================
 # Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
