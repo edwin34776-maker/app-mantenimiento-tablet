@@ -1125,7 +1125,6 @@ def pantalla_home():
             elif df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
-                else:
                 # === NUEVA ESTRUCTURA: Ubicación → Equipo → Actividades ===
                 grupos_ubicacion = df_pendientes.groupby(["Ubicacion"])
                 for ubicacion_raw, grupo_ubi_df in grupos_ubicacion:
