@@ -589,6 +589,34 @@ st.markdown("""
         margin-top: 8px !important;
     }
 
+
+    /* === BOTONES DE PROCEDIMIENTO COMPACTOS === */
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background: linear-gradient(135deg, #ef4444 0%, #f87171 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        box-shadow: 0 2px 8px rgba(239,68,68,0.35) !important;
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+        min-height: 32px !important;
+        border-radius: 8px !important;
+        font-weight: 700 !important;
+    }
+    div[data-testid="stButton"] > button[kind="secondary"] {
+        background: #1e293b !important;
+        color: #e2e8f0 !important;
+        border: 1px solid #334155 !important;
+        font-size: 11px !important;
+        padding: 4px 8px !important;
+        min-height: 32px !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stButton"] > button[kind="secondary"]:hover {
+        background: #334155 !important;
+        border-color: #475569 !important;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -2010,15 +2038,6 @@ def pantalla_asignacion():
                 st.session_state.filtro_procedimiento = "Todos"  # reset procedimiento al cambiar máquina
                 st.rerun()
 
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>📋 Estado</div>", unsafe_allow_html=True)
-        estados_filtro = ["Todos", "Pendiente", "Ejecutado", "Verificado"]
-        for est in estados_filtro:
-            is_active = st.session_state.filtro_estado_asig == est
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(est, key=gen_key("btn_est", est), type=btn_type, use_container_width=True):
-                st.session_state.filtro_estado_asig = est
-                st.rerun()
-
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin:12px 0 8px 0;'>🔍 Procedimiento</div>", unsafe_allow_html=True)
         # Procedimientos ÚNICOS de la máquina YA seleccionada (cascada automática)
         procs_unicos = ["Todos"]
@@ -2026,12 +2045,18 @@ def pantalla_asignacion():
             procs = df_asig["Procedimiento"].dropna().astype(str).str.strip()
             procs = procs[procs != ""].unique().tolist()
             procs_unicos = ["Todos"] + sorted(procs)
-        for proc in procs_unicos:
-            is_active = st.session_state.get("filtro_procedimiento", "Todos") == proc
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(proc, key=gen_key("btn_proc", proc), type=btn_type, use_container_width=True):
-                st.session_state.filtro_procedimiento = proc
-                st.rerun()
+        # Botones de procedimiento en 2 columnas, más compactos
+        for i in range(0, len(procs_unicos), 2):
+            cols_proc = st.columns(2)
+            for j in range(2):
+                if i + j < len(procs_unicos):
+                    proc = procs_unicos[i + j]
+                    is_active = st.session_state.get("filtro_procedimiento", "Todos") == proc
+                    btn_type = "primary" if is_active else "secondary"
+                    with cols_proc[j]:
+                        if st.button(proc, key=gen_key("btn_proc", proc), type=btn_type, use_container_width=True):
+                            st.session_state.filtro_procedimiento = proc
+                            st.rerun()
 
     # ═══════════════════════════════════════════════════
     # COLUMNA DERECHA: Lista rápida + asignación masiva
