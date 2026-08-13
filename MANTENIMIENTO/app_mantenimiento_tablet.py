@@ -2116,39 +2116,57 @@ def pantalla_asignacion():
         else:
             st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
 
-        # ========== LISTA DE ACTIVIDADES FILTRADAS ==========
-        for idx, row in df_pagina.iterrows():
-            internal_id = limpiar(row.get("ID"), "")
-            id_ot       = limpiar(row.get("ID OT"), "SIN ID")
-            desc        = limpiar(row.get("Actividades"), "Sin descripción")
-            estado      = limpiar(row.get("Estado"), "Pendiente")
-            tec_asig    = limpiar(row.get("Tecnico_Asignado"), "")
-            proc        = limpiar(row.get("Procedimiento"), "")
-            nodo        = limpiar(row.get("Nodo"), "")
-            nodo_badge  = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
+        # ========== LISTA DE ACTIVIDADES AGRUPADAS POR PROCEDIMIENTO ==========
+        # Agrupar por procedimiento
+        if "Procedimiento" in df_pagina.columns:
+            grupos_proc = df_pagina.groupby("Procedimiento")
+        else:
+            grupos_proc = [("Sin procedimiento", df_pagina)]
 
-            # Color según estado efectivo
-            if not tec_asig and estado in ["Ejecutado", "Verificado"]:
-                estado = "Pendiente"
-            estado_cls = "eq-estado-pd"
-            if estado == "Ejecutado": estado_cls = "eq-estado-ej"
-            if estado == "Verificado": estado_cls = "eq-estado-vf"
+        for proc_name, grupo_df in grupos_proc:
+            proc_name = limpiar(proc_name, "Sin procedimiento")
+            total_proc = len(grupo_df)
+            asig_proc = len(grupo_df[grupo_df["Tecnico_Asignado"].notna() & (grupo_df["Tecnico_Asignado"] != "")]) if "Tecnico_Asignado" in grupo_df.columns else 0
+            pct_proc = round((asig_proc / total_proc) * 100) if total_proc > 0 else 0
 
-            st.markdown(f'''
-            <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
-                <div>
-                    <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge}</div>
-                    <div style="font-size:11px;color:#64748B;">{proc}</div>
-                    <div style="font-size:12px;color:#0F172A;margin-top:2px;">{desc}</div>
+            with st.expander(f"📋 {proc_name}  —  {total_proc} actividades  ({asig_proc} asignadas)", expanded=(proc_sel != "Todos")):
+                # Barra de progreso mini
+                st.markdown(f'''
+                <div style="width:100%; height:4px; background:#E2E8F0; border-radius:2px; margin:4px 0 10px 0;">
+                    <div style="width:{pct_proc}%; height:100%; background:linear-gradient(90deg,#22c55e,#16a34a); border-radius:2px;"></div>
                 </div>
-                <div style="text-align:right;">
-                    <span class="estado-badge {estado_cls}">{estado}</span>
-                    <div style="font-size:10px;color:#64748B;margin-top:4px;">
-                        {tec_asig if tec_asig else "Sin asignar"}
+                ''', unsafe_allow_html=True)
+
+                for idx, row in grupo_df.iterrows():
+                    internal_id = limpiar(row.get("ID"), "")
+                    id_ot       = limpiar(row.get("ID OT"), "SIN ID")
+                    desc        = limpiar(row.get("Actividades"), "Sin descripción")
+                    estado      = limpiar(row.get("Estado"), "Pendiente")
+                    tec_asig    = limpiar(row.get("Tecnico_Asignado"), "")
+                    nodo        = limpiar(row.get("Nodo"), "")
+                    nodo_badge  = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
+
+                    # Color según estado efectivo
+                    if not tec_asig and estado in ["Ejecutado", "Verificado"]:
+                        estado = "Pendiente"
+                    estado_cls = "eq-estado-pd"
+                    if estado == "Ejecutado": estado_cls = "eq-estado-ej"
+                    if estado == "Verificado": estado_cls = "eq-estado-vf"
+
+                    st.markdown(f'''
+                    <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
+                        <div>
+                            <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge}</div>
+                            <div style="font-size:12px;color:#0F172A;margin-top:2px;">{desc}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="estado-badge {estado_cls}">{estado}</span>
+                            <div style="font-size:10px;color:#64748B;margin-top:4px;">
+                                {tec_asig if tec_asig else "Sin asignar"}
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </div>
-            ''', unsafe_allow_html=True)
+                    ''', unsafe_allow_html=True)
 
 # ==================== PROTECCION DE RUTAS ADMIN ====================
 # Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
