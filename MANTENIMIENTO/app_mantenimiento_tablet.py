@@ -134,7 +134,7 @@ def boton_volver_inicio(origen=""):
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary",
-                     key=gen_key("volver_inicio", origen)):
+                     key=f"volver_inicio_{origen}"):
             st.session_state.pagina = "home"
             st.session_state.orden_seleccionada = None
             st.session_state.busqueda = ""
@@ -727,7 +727,7 @@ def pantalla_sincronizar():
     </div>
     """, unsafe_allow_html=True)
 
-    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key=gen_key("upload_excel"))
+    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key="sync_upload_excel")
 
     if archivo is None:
         st.info("⬆️ Sube un archivo Excel para comenzar")
@@ -791,7 +791,7 @@ def pantalla_sincronizar():
             "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
             "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
         ],
-        key=gen_key("modo_sync")
+        key="sync_modo_sync"
     )
     modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
 
@@ -812,7 +812,7 @@ def pantalla_sincronizar():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
-        if st.button(btn_text, use_container_width=True, type="primary", key=gen_key("btn_sync")):
+        if st.button(btn_text, use_container_width=True, type="primary", key="sync_btn_sync"):
             with st.spinner("Sincronizando, por favor espera..."):
                 exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
 
@@ -860,7 +860,7 @@ def pantalla_asignacion():
         for maq in maquinas_asig:
             is_active = st.session_state.filtro_maquina == maq
             btn_type = "primary" if is_active else "secondary"
-            if st.button(maq, key=gen_key("btn_maq", maq), type=btn_type, use_container_width=True):
+            if st.button(maq, key=f"asig_btn_maq_{maq}", type=btn_type, use_container_width=True):
                 st.session_state.filtro_maquina = maq
                 st.rerun()
 
@@ -893,9 +893,9 @@ def pantalla_asignacion():
             with cols_batch[0]:
                 st.markdown("<div style='font-weight:600; color:#0369a1; font-size:13px; padding-top:6px;'>👤 Asignar técnico a todas:</div>", unsafe_allow_html=True)
             with cols_batch[1]:
-                tecnico_masivo = st.selectbox("Técnico masivo", lista_tecnicos, key=gen_key("batch_tec"), label_visibility="collapsed")
+                tecnico_masivo = st.selectbox("Técnico masivo", lista_tecnicos, key="asig_batch_tec", label_visibility="collapsed")
             with cols_batch[2]:
-                if st.button("✓ Asignar", type="primary", use_container_width=True, key=gen_key("btn_batch_asig")):
+                if st.button("✓ Asignar", type="primary", use_container_width=True, key="asig_btn_batch_asig"):
                     if tecnico_masivo:
                         auto_guardar_masivo(maq_sel, tecnico_masivo)
                     else:
@@ -957,24 +957,39 @@ def pantalla_login():
 
     st.markdown("<div class='home-screen'><h2>Iniciar Sesión</h2></div>", unsafe_allow_html=True)
 
+    # Inicializar variables de login si no existen
+    if "login_error" not in st.session_state:
+        st.session_state.login_error = ""
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        perfil = st.selectbox("Perfil", ["", "Admin", "Técnico"], key=gen_key("sel_perfil"))
+        # Key ESTÁTICA para que el selectbox mantenga su valor entre reruns
+        perfil = st.selectbox("Perfil", ["", "Admin", "Técnico"], key="login_sel_perfil")
+
         if perfil == "Admin":
-            pwd = st.text_input("Contraseña Admin", type="password", key=gen_key("pwd_admin"))
-            if st.button("Entrar como Admin", use_container_width=True, type="primary"):
-                # Reemplaza con tu lógica real de autenticación
-                if pwd == "admin123":  # Cambia esto
+            pwd = st.text_input("Contraseña Admin", type="password", key="login_pwd_admin")
+
+            if st.session_state.login_error:
+                st.error(st.session_state.login_error)
+                st.session_state.login_error = ""  # Limpiar después de mostrar
+
+            if st.button("Entrar como Admin", use_container_width=True, type="primary", key="login_btn_admin"):
+                # ⚠️ CAMBIA ESTA CONTRASEÑA POR LA REAL
+                if pwd == "admin123":
                     st.session_state.perfil = "admin"
                     st.session_state.admin_autenticado = True
                     st.session_state.pagina = "home"
+                    st.session_state.login_error = ""
                     st.rerun()
                 else:
-                    st.error("Contraseña incorrecta")
+                    st.session_state.login_error = "Contraseña incorrecta"
+                    st.rerun()
+
         elif perfil == "Técnico":
             tecnicos = TECNICOS_ELE + TECNICOS_MEC
-            tec = st.selectbox("Selecciona tu nombre", [""] + tecnicos, key=gen_key("sel_tec"))
-            if st.button("Entrar como Técnico", use_container_width=True, type="primary"):
+            tec = st.selectbox("Selecciona tu nombre", [""] + tecnicos, key="login_sel_tec")
+
+            if st.button("Entrar como Técnico", use_container_width=True, type="primary", key="login_btn_tec"):
                 if tec:
                     st.session_state.perfil = "tecnico"
                     st.session_state.tecnico_seleccionado = tec
