@@ -735,29 +735,37 @@ def contar_por_subsistema(df, maquina_filtro="Todas"):
 # ═══════════════════════════════════════════════════════════════════════
 #  SINCRONIZACIÓN EXCEL ↔ SUPABASE
 # ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  SINCRONIZACIÓN EXCEL ↔ SUPABASE (CORREGIDA)
+# ═══════════════════════════════════════════════════════════════════════
 def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
     try:
         df = df_excel.copy()
         cols_originales = {c.strip().lower(): c for c in df.columns}
+
+        # MAPEO MEJORADO con los nombres que usa el usuario
         mapeo_columnas = {
-            "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot"],
-            "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina"],
-            "ubicacion": ["ubicacion", "ubicación", "lugar", "area", "área", "un", "unidad", "localizacion", "sala"],
-            "especialidad": ["especialidad", "esp", "tipo de ot", "tipo_ot", "tipo", "area tecnica", "disciplina"],
-            "actividades": ["actividades", "actividad", "descr", "descripcion", "descripción", "tarea", "trabajo", "falla", "problema"],
+            "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot", "id"],
+            "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina", "un"],
+            "ubicacion": ["ubicacion", "ubicación", "lugar", "area", "área", "un", "unidad", "localizacion", "sala", "un"],
+            "especialidad": ["especialidad", "esp", "tipo de ot", "tipo_ot", "tipo", "area tecnica", "disciplina", "tipo de ot"],
+            "actividades": ["actividades", "actividad", "descr", "descripcion", "descripción", "tarea", "trabajo", "falla", "problema", "descr"],
             "procedimiento": ["procedimiento", "proc", "proceso", "tipo procedimiento"],
             "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
             "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"]
         }
+
         columnas_renombrar = {}
         for supabase_col, posibles_nombres in mapeo_columnas.items():
             for posible in posibles_nombres:
                 if posible in cols_originales:
                     columnas_renombrar[cols_originales[posible]] = supabase_col
                     break
+
         df = df.rename(columns=columnas_renombrar)
         detectadas = list(columnas_renombrar.values())
         faltantes = [c for c in mapeo_columnas.keys() if c not in detectadas]
+
         st.markdown(f"""
         <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px; margin: 8px 0;">
             <div style="font-size: 12px; color: #166534;">
@@ -766,28 +774,55 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+        # Si no hay equipo pero sí ubicacion, usar ubicacion como equipo también
+        if "equipo" not in df.columns and "ubicacion" in df.columns:
+            df["equipo"] = df["ubicacion"]
+            st.info("ℹ️ No se detectó columna 'equipo'. Se usará 'ubicacion' como equipo.")
+
+        # Si no hay ubicacion pero sí equipo, usar equipo como ubicacion
+        if "ubicacion" not in df.columns and "equipo" in df.columns:
+            df["ubicacion"] = df["equipo"]
+            st.info("ℹ️ No se detectó columna 'ubicacion'. Se usará 'equipo' como ubicacion.")
+
         campos_base = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
         cols_validas = [c for c in campos_base if c in df.columns]
+
         if not cols_validas:
             st.error(f"❌ No se detectaron columnas válidas. Columnas en tu Excel: {list(df_excel.columns)}")
             return False, "No se detectaron columnas válidas"
+
         df = df[cols_validas]
         df = df.where(pd.notnull(df), None)
+
         for col in df.columns:
             if df[col].dtype == object:
                 df[col] = df[col].apply(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+
         def generar_id_unico(row):
-            partes = [str(row.get("id_ot", "")), str(row.get("equipo", "")), str(row.get("ubicacion", "")), str(row.get("actividades", "")), str(row.get("nodo", ""))]
+            partes = [
+                str(row.get("id_ot", "")),
+                str(row.get("equipo", "")),
+                str(row.get("ubicacion", "")),
+                str(row.get("actividades", "")),
+                str(row.get("nodo", ""))
+            ]
             raw = "|".join(partes)
             return hashlib.md5(raw.encode()).hexdigest()[:20]
+
         df["id_unico"] = df.apply(generar_id_unico, axis=1)
+
+        # NO convertir id_ot a numérico para preservar ceros a la izquierda
+        # Solo limpiar si es necesario
         if "id_ot" in df.columns:
-            df["id_ot"] = pd.to_numeric(df["id_ot"], errors="coerce")
-            df["id_ot"] = df["id_ot"].apply(lambda x: int(x) if pd.notna(x) else None)
+            df["id_ot"] = df["id_ot"].apply(lambda x: str(int(x)).zfill(len(str(x))) if pd.notna(x) and str(x).replace('.','',1).isdigit() else str(x) if pd.notna(x) else None)
+
         registros = df.to_dict(orient="records")
         total = len(registros)
+
         if total == 0:
             return False, "❌ No hay registros válidos para sincronizar"
+
         if modo == "reemplazar":
             with st.spinner("🗑️ Borrando datos antiguos..."):
                 supabase.table("ordenes_trabajo").delete().neq("id", 0).execute()
@@ -801,6 +836,7 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 progress_bar.progress(min((i + batch_size) / total, 1.0))
             progress_bar.empty()
             return True, f"✅ Sincronización completa: {insertados} registros insertados con ID único."
+
         elif modo == "upsert":
             upsertados = 0
             batch_size = 500
@@ -2194,6 +2230,9 @@ def pantalla_asignacion():
 # ═══════════════════════════════════════════════════════════════════════
 #  PANTALLA: SINCRONIZAR EXCEL
 # ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  PANTALLA: SINCRONIZAR EXCEL (CORREGIDA)
+# ═══════════════════════════════════════════════════════════════════════
 def pantalla_sincronizar():
     st.markdown("""
     <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
@@ -2206,13 +2245,22 @@ def pantalla_sincronizar():
     <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
         <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
         <div style="font-size: 12px; color: #475569; line-height: 1.6;">
-            Como tu <b>id_ot</b> es el mismo en todas las filas (392368), la app genera automáticamente 
-            un <b>ID único</b> para cada actividad basado en: <code>equipo + ubicación + actividades + nodo</code>.<br><br>
+            La app genera automáticamente un <b>ID único</b> para cada actividad basado en: 
+            <code>id_ot + equipo + ubicacion + actividades + nodo</code>.<br><br>
             ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
             🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # Selector de filas a saltar (para Excels con encabezados extra)
+    col_skip, col_info = st.columns([1, 3])
+    with col_skip:
+        skiprows = st.number_input("Saltar filas antes del header", min_value=0, max_value=10, value=0, step=1, 
+                                    help="Si tu Excel tiene títulos arriba de los encabezados, indica cuántas filas saltar",
+                                    key=gen_key("skiprows_sync"))
+    with col_info:
+        st.caption("💡 Si tu Excel tiene una fila de título arriba de los nombres de columna, pon 1. Si los headers están en la fila 1, pon 0.")
 
     archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key=gen_key("upload_excel"))
 
@@ -2223,10 +2271,10 @@ def pantalla_sincronizar():
     try:
         nombre_archivo = archivo.name.lower()
         if nombre_archivo.endswith('.xls'):
-            df_excel = pd.read_excel(archivo, engine='xlrd')
+            df_excel = pd.read_excel(archivo, engine='xlrd', skiprows=int(skiprows))
         else:
-            df_excel = pd.read_excel(archivo, engine='openpyxl')
-        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
+            df_excel = pd.read_excel(archivo, engine='openpyxl', skiprows=int(skiprows))
+        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas** (saltadas {skiprows} filas)")
     except ImportError as e:
         if 'xlrd' in str(e):
             st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
@@ -2239,6 +2287,9 @@ def pantalla_sincronizar():
 
     with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
         st.dataframe(df_excel.head(10), use_container_width=True)
+
+    # Mostrar nombres de columnas detectados para debug
+    st.markdown(f"<div style='font-size:11px;color:#64748B;'>📋 Columnas detectadas: <code>{list(df_excel.columns)}</code></div>", unsafe_allow_html=True)
 
     cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
     esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
@@ -2310,6 +2361,7 @@ def pantalla_sincronizar():
                 st.info("🔄 Datos actualizados. Puedes volver al inicio.")
             else:
                 st.error(mensaje)
+
 
 
 # ==================== PROTECCION DE RUTAS ADMIN ====================
