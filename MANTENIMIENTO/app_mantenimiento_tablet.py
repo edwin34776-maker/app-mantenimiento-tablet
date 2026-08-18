@@ -9,7 +9,6 @@ from email.mime.base import MIMEBase
 from email import encoders
 import io
 import hashlib
-import html
 
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
@@ -37,48 +36,6 @@ def limpiar(valor, default=""):
     if s.lower() in ("nan", "none", "nat", "null"):
         return default
     return s
-
-def procesar_excel_nuevo(archivo):
-    try:
-        df_nuevo = pd.read_excel(archivo)
-        
-        # Eliminar columna ID si existe en el Excel, para que Supabase asigne IDs nuevos
-        if 'id' in df_nuevo.columns:
-            df_nuevo = df_nuevo.drop(columns=['id'])
-        elif 'ID' in df_nuevo.columns:
-            df_nuevo = df_nuevo.drop(columns=['ID'])
-        
-        # Mapeo inverso: de los nombres en pantalla a los de la base de datos
-        mapeo_inverso = {
-            "ID OT": "id_ot", "Actividades": "actividades", "Procedimiento": "procedimiento",
-            "Tecnico_Asignado": "tecnico_asignado", "Prioridad_Actividad": "prioridad_actividad",
-            "Actividades_Hechas": "actividades_hechas", "Fecha_Ejecucion": "fecha_ejecucion",
-            "Hora_Inicio": "hora_inicio", "Hora_Fin": "hora_fin", "Estado": "estado",
-            "Comentarios": "comentarios", "Equipo": "equipo", "Ubicacion": "ubicacion",
-            "Especialidad": "especialidad", "Nodo": "nodo"
-        }
-        
-        # Renombrar columnas si coinciden con el formato de la app
-        df_nuevo = df_nuevo.rename(columns={k: v for k, v in mapeo_inverso.items() if k in df_nuevo.columns})
-        
-        # Limpiar valores NaN/None para que Supabase no rechaze la inserción
-        df_nuevo = df_nuevo.where(pd.notnull(df_nuevo), None)
-        
-        # Convertir a lista de diccionarios
-        datos = df_nuevo.to_dict(orient="records")
-        
-        # 1. Borrar datos antiguos 
-        supabase.table("ordenes_trabajo").delete().neq("id", 0).execute()
-        
-        # 2. Subir los nuevos datos (en lotes de 500 para no saturar)
-        batch_size = 500
-        for i in range(0, len(datos), batch_size):
-            chunk = datos[i:i + batch_size]
-            supabase.table("ordenes_trabajo").insert(chunk).execute()
-            
-        return True, f"Se cargaron {len(datos)} registros correctamente."
-    except Exception as e:
-        return False, f"Error al procesar Excel: {str(e)}"
 
 def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", email_remitente=None):
     if email_remitente == "supermantobogota@gmail.com":
@@ -312,7 +269,7 @@ st.markdown("""
     .tecnico-badge { background: #1a237e; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; min-width: 28px; text-align: center; }
     .tecnico-badge.cero { background: #6c757d; }
     .tecnico-badge.alta { background: #dc3545; }
-    .tecnico-badge.media { background: #ffc107; }
+    .tecnico-badge.media { background: #ffc107; color: #333; }
     .tecnico-badge.baja { background: #28a745; }
     .grupo-ele { border-left: 4px solid #ffc107 !important; }
     .grupo-mec { border-left: 4px solid #28a745 !important; }
@@ -453,6 +410,7 @@ st.markdown("""
         background: #FFF7ED; border: 1px solid #F97316; border-radius: 10px;
         padding: 10px 14px; margin: 10px 0; font-size: 13px;
     }
+    /* === NUEVO: LISTA RÁPIDA DE ASIGNACIÓN === */
     .asig-rapida-header {
         display: none !important;
         grid-template-columns: 1fr 50px 1.5fr 80px 160px;
@@ -509,6 +467,8 @@ st.markdown("""
         .asig-rapida-fila > div:nth-child(4) { grid-column: 1; }
         .asig-rapida-fila > div:nth-child(5) { grid-column: 2; }
     }
+
+    /* === COMPACTAR FILAS DE ACTIVIDADES TÉCNICO === */
     .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div {
         margin-bottom: 2px !important;
         padding-bottom: 2px !important;
@@ -593,6 +553,8 @@ st.markdown("""
         text-decoration: line-through;
         color: #166534;
     }
+
+    /* === EXPANDERS COMPACTOS Y ORDENADOS === */
     [data-testid="stExpander"] {
         margin-bottom: 4px !important;
     }
@@ -626,6 +588,7 @@ st.markdown("""
     [data-testid="stExpander"] .streamlit-expanderContent .stSelectbox {
         margin-top: 8px !important;
     }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -688,11 +651,6 @@ def obtener_clase_css_prioridad(prioridad):
 
 def boton_volver_inicio(key_suffix=""):
     col1, col2, col3 = st.columns([1, 2, 1])
-    with col1:
-        if st.button("🔄 Actualizar", use_container_width=True, type="secondary", key=gen_key(f"refresh_{key_suffix}"), help="Sincronizar con la base de datos"):
-            with st.spinner("Sincronizando..."):
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-            st.rerun()
     with col2:
         if st.button("VOLVER AL INICIO", use_container_width=True, type="secondary", key=gen_key(f"volver_inicio_{key_suffix}")):
             st.session_state.pagina = "home"
@@ -701,21 +659,13 @@ def boton_volver_inicio(key_suffix=""):
             st.rerun()
 
 def boton_cerrar_sesion():
-    col_ref, col_out = st.columns(2)
-    with col_ref:
-        if st.button("🔄 ACTUALIZAR DATOS", use_container_width=True, type="primary", key=gen_key("btn_refresh_home")):
-            with st.spinner("Sincronizando con Supabase..."):
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-            st.success("Base de datos actualizada correctamente.")
-            st.rerun()
-    with col_out:
-        if st.button("CERRAR SESION", use_container_width=True, type="secondary", key=gen_key("btn_cerrar_sesion")):
-            st.session_state.perfil = None
-            st.session_state.pagina = "login"
-            st.session_state.orden_seleccionada = None
-            st.session_state.busqueda = ""
-            st.session_state.admin_autenticado = False
-            st.rerun()
+    if st.button("CERRAR SESION", use_container_width=True, type="secondary", key=gen_key("btn_cerrar_sesion")):
+        st.session_state.perfil = None
+        st.session_state.pagina = "login"
+        st.session_state.orden_seleccionada = None
+        st.session_state.busqueda = ""
+        st.session_state.admin_autenticado = False
+        st.rerun()
 
 def obtener_maquinas_disponibles(df):
     if df.empty or "Ubicacion" not in df.columns: return ["Todas"]
@@ -781,6 +731,128 @@ def contar_por_subsistema(df, maquina_filtro="Todas"):
         return subsistemas.value_counts().to_dict()
     except Exception:
         return {}
+
+# ═══════════════════════════════════════════════════════════════════════
+#  SINCRONIZACIÓN EXCEL ↔ SUPABASE
+# ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  SINCRONIZACIÓN EXCEL ↔ SUPABASE (CORREGIDA)
+# ═══════════════════════════════════════════════════════════════════════
+def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
+    try:
+        df = df_excel.copy()
+        cols_originales = {c.strip().lower(): c for c in df.columns}
+
+        # MAPEO MEJORADO con los nombres que usa el usuario
+        mapeo_columnas = {
+            "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot", "id"],
+            "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina", "un"],
+            "ubicacion": ["ubicacion", "ubicación", "lugar", "area", "área", "un", "unidad", "localizacion", "sala", "un"],
+            "especialidad": ["especialidad", "esp", "tipo de ot", "tipo_ot", "tipo", "area tecnica", "disciplina", "tipo de ot"],
+            "actividades": ["actividades", "actividad", "descr", "descripcion", "descripción", "tarea", "trabajo", "falla", "problema", "descr"],
+            "procedimiento": ["procedimiento", "proc", "proceso", "tipo procedimiento"],
+            "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
+            "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"]
+        }
+
+        columnas_renombrar = {}
+        for supabase_col, posibles_nombres in mapeo_columnas.items():
+            for posible in posibles_nombres:
+                if posible in cols_originales:
+                    columnas_renombrar[cols_originales[posible]] = supabase_col
+                    break
+
+        df = df.rename(columns=columnas_renombrar)
+        detectadas = list(columnas_renombrar.values())
+        faltantes = [c for c in mapeo_columnas.keys() if c not in detectadas]
+
+        st.markdown(f"""
+        <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px; margin: 8px 0;">
+            <div style="font-size: 12px; color: #166534;">
+                ✅ <b>Columnas detectadas:</b> {', '.join(detectadas) if detectadas else 'Ninguna'}<br>
+                {'⚠️ <b>Sin detectar:</b> ' + ', '.join(faltantes) if faltantes else '✅ Todas las columnas principales encontradas'}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Si no hay equipo pero sí ubicacion, usar ubicacion como equipo también
+        if "equipo" not in df.columns and "ubicacion" in df.columns:
+            df["equipo"] = df["ubicacion"]
+            st.info("ℹ️ No se detectó columna 'equipo'. Se usará 'ubicacion' como equipo.")
+
+        # Si no hay ubicacion pero sí equipo, usar equipo como ubicacion
+        if "ubicacion" not in df.columns and "equipo" in df.columns:
+            df["ubicacion"] = df["equipo"]
+            st.info("ℹ️ No se detectó columna 'ubicacion'. Se usará 'equipo' como ubicacion.")
+
+        campos_base = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+        cols_validas = [c for c in campos_base if c in df.columns]
+
+        if not cols_validas:
+            st.error(f"❌ No se detectaron columnas válidas. Columnas en tu Excel: {list(df_excel.columns)}")
+            return False, "No se detectaron columnas válidas"
+
+        df = df[cols_validas]
+        df = df.where(pd.notnull(df), None)
+
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].apply(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+
+        def generar_id_unico(row):
+            partes = [
+                str(row.get("id_ot", "")),
+                str(row.get("equipo", "")),
+                str(row.get("ubicacion", "")),
+                str(row.get("actividades", "")),
+                str(row.get("nodo", ""))
+            ]
+            raw = "|".join(partes)
+            return hashlib.md5(raw.encode()).hexdigest()[:20]
+
+        df["id_unico"] = df.apply(generar_id_unico, axis=1)
+
+        # NO convertir id_ot a numérico para preservar ceros a la izquierda
+        # Solo limpiar si es necesario
+        if "id_ot" in df.columns:
+            df["id_ot"] = df["id_ot"].apply(lambda x: str(int(x)).zfill(len(str(x))) if pd.notna(x) and str(x).replace('.','',1).isdigit() else str(x) if pd.notna(x) else None)
+
+        registros = df.to_dict(orient="records")
+        total = len(registros)
+
+        if total == 0:
+            return False, "❌ No hay registros válidos para sincronizar"
+
+        if modo == "reemplazar":
+            with st.spinner("🗑️ Borrando datos antiguos..."):
+                supabase.table("ordenes_trabajo").delete().neq("id", 0).execute()
+            insertados = 0
+            batch_size = 500
+            progress_bar = st.progress(0)
+            for i in range(0, total, batch_size):
+                lote = registros[i:i+batch_size]
+                supabase.table("ordenes_trabajo").insert(lote).execute()
+                insertados += len(lote)
+                progress_bar.progress(min((i + batch_size) / total, 1.0))
+            progress_bar.empty()
+            return True, f"✅ Sincronización completa: {insertados} registros insertados con ID único."
+
+        elif modo == "upsert":
+            upsertados = 0
+            batch_size = 500
+            progress_bar = st.progress(0)
+            for i in range(0, total, batch_size):
+                lote = registros[i:i+batch_size]
+                supabase.table("ordenes_trabajo").upsert(lote, on_conflict="id_unico").execute()
+                upsertados += len(lote)
+                progress_bar.progress(min((i + batch_size) / total, 1.0))
+            progress_bar.empty()
+            return True, f"✅ Sincronización completa: {upsertados} registros actualizados/insertados. Las asignaciones de técnicos se mantuvieron."
+        else:
+            return False, "Modo no válido"
+    except Exception as e:
+        return False, f"❌ Error: {str(e)}"
+
 
 def calcular_duracion(hora_inicio, hora_fin):
     try:
@@ -891,6 +963,7 @@ def get_row_by_internal_id(df, internal_id):
         return idx, df.loc[idx]
     return None, None
 
+# ==================== INICIALIZACION SESSION STATE ====================
 if "perfil" not in st.session_state: st.session_state.perfil = None
 if "pagina" not in st.session_state: st.session_state.pagina = "login"
 if "orden_seleccionada" not in st.session_state: st.session_state.orden_seleccionada = None
@@ -912,11 +985,14 @@ if "mostrar_opciones_ordenes" not in st.session_state: st.session_state.mostrar_
 if "actividad_expandida" not in st.session_state: st.session_state.actividad_expandida = None
 if "admin_autenticado" not in st.session_state: st.session_state.admin_autenticado = False
 if "mostrar_login_admin" not in st.session_state: st.session_state.mostrar_login_admin = False
+
+# ===== Session state para asignacion rapida =====
 if "asignaciones_temp" not in st.session_state:
     st.session_state.asignaciones_temp = {}
 if "asig_rapida_msg" not in st.session_state:
     st.session_state.asig_rapida_msg = None
 
+# ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
     admin_pass = st.secrets.get("ADMIN_PASSWORD", "")
     if not admin_pass:
@@ -1036,7 +1112,7 @@ def pantalla_home():
             """, unsafe_allow_html=True)
         with col_g2:
             if "Estado" in df.columns:
-                total_ejec = len(df[df["Estado"].isin(["Ejecutado", "Verificado"])]])
+                total_ejec = len(df[df["Estado"].isin(["Ejecutado", "Verificado"])])
                 verif_count = len(df[df["Estado"] == "Verificado"])
                 pend_verif = total_ejec - verif_count
                 pct_verif = round((verif_count / total_ejec) * 100, 1) if total_ejec > 0 else 0
@@ -1086,24 +1162,16 @@ def pantalla_home():
                 st.session_state.filtro_especialidad = "MEC"
                 st.session_state.pagina = "asignacion"
                 st.rerun()
-        
-        # --- AQUI ESTA EL CAMBIO SOLICITADO: 3 BOTONES EN FILA ---
         st.markdown("<br>", unsafe_allow_html=True)
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
+        col_btn1, col_btn3 = st.columns(2)
         with col_btn1:
             if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
                 st.session_state.mostrar_opciones_ordenes = not st.session_state.get("mostrar_opciones_ordenes", False)
                 st.rerun()
-        with col_btn2:
-            # Botón para abrir el cargador de Excel
-            if st.button("📤 SUBIR EXCEL", use_container_width=True, type="primary", key=gen_key("btn_subir_excel_toggle")):
-                st.session_state.mostrar_uploader_excel = not st.session_state.get("mostrar_uploader_excel", False)
-                st.rerun()
         with col_btn3:
-            if st.button("ENVIAR REPORTE", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
+            if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
-
         if st.session_state.get("mostrar_opciones_ordenes", False):
             st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
             col_op1, col_op2 = st.columns(2)
@@ -1115,24 +1183,9 @@ def pantalla_home():
                 if st.button("EJECUTADAS", use_container_width=True, type="secondary", key=gen_key("btn_ver_ejecutadas")):
                     st.session_state.mostrar_opciones_ordenes = False
                     st.session_state.pagina = "verificar"; st.rerun()
-
-        # Lógica para mostrar el cargador de archivos Excel
-        if st.session_state.get("mostrar_uploader_excel", False):
-            st.markdown("### 📂 Cargar nuevo archivo de Excel")
-            uploaded_file = st.file_uploader("Selecciona el archivo .xlsx", type=["xlsx", "xls"], key=gen_key("uploader_excel_nuevo"))
-            if uploaded_file is not None:
-                st.success("Archivo listo. Presiona el botón para actualizar la base de datos.")
-                if st.button("✅ CONFIRMAR Y REEMPLAZAR DATOS", type="primary", use_container_width=True, key=gen_key("btn_confirmar_excel_nuevo")):
-                    with st.spinner("Procesando Excel y subiendo a Supabase. Esto puede tardar unos segundos..."):
-                        ok, msg = procesar_excel_nuevo(uploaded_file)
-                    if ok:
-                        st.success(msg)
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                        st.session_state.mostrar_uploader_excel = False
-                        st.rerun()
-                    else:
-                        st.error(msg)
-
+        if st.button("🔄 SINCRONIZAR EXCEL", use_container_width=True, type="primary", key=gen_key("btn_sincronizar_home")):
+            st.session_state.pagina = "sincronizar"
+            st.rerun()
     elif perfil == "tecnico":
         tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
         opciones_tec = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
@@ -1163,7 +1216,7 @@ def pantalla_home():
 
             st.markdown(f"""
             <div style="text-align: center; margin: 15px 0 8px 0;">
-                <div style="font-size: 14px; font-weight: 700; color: #1a237e;">{html.escape(tecnico_actual)}</div>
+                <div style="font-size: 14px; font-weight: 700; color: #1a237e;">{tecnico_actual}</div>
                 <div style="font-size: 11px; color: #666;">Especialidad: {esp_sel}</div>
             </div>
             <div style="display: flex; gap: 8px; justify-content: center; margin: 10px 0; flex-wrap: wrap;">
@@ -1188,6 +1241,7 @@ def pantalla_home():
 
             st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
 
+            # --- SOLO MOSTRAR PENDIENTES ---
             df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])]
             if df_pendientes.empty and not df_mias.empty:
                 st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
@@ -1195,6 +1249,7 @@ def pantalla_home():
             elif df_mias.empty:
                 st.info("No tienes ordenes con los filtros seleccionados.")
             else:
+                # === NUEVA ESTRUCTURA: Ubicación → Equipo → Actividades ===
                 grupos_ubicacion = df_pendientes.groupby(["Ubicacion"])
                 for ubicacion_raw, grupo_ubi_df in grupos_ubicacion:
                     ubicacion = ubicacion_raw[0] if isinstance(ubicacion_raw, tuple) else ubicacion_raw
@@ -1204,14 +1259,16 @@ def pantalla_home():
 
                     ubi_key = str(ubicacion).replace(" ", "_").replace("-", "_").replace(".", "")
 
+                    # Contenedor principal de la ubicación
                     st.markdown(f"""
                     <div style="background: linear-gradient(180deg, #0F172A 0%, #0B1120 100%); border-radius: 16px; margin-bottom: 12px; color: #0F172A; border: 1px solid #1E3A5F; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.25);">
                         <div style="background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%); padding: 12px 16px; text-align: center;">
-                            <div style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;">📍 {html.escape(str(ubicacion))}</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px;">📍 {ubicacion}</div>
                         </div>
                         <div style="padding: 10px 14px;">
                     """, unsafe_allow_html=True)
 
+                    # Dentro de la ubicación, agrupar por Equipo
                     grupos_equipo = grupo_ubi_df.groupby(["Equipo"])
                     for equipo_raw, grupo_eq_df in grupos_equipo:
                         equipo = equipo_raw[0] if isinstance(equipo_raw, tuple) else equipo_raw
@@ -1225,11 +1282,13 @@ def pantalla_home():
                         tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
                         eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
+                        # Fuente de verdad: diccionario de checks por equipo
                         checks_key = f"checks_{eq_key}"
                         if checks_key not in st.session_state:
                             st.session_state[checks_key] = {}
                         checks_dict = st.session_state[checks_key]
 
+                        # Calcular progreso visual
                         realizadas_chk = sum(1 for _, r in grupo_eq_df.iterrows() if checks_dict.get(limpiar(r.get("ID"), ""), False))
                         pct_realizadas = round((realizadas_chk / total_act) * 100, 1) if total_act > 0 else 0
                         estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
@@ -1239,9 +1298,9 @@ def pantalla_home():
                         <div class="eq-bloque" style="margin-bottom: 10px; border-radius: 12px; overflow: hidden; border: 1px solid #1E3A5F;">
                             <div class="eq-bloque-header" style="padding: 10px 14px;">
                                 <div style="flex:1; min-width:0;">
-                                    <div class="eq-bloque-titulo">🔧 {html.escape(str(equipo_limpio))}</div>
+                                    <div class="eq-bloque-titulo">🔧 {equipo_limpio}</div>
                                     <div class="eq-bloque-meta">
-                                        👤 {html.escape(str(tecnico_bloque))} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
+                                        👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
                                     </div>
                                     <div class="eq-progress-bar">
                                         <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
@@ -1252,6 +1311,7 @@ def pantalla_home():
                             <div class="eq-bloque-contenido">
                         """, unsafe_allow_html=True)
 
+                        # ========== RENDERIZAR CADA ACTIVIDAD DEL EQUIPO ==========
                         for idx, row in grupo_eq_df.iterrows():
                             internal_id = limpiar(row.get("ID"), "")
                             if not internal_id:
@@ -1274,13 +1334,14 @@ def pantalla_home():
                             with cols_fila[1]:
                                 st.markdown(f"""
                                 <div class="fila-compacta {clase_ej}">
-                                    <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{html.escape(desc)}</span>
+                                    <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
                                     <span class="estado-badge {'eq-estado-ej' if estado=='Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
                                 </div>
                                 """, unsafe_allow_html=True)
 
                         st.markdown("</div></div>", unsafe_allow_html=True)
 
+                    # === COMENTARIO GENERAL Y BOTONES POR UBICACIÓN (solo uno) ===
                     comentario_ubi_key = f"com_ubi_{ubi_key}"
                     if comentario_ubi_key not in st.session_state:
                         st.session_state[comentario_ubi_key] = ""
@@ -1303,8 +1364,6 @@ def pantalla_home():
                                     ck = f"checks_{eq_k}"
                                     if ck in st.session_state:
                                         st.session_state[ck][internal_id] = True
-                                    widget_key = gen_key("chk_eq", internal_id)
-                                    st.session_state[widget_key] = True
                                     st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
                             st.rerun()
 
@@ -1317,8 +1376,6 @@ def pantalla_home():
                                     ck = f"checks_{eq_k}"
                                     if ck in st.session_state:
                                         st.session_state[ck][internal_id] = False
-                                    widget_key = gen_key("chk_eq", internal_id)
-                                    st.session_state[widget_key] = False
                                     if f"hora_ini_auto_{internal_id}" in st.session_state:
                                         del st.session_state[f"hora_ini_auto_{internal_id}"]
                             st.rerun()
@@ -1334,9 +1391,7 @@ def pantalla_home():
 
                                 eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"),"Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
                                 ck = f"checks_{eq_k}"
-                                widget_key = gen_key("chk_eq", internal_id)
-                                chk_val = st.session_state.get(widget_key, False)
-                                
+                                chk_val = st.session_state.get(ck, {}).get(internal_id, False)
                                 estado_actual = limpiar(row.get("Estado"), "Pendiente")
                                 h_ini_bd = limpiar(row.get("Hora_Inicio"), "")
                                 h_fin_bd = limpiar(row.get("Hora_Fin"), "")
@@ -1380,7 +1435,6 @@ def pantalla_home():
                                 st.info("No hay cambios para guardar")
 
                     st.markdown("</div></div>", unsafe_allow_html=True)
-
     if perfil == "admin" and st.session_state.mostrar_envio_correo:
         st.divider()
         st.subheader("Enviar Resumen por Correo")
@@ -1499,16 +1553,16 @@ def pantalla_ordenes():
         prioridad = limpiar(row.get("Prioridad_Actividad"), "")
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
         nodo = limpiar(row.get("Nodo"), "")
-        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{html.escape(nodo)}</span>" if nodo else ""
+        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
         comentario_admin = limpiar(row.get("Comentarios"), "")
-        com_html = f"<div style='font-size:10px;color:#0EA5E9;margin-top:2px;font-style:italic;'>&#128172; {html.escape(comentario_admin)}</div>" if comentario_admin else ""
+        com_html = f"<div style='font-size:10px;color:#0EA5E9;margin-top:2px;font-style:italic;'>&#128172; {comentario_admin}</div>" if comentario_admin else ""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id"><strong>{html.escape(id_ot)}</strong>{nodo_html}</div>
-            <div class="col-esp">{html.escape(tipo)}</div>
-            <div class="col-desc" title="{html.escape(descripcion)}">{html.escape(desc_corta)}{com_html}</div>
+            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
+            <div class="col-esp">{tipo}</div>
+            <div class="col-desc" title="{descripcion}">{desc_corta}{com_html}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
-            <div class="col-tec">{html.escape(tecnico)}</div>
+            <div class="col-tec">{tecnico}</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button(f"Ver detalle", key=gen_key("btn_ver", internal_id), use_container_width=True):
@@ -1588,14 +1642,14 @@ def pantalla_mis_ordenes():
         prioridad = limpiar(row.get("Prioridad_Actividad"), "")
         clase_prioridad = obtener_clase_css_prioridad(prioridad)
         nodo = limpiar(row.get("Nodo"), "")
-        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{html.escape(nodo)}</span>" if nodo else ""
+        nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
         st.markdown(f"""
         <div class="tabla-fila {clase_prioridad}">
-            <div class="col-id"><strong>{html.escape(id_ot)}</strong>{nodo_html}</div>
-            <div class="col-esp">{html.escape(tipo)}</div>
-            <div class="col-desc" title="{html.escape(descripcion)}">{html.escape(desc_corta)}</div>
+            <div class="col-id"><strong>{id_ot}</strong>{nodo_html}</div>
+            <div class="col-esp">{tipo}</div>
+            <div class="col-desc" title="{descripcion}">{desc_corta}</div>
             <div class="col-estado"><span class="estado-badge {estado_clase}">{estado}</span></div>
-            <div class="col-tec">{html.escape(tecnico[:15])}...</div>
+            <div class="col-tec">{tecnico[:15]}...</div>
         </div>
         """, unsafe_allow_html=True)
         col1, col2 = st.columns(2)
@@ -1635,20 +1689,20 @@ def pantalla_ejecutar():
     with col_home:
         if st.button("Inicio", use_container_width=True, type="secondary", key=gen_key("ejec_inicio")):
             st.session_state.pagina = "home"; st.session_state.orden_seleccionada = None; st.rerun()
-    nodo_info = f"<strong>Nodo:</strong> {html.escape(limpiar(row.get('Nodo'), 'N/A'))}<br>" if 'Nodo' in row else ""
+    nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info" style="color: #0F172A;">
             {nodo_info}
-            <strong style="color:#0F172A">Equipo:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Equipo'), 'N/A'))}</span><br>
-            <strong style="color:#0F172A">Ubicacion:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Ubicacion'), 'N/A'))}</span><br>
-            <strong style="color:#0F172A">Especialidad:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Especialidad'), 'N/A'))}</span><br>
-            <strong style="color:#0F172A">Estado actual:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Estado'), 'Pendiente'))}</span>
+            <strong style="color:#0F172A">Equipo:</strong> <span style="color:#0F172A;">{limpiar(row.get('Equipo'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Ubicacion:</strong> <span style="color:#0F172A;">{limpiar(row.get('Ubicacion'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Especialidad:</strong> <span style="color:#0F172A;">{limpiar(row.get('Especialidad'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Estado actual:</strong> <span style="color:#0F172A;">{limpiar(row.get('Estado'), 'Pendiente')}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.markdown(f'<p style="color:#0F172A; font-size:14px; line-height:1.6;">{html.escape(limpiar(row.get("Actividades"), "Sin descripcion"))}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:#0F172A; font-size:14px; line-height:1.6;">{limpiar(row.get("Actividades"), "Sin descripcion")}</p>', unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Registro de Ejecucion</h3>", unsafe_allow_html=True)
     h_ini_str = limpiar(row.get("Hora_Inicio"), "")
     h_fin_str = limpiar(row.get("Hora_Fin"), "")
@@ -1729,21 +1783,21 @@ def pantalla_detalle_tecnico():
             <strong>Prioridad: {info_prioridad['label']}</strong> — {info_prioridad['desc']}
         </div>
         """, unsafe_allow_html=True)
-    nodo_info = f"<strong>Nodo:</strong> {html.escape(limpiar(row.get('Nodo'), 'N/A'))}<br>" if 'Nodo' in row else ""
+    nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info" style="color: #0F172A;">
             {nodo_info}
-            <strong style="color:#0F172A">Equipo:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Equipo'), 'N/A'))}</span><br>
-            <strong style="color:#0F172A">Ubicacion:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Ubicacion'), 'N/A'))}</span><br>
-            <strong style="color:#0F172A">Especialidad:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Especialidad'), 'N/A'))}</span><br>
-            <strong style="color:#0F172A">Estado:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Estado'), 'Pendiente'))}</span><br>
-            <strong style="color:#0F172A">Tecnico Asignado:</strong> <span style="color:#0F172A;">{html.escape(limpiar(row.get('Tecnico_Asignado'), 'Sin asignar'))}</span>
+            <strong style="color:#0F172A">Equipo:</strong> <span style="color:#0F172A;">{limpiar(row.get('Equipo'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Ubicacion:</strong> <span style="color:#0F172A;">{limpiar(row.get('Ubicacion'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Especialidad:</strong> <span style="color:#0F172A;">{limpiar(row.get('Especialidad'), 'N/A')}</span><br>
+            <strong style="color:#0F172A">Estado:</strong> <span style="color:#0F172A;">{limpiar(row.get('Estado'), 'Pendiente')}</span><br>
+            <strong style="color:#0F172A">Tecnico Asignado:</strong> <span style="color:#0F172A;">{limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
     st.markdown("<h3 style='color:#0F172A'>Descripcion del Procedimiento</h3>", unsafe_allow_html=True)
-    st.markdown(f'<p style="color:#0F172A; font-size:14px; line-height:1.6;">{html.escape(limpiar(row.get("Actividades"), "Sin descripcion"))}</p>', unsafe_allow_html=True)
+    st.markdown(f'<p style="color:#0F172A; font-size:14px; line-height:1.6;">{limpiar(row.get("Actividades"), "Sin descripcion")}</p>', unsafe_allow_html=True)
     if row.get("Comentarios"):
         st.subheader("Comentarios")
         st.info(limpiar(row.get("Comentarios"), ""))
@@ -1786,15 +1840,15 @@ def pantalla_detalle():
             <strong>Prioridad: {info_prioridad['label']}</strong> — {info_prioridad['desc']}
         </div>
         """, unsafe_allow_html=True)
-    nodo_info = f"<strong>Nodo:</strong> {html.escape(limpiar(row.get('Nodo'), 'N/A'))}<br>" if 'Nodo' in row else ""
+    nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
     st.markdown(f"""
     <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info">
             {nodo_info}
-            <strong style="color:#0F172A">Equipo:</strong> {html.escape(limpiar(row.get('Equipo'), 'N/A'))}<br>
-            <strong style="color:#0F172A">Ubicacion:</strong> {html.escape(limpiar(row.get('Ubicacion'), 'N/A'))}<br>
-            <strong style="color:#0F172A">Especialidad:</strong> {html.escape(limpiar(row.get('Especialidad'), 'N/A'))}<br>
-            <strong style="color:#0F172A">Estado:</strong> {html.escape(limpiar(row.get('Estado'), 'Pendiente'))}
+            <strong style="color:#0F172A">Equipo:</strong> {limpiar(row.get('Equipo'), 'N/A')}<br>
+            <strong style="color:#0F172A">Ubicacion:</strong> {limpiar(row.get('Ubicacion'), 'N/A')}<br>
+            <strong style="color:#0F172A">Especialidad:</strong> {limpiar(row.get('Especialidad'), 'N/A')}<br>
+            <strong style="color:#0F172A">Estado:</strong> {limpiar(row.get('Estado'), 'Pendiente')}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1819,7 +1873,7 @@ def pantalla_detalle():
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128100; Tecnico</div>
-                <div style="color:#0F172A; font-size:13px; font-weight:600; margin-top:4px;">{html.escape(tecnico_actual)}</div>
+                <div style="color:#0F172A; font-size:13px; font-weight:600; margin-top:4px;">{tecnico_actual}</div>
             </div>
             <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {est_color};">
                 <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">&#128308; Estado</div>
@@ -1849,14 +1903,14 @@ def pantalla_detalle():
     if comentario_detalle:
         st.markdown(f"""
         <div style="background: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: #78350F;">
-            <strong>💬 Comentario:</strong><br>{html.escape(comentario_detalle)}
+            <strong>💬 Comentario:</strong><br>{comentario_detalle}
         </div>
         """, unsafe_allow_html=True)
     if st.button("&#9998; EDITAR EN ASIGNACIONES", use_container_width=True, type="secondary", key=gen_key("det_ir_asignar")):
         st.session_state.pagina = "asignacion"
         st.rerun()
     if perfil in ["admin", "supervisor"] and estado_actual == "Ejecutado":
-        if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key=gen_key("det_verificar"))):
+        if st.button("VERIFICAR ORDEN", use_container_width=True, type="primary", key=gen_key("det_verificar")):
             if actualizar_orden_supabase(internal_id, "Estado", "Verificado"):
                 df.at[idx, "Estado"] = "Verificado"
                 st.success("Orden VERIFICADA")
@@ -1892,24 +1946,24 @@ def pantalla_verificar():
         hora_ini = limpiar(row.get("Hora_Inicio"), "N/A")
         hora_fin = limpiar(row.get("Hora_Fin"), "N/A")
         nodo = limpiar(row.get("Nodo"), "")
-        nodo_badge = f"<span class='nodo-badge-mini'>{html.escape(nodo)}</span>" if nodo else ""
+        nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
         st.markdown(f"""
         <div class="detail-panel" style="margin-bottom: 12px; background:#FFFFFF; border:1px solid #E2E8F0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <strong>OT {html.escape(id_ot)}</strong> {nodo_badge}
+                <strong>OT {id_ot}</strong> {nodo_badge}
                 <span class="estado-badge estado-ejecutado">Ejecutado</span>
             </div>
             <div style="font-size: 12px; color: #666;">
-                <strong>{html.escape(tipo)}</strong> | {html.escape(equipo)} — {html.escape(ubicacion)}<br>
-                Tecnico: {html.escape(tecnico)}<br>
+                <strong>{tipo}</strong> | {equipo} — {ubicacion}<br>
+                Tecnico: {tecnico}<br>
                 Ejecutado: {fecha_ejec} | {hora_ini} - {hora_fin}
             </div>
-            <div style="font-size: 11px; color: #333; margin-top: 6px;">{html.escape(desc_corta)}</div>
+            <div style="font-size: 11px; color: #333; margin-top: 6px;">{desc_corta}</div>
         </div>
         """, unsafe_allow_html=True)
         with st.expander("Ver detalles y comentarios"):
-            st.write(f"**Descripcion completa:** {html.escape(descripcion)}")
-            st.write(f"**Comentarios:** {html.escape(limpiar(row.get('Comentarios'), 'Sin comentarios'))}")
+            st.write(f"**Descripcion completa:** {descripcion}")
+            st.write(f"**Comentarios:** {limpiar(row.get('Comentarios'), 'Sin comentarios')}")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(f"Verificado", use_container_width=True, type="primary", key=gen_key("verif_btn", internal_id)):
@@ -1928,7 +1982,12 @@ def pantalla_verificar():
                     else:
                         st.error("Error al rechazar")
 
+
+
+
+# ==================== CALLBACK AUTO-GUARDAR ====================
 def auto_guardar_fila(internal_id, key_widget):
+    """Se ejecuta automáticamente cuando cambia el técnico en una fila"""
     nuevo_tec = st.session_state.get(key_widget, "")
     if nuevo_tec == "Sin asignar":
         nuevo_tec = ""
@@ -1961,11 +2020,14 @@ def auto_guardar_fila(internal_id, key_widget):
         st.session_state.asig_rapida_msg = msg
         st.toast(msg, icon="💾")
 
+
 def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
+    """Asigna o desasigna técnico a todas las actividades visibles de la máquina y guarda en Supabase"""
     if not desasignar and not tecnico_masivo:
         return
 
     df = st.session_state.df_mantenimientos
+    # Reconstruir el df filtrado igual que en pantalla_asignacion
     df_asig = df.copy()
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig.columns:
         df_asig = df_asig[df_asig["Especialidad"] == st.session_state.filtro_especialidad]
@@ -2021,6 +2083,8 @@ def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
         st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
         st.rerun()
 
+
+# ==================== NUEVA PANTALLA ASIGNACIÓN RÁPIDA ====================
 def pantalla_asignacion():
     df = recargar_datos()
     st.markdown("""
@@ -2030,10 +2094,14 @@ def pantalla_asignacion():
     """, unsafe_allow_html=True)
     boton_volver_inicio("asignacion")
 
+    # Mostrar mensaje de asignación previa
     if st.session_state.get("asig_rapida_msg"):
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
+    # ═══════════════════════════════════════════════════
+    # PREPARAR DATAFRAME BASE (filtros globales)
+    # ═══════════════════════════════════════════════════
     df_asig_base = df.copy()
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in df_asig_base.columns:
         df_asig_base = df_asig_base[df_asig_base["Especialidad"] == st.session_state.filtro_especialidad]
@@ -2042,12 +2110,23 @@ def pantalla_asignacion():
     if "Nodo" in df_asig_base.columns and st.session_state.filtro_subsistema_nodo != "Todos":
         df_asig_base = df_asig_base[df_asig_base["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
 
+    # Filtro de estado eliminado — se muestran todos los estados
+
+    # ═══════════════════════════════════════════════════
+    # APLICAR FILTRO DE MÁQUINA (automático según botón clickeado)
+    # ═══════════════════════════════════════════════════
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
+    # Filtro de procedimiento eliminado — se muestran todos los procedimientos
+
+    # ═══ LAYOUT: Filtros izquierda (1 parte) | Órdenes derecha (3 partes) ═══
     col_izq, col_der = st.columns([1, 3])
 
+    # ═══════════════════════════════════════════════════
+    # COLUMNA IZQUIERDA: Filtros apilados (automáticos)
+    # ═══════════════════════════════════════════════════
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
         maquinas_asig = obtener_maquinas_disponibles(df_asig_base)
@@ -2058,6 +2137,13 @@ def pantalla_asignacion():
                 st.session_state.filtro_maquina = maq
                 st.rerun()
 
+        # Filtro de estado eliminado — se muestran todos los estados
+
+        # Filtro de procedimiento eliminado — se muestran todos los procedimientos
+
+    # ═══════════════════════════════════════════════════
+    # COLUMNA DERECHA: Lista rápida + asignación masiva
+    # ═══════════════════════════════════════════════════
     with col_der:
         maq_sel = st.session_state.filtro_maquina
         total_ordenes = len(df_asig)
@@ -2065,7 +2151,7 @@ def pantalla_asignacion():
         st.markdown(f"""
         <div style="margin-bottom: 12px;">
             <div style="font-size: 16px; font-weight: 700; color: #0F172A;">
-                {html.escape(maq_sel) if maq_sel != "Todas" else "Todas las máquinas"}
+                {maq_sel if maq_sel != "Todas" else "Todas las máquinas"}
             </div>
             <div style="font-size: 13px; color: #64748B;">
                 {total_ordenes} actividades encontradas
@@ -2073,6 +2159,7 @@ def pantalla_asignacion():
         </div>
         """, unsafe_allow_html=True)
 
+        # ========== BARRA DE ASIGNACIÓN MASIVA ==========
         if total_ordenes > 0 and maq_sel != "Todas":
             esp_filtro = st.session_state.filtro_especialidad
             if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
@@ -2101,12 +2188,15 @@ def pantalla_asignacion():
             st.stop()
 
         df_pagina = df_asig
+
+        # Lista de actividades oculta (asignación masiva arriba)
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         if df_pagina.empty:
             st.info("📭 No hay actividades con los filtros seleccionados.")
         else:
             st.success(f"✅ {len(df_pagina)} actividades listas para asignar. Usa la barra de arriba.")
 
+        # ========== LISTA DE ACTIVIDADES ==========
         for idx, row in df_pagina.iterrows():
             internal_id = limpiar(row.get("ID"), "")
             id_ot       = limpiar(row.get("ID OT"), "SIN ID")
@@ -2115,7 +2205,7 @@ def pantalla_asignacion():
             tec_asig    = limpiar(row.get("Tecnico_Asignado"), "")
             proc        = limpiar(row.get("Procedimiento"), "")
             nodo        = limpiar(row.get("Nodo"), "")
-            nodo_badge  = f"<span class='nodo-badge-mini'>{html.escape(nodo)}</span>" if nodo else ""
+            nodo_badge  = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
 
             estado_cls = "eq-estado-pd"
             if estado == "Ejecutado": estado_cls = "eq-estado-ej"
@@ -2124,28 +2214,235 @@ def pantalla_asignacion():
             st.markdown(f'''
             <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
                 <div>
-                    <div class="asig-ot"><strong>OT {html.escape(id_ot)}</strong> {nodo_badge}</div>
-                    <div style="font-size:11px;color:#64748B;">{html.escape(proc)}</div>
-                    <div style="font-size:12px;color:#0F172A;margin-top:2px;">{html.escape(desc)}</div>
+                    <div class="asig-ot"><strong>OT {id_ot}</strong> {nodo_badge}</div>
+                    <div style="font-size:11px;color:#64748B;">{proc}</div>
+                    <div style="font-size:12px;color:#0F172A;margin-top:2px;">{desc}</div>
                 </div>
                 <div style="text-align:right;">
                     <span class="estado-badge {estado_cls}">{estado}</span>
                     <div style="font-size:10px;color:#64748B;margin-top:4px;">
-                        {html.escape(tec_asig) if tec_asig else "Sin asignar"}
+                        {tec_asig if tec_asig else "Sin asignar"}
                     </div>
                 </div>
             </div>
             ''', unsafe_allow_html=True)
 
-paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle"]
+# ═══════════════════════════════════════════════════════════════════════
+#  PANTALLA: SINCRONIZAR EXCEL
+# ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+#  PANTALLA: SINCRONIZAR EXCEL (CORREGIDA)
+# ═══════════════════════════════════════════════════════════════════════
+def pantalla_sincronizar():
+    st.markdown("""
+    <div class="tablet-header" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>🔄 Sincronizar desde Excel</span>
+    </div>
+    """, unsafe_allow_html=True)
+    boton_volver_inicio("sincronizar")
+
+    st.markdown("""
+    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
+        <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
+        <div style="font-size: 12px; color: #475569; line-height: 1.6;">
+            La app genera automáticamente un <b>ID único</b> para cada actividad basado en: 
+            <code>id_ot + equipo + ubicacion + actividades + nodo</code>.<br><br>
+            ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
+            🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Inicializar skiprows en session_state para que persista
+    if "sync_skiprows" not in st.session_state:
+        st.session_state.sync_skiprows = 1
+
+    # Selector de filas a saltar
+    col_skip, col_info = st.columns([1, 3])
+    with col_skip:
+        skiprows = st.number_input(
+            "Saltar filas antes del header", 
+            min_value=0, max_value=10, 
+            value=st.session_state.sync_skiprows, 
+            step=1,
+            key="sync_skiprows_input"
+        )
+        st.session_state.sync_skiprows = int(skiprows)
+    with col_info:
+        st.caption("💡 Tu Excel tiene una fila de título arriba (Control Órdenes...). Déjalo en 1.")
+
+    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key="sync_upload_excel_v2")
+
+    if archivo is None:
+        st.info("⬆️ Sube un archivo Excel para comenzar")
+        return
+
+    # Función para detectar automáticamente la fila de encabezado
+    def detectar_header(archivo_bytes, max_skip=5):
+        """Intenta detectar cuál fila contiene los headers reales"""
+        posibles_headers = ["un", "id ot", "tipo de ot", "descr", "procedimiento", "nodo", "equipo", "ubicacion", "especialidad", "actividades"]
+        mejor_skip = 0
+        mejor_puntaje = -999
+
+        for s in range(max_skip + 1):
+            try:
+                archivo_bytes.seek(0)
+                df_test = pd.read_excel(io.BytesIO(archivo_bytes.read()), engine='openpyxl', skiprows=s, nrows=3)
+                cols_lower = [str(c).strip().lower() for c in df_test.columns]
+                puntaje = sum(1 for h in posibles_headers if any(h in c for c in cols_lower))
+                unnamed_count = sum(1 for c in cols_lower if 'unnamed' in c)
+                puntaje -= unnamed_count * 3  # Penalizar fuertemente Unnamed
+                if puntaje > mejor_puntaje:
+                    mejor_puntaje = puntaje
+                    mejor_skip = s
+            except:
+                continue
+        return mejor_skip
+
+    try:
+        nombre_archivo = archivo.name.lower()
+        archivo_bytes = io.BytesIO(archivo.read())
+        skiprows_int = st.session_state.sync_skiprows
+
+        # Primera lectura con el valor del usuario
+        if nombre_archivo.endswith('.xls'):
+            df_excel = pd.read_excel(archivo_bytes, engine='xlrd', skiprows=skiprows_int)
+        else:
+            df_excel = pd.read_excel(archivo_bytes, engine='openpyxl', skiprows=skiprows_int)
+
+        # Verificar si los headers parecen correctos
+        cols_lower = [str(c).strip().lower() for c in df_excel.columns]
+        tiene_unnamed = any('unnamed' in c for c in cols_lower)
+        tiene_headers_reales = any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades", "procedimiento"])
+
+        # Si hay Unnamed o no hay headers reales, forzar auto-detección
+        if tiene_unnamed or not tiene_headers_reales:
+            st.warning("⚠️ Los headers no se leyeron bien. Auto-detectando fila de encabezados...")
+            archivo_bytes.seek(0)
+            auto_skip = detectar_header(archivo_bytes, max_skip=5)
+            if auto_skip != skiprows_int:
+                st.info(f"🔍 Header real detectado en fila {auto_skip + 1}. Releyendo con skiprows={auto_skip}...")
+                archivo_bytes.seek(0)
+                if nombre_archivo.endswith('.xls'):
+                    df_excel = pd.read_excel(archivo_bytes, engine='xlrd', skiprows=auto_skip)
+                else:
+                    df_excel = pd.read_excel(archivo_bytes, engine='openpyxl', skiprows=auto_skip)
+                st.session_state.sync_skiprows = auto_skip
+                skiprows_int = auto_skip
+            else:
+                st.error("❌ No se pudieron detectar los headers automáticamente. Revisa el archivo.")
+                return
+
+        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas** (saltadas {skiprows_int} filas)")
+    except ImportError as e:
+        if 'xlrd' in str(e):
+            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
+        else:
+            st.error(f"❌ Error de importación: {e}")
+        return
+    except Exception as e:
+        st.error(f"❌ Error leyendo Excel: {e}")
+        return
+
+    with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
+        st.dataframe(df_excel.head(10), use_container_width=True)
+
+    # Mostrar nombres de columnas detectados para debug
+    st.markdown(f"<div style='font-size:11px;color:#64748B;'>📋 Columnas detectadas: <code>{list(df_excel.columns)}</code></div>", unsafe_allow_html=True)
+
+    # Alerta si parece que los headers están mal
+    cols_lower = [str(c).strip().lower() for c in df_excel.columns]
+    if any('unnamed' in c for c in cols_lower):
+        st.error("❌ **Los headers no se leyeron correctamente.** Hay columnas 'Unnamed'. Aumenta 'Saltar filas antes del header' a 1 o más.")
+    elif not any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades"]):
+        st.error("❌ **No se detectaron las columnas esperadas.** Revisa que 'Saltar filas antes del header' esté correcto.")
+
+    cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
+    esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+    faltantes = [c for c in esperadas if c not in cols_norm]
+
+    if faltantes:
+        st.warning(f"⚠️ Columnas no detectadas: **{', '.join(faltantes)}**")
+    else:
+        st.success("✅ Todas las columnas principales detectadas.")
+
+    st.subheader("🔑 IDs Únicos generados")
+    st.caption("La app crea estos IDs automáticamente para cada fila. Si el contenido no cambia, el ID se mantiene.")
+
+    df_preview = df_excel.head(5).copy()
+    df_preview.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_preview.columns]
+
+    def preview_id_unico(row):
+        partes = [
+            str(row.get("id_ot", "")),
+            str(row.get("equipo", "")),
+            str(row.get("ubicacion", "")),
+            str(row.get("actividades", "")),
+            str(row.get("nodo", ""))
+        ]
+        raw = "|".join(partes)
+        return hashlib.md5(raw.encode()).hexdigest()[:20]
+
+    if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
+        df_preview["id_unico_generado"] = df_preview.apply(preview_id_unico, axis=1)
+        cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
+        st.dataframe(df_preview[cols_show], use_container_width=True)
+
+    st.subheader("⚙️ Modo de Sincronización")
+    modo = st.radio(
+        "Elige qué hacer:",
+        [
+            "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
+            "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
+        ],
+        key="sync_modo_sync_v2"
+    )
+    modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
+
+    if modo_valor == "reemplazar":
+        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. Úsalo solo la primera vez o si quieres empezar de cero.")
+    else:
+        st.info("ℹ️ Este modo usa el ID único generado automáticamente. Actualiza lo que cambió, crea lo nuevo, y respeta asignaciones de técnicos.")
+        st.markdown("""
+        <div style="font-size: 11px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 6px;">
+            💡 <b>Requisito para Actualizar/Insertar:</b><br>
+            Debes haber usado "Reemplazar Todo" al menos una vez con esta versión de la app,<br>
+            o ejecutar en SQL Editor:<br>
+            <code>ALTER TABLE ordenes_trabajo ADD CONSTRAINT unique_id_unico UNIQUE (id_unico);</code>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
+        if st.button(btn_text, use_container_width=True, type="primary", key="sync_btn_sync_v2"):
+            with st.spinner("Sincronizando, por favor espera..."):
+                exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
+
+            if exito:
+                st.success(mensaje)
+                st.balloons()
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.info("🔄 Datos actualizados. Puedes volver al inicio.")
+            else:
+                st.error(mensaje)
+
+
+
+# ==================== PROTECCION DE RUTAS ADMIN ====================
+# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
+paginas_admin = ["home", "ordenes", "asignacion", "verificar", "detalle", "sincronizar"]
 if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
     st.session_state.pagina = "login"
     st.session_state.perfil = None
     st.session_state.mostrar_login_admin = False
 elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
+    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
     st.session_state.pagina = "login"
     st.session_state.perfil = None
 
+# ==================== EJECUCION PRINCIPAL ====================
 if st.session_state.pagina == "login":
     pantalla_login()
 elif st.session_state.pagina == "home":
@@ -2164,6 +2461,8 @@ elif st.session_state.pagina == "asignacion":
     pantalla_asignacion()
 elif st.session_state.pagina == "verificar":
     pantalla_verificar()
+elif st.session_state.pagina == "sincronizar":
+    pantalla_sincronizar()
 else:
     st.session_state.pagina = "login"
     st.rerun()
