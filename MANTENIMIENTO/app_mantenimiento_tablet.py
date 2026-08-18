@@ -2161,3 +2161,4 @@ opcion = st.sidebar.radio("Selecciona una opción:", ["Inicio", "Actualizar Base
 
 if opcion == "Actualizar Base de Datos":
     actualizar_base_datos_desde_excel()
+
