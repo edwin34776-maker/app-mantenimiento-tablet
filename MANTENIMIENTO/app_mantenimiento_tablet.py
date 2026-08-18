@@ -2136,3 +2136,28 @@ elif st.session_state.pagina == "verificar":
 else:
     st.session_state.pagina = "login"
     st.rerun()
+
+
+# Función para actualizar la base de datos desde un archivo Excel
+def actualizar_base_datos_desde_excel():
+    st.subheader("Actualizar Base de Datos desde Excel")
+    archivo_excel = st.file_uploader("Sube el archivo Excel", type=["xlsx", "xls"])
+    nombre_tabla = st.text_input("Nombre de la tabla en Supabase")
+
+    if archivo_excel and nombre_tabla:
+        if st.button("Actualizar Base de Datos"):
+            try:
+                df = pd.read_excel(archivo_excel)
+                datos = df.to_dict('records')
+                data, count = supabase.table(nombre_tabla).insert(datos).execute()
+                st.success(f"Se actualizaron {count} registros en la tabla {nombre_tabla}.")
+            except Exception as e:
+                st.error(f"Error al actualizar la base de datos: {e}")
+
+
+# Menú principal de la aplicación
+st.sidebar.title("Menú")
+opcion = st.sidebar.radio("Selecciona una opción:", ["Inicio", "Actualizar Base de Datos"])
+
+if opcion == "Actualizar Base de Datos":
+    actualizar_base_datos_desde_excel()
