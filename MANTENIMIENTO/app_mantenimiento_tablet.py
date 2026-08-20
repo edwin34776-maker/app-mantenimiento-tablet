@@ -870,8 +870,36 @@ def pantalla_login():
                     if est not in pivot_df.columns:
                         pivot_df[est] = 0
                 pivot_df = pivot_df[["Pendiente", "Ejecutado", "Verificado"]]
-                pivot_df.columns = ["Pendiente 🟡", "Ejecutado 🟢", "Verificado 🔵"]
-                st.bar_chart(pivot_df, use_container_width=True, height=220)
+                # SVG nativo barras apiladas
+                colors_b = {"Pendiente": "#F59E0B", "Ejecutado": "#22C55E", "Verificado": "#3B82F6"}
+                max_val = pivot_df.sum(axis=1).max() if len(pivot_df) > 0 else 1
+                svg_bars = '<svg width="100%" height="220" viewBox="0 0 400 220" style="font-family: system-ui, sans-serif;">'
+                bar_w = 80
+                gap = 60
+                start_x = 60
+                y_base = 180
+                scale = 150 / max_val if max_val > 0 else 1
+                for i, (esp, row) in enumerate(pivot_df.iterrows()):
+                    x = start_x + i * (bar_w + gap)
+                    total_bar = row.sum()
+                    y = y_base
+                    for est in ["Pendiente", "Ejecutado", "Verificado"]:
+                        h = row[est] * scale
+                        if h > 0:
+                            svg_bars += f'<rect x="{x}" y="{y-h}" width="{bar_w}" height="{h}" fill="{colors_b[est]}" rx="3"/>'
+                            if h > 15:
+                                svg_bars += f'<text x="{x+bar_w/2}" y="{y-h+14}" text-anchor="middle" font-size="10" fill="white" font-weight="700">{int(row[est])}</text>'
+                            y -= h
+                    svg_bars += f'<text x="{x+bar_w/2}" y="{y_base+18}" text-anchor="middle" font-size="12" fill="#0F172A" font-weight="700">{esp}</text>'
+                    svg_bars += f'<text x="{x+bar_w/2}" y="{y_base+32}" text-anchor="middle" font-size="10" fill="#64748B">{int(total_bar)}</text>'
+                # Leyenda
+                leg_y = 15
+                for j, est in enumerate(["Pendiente", "Ejecutado", "Verificado"]):
+                    lx = 260 + j * 45
+                    svg_bars += f'<rect x="{lx}" y="{leg_y}" width="10" height="10" fill="{colors_b[est]}" rx="2"/>'
+                    svg_bars += f'<text x="{lx+14}" y="{leg_y+9}" font-size="9" fill="#64748B">{est}</text>'
+                svg_bars += '</svg>'
+                st.markdown(svg_bars, unsafe_allow_html=True)
         st.markdown("<hr style='border: none; border-top: 2px solid #E2E8F0; margin: 20px 0;'>", unsafe_allow_html=True)
 
     st.markdown("""
@@ -1053,8 +1081,36 @@ def pantalla_home():
                     if est not in pivot_df.columns:
                         pivot_df[est] = 0
                 pivot_df = pivot_df[["Pendiente", "Ejecutado", "Verificado"]]
-                pivot_df.columns = ["Pendiente", "Ejecutado", "Verificado"]
-                st.bar_chart(pivot_df, use_container_width=True, height=220)
+                # SVG nativo para barras apiladas
+                colors_b = {"Pendiente": "#F59E0B", "Ejecutado": "#22C55E", "Verificado": "#3B82F6"}
+                max_val = pivot_df.sum(axis=1).max() if len(pivot_df) > 0 else 1
+                svg_bars = '<svg width="100%" height="220" viewBox="0 0 400 220" style="font-family: system-ui, sans-serif;">'
+                bar_w = 80
+                gap = 60
+                start_x = 60
+                y_base = 180
+                scale = 150 / max_val if max_val > 0 else 1
+                for i, (esp, row) in enumerate(pivot_df.iterrows()):
+                    x = start_x + i * (bar_w + gap)
+                    total_bar = row.sum()
+                    y = y_base
+                    for est in ["Pendiente", "Ejecutado", "Verificado"]:
+                        h = row[est] * scale
+                        if h > 0:
+                            svg_bars += f'<rect x="{x}" y="{y-h}" width="{bar_w}" height="{h}" fill="{colors_b[est]}" rx="3"/>'
+                            if h > 15:
+                                svg_bars += f'<text x="{x+bar_w/2}" y="{y-h+14}" text-anchor="middle" font-size="10" fill="white" font-weight="700">{int(row[est])}</text>'
+                            y -= h
+                    svg_bars += f'<text x="{x+bar_w/2}" y="{y_base+18}" text-anchor="middle" font-size="12" fill="#0F172A" font-weight="700">{esp}</text>'
+                    svg_bars += f'<text x="{x+bar_w/2}" y="{y_base+32}" text-anchor="middle" font-size="10" fill="#64748B">{int(total_bar)}</text>'
+                # Leyenda
+                leg_y = 15
+                for j, est in enumerate(["Pendiente", "Ejecutado", "Verificado"]):
+                    lx = 260 + j * 45
+                    svg_bars += f'<rect x="{lx}" y="{leg_y}" width="10" height="10" fill="{colors_b[est]}" rx="2"/>'
+                    svg_bars += f'<text x="{lx+14}" y="{leg_y+9}" font-size="9" fill="#64748B">{est}</text>'
+                svg_bars += '</svg>'
+                st.markdown(svg_bars, unsafe_allow_html=True)
 
     if perfil == "admin":
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
@@ -1805,7 +1861,35 @@ def pantalla_asignacion():
                         chart_data.append({"Equipo": eq, "Técnico": abreviar_tecnico(t), "Actividades": c})
                 df_chart = pd.DataFrame(chart_data)
                 pivot_chart = df_chart.pivot(index="Equipo", columns="Técnico", values="Actividades").fillna(0)
-                st.bar_chart(pivot_chart, use_container_width=True, height=280)
+                # SVG nativo barras horizontales apiladas por técnico
+                colors_eq = ["#3B82F6", "#22C55E", "#F59E0B", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316", "#6366F1"]
+                max_val_eq = pivot_chart.sum(axis=1).max() if len(pivot_chart) > 0 else 1
+                bar_h_eq = 22
+                gap_eq = 10
+                svg_eq = f'<svg width="100%" height="{len(pivot_chart) * (bar_h_eq + gap_eq) + 40}" viewBox="0 0 500 {len(pivot_chart) * (bar_h_eq + gap_eq) + 40}" style="font-family: system-ui, sans-serif;">'
+                scale_eq = 350 / max_val_eq if max_val_eq > 0 else 1
+                for i, (eq, row) in enumerate(pivot_chart.iterrows()):
+                    y = 20 + i * (bar_h_eq + gap_eq)
+                    svg_eq += f'<text x="0" y="{y+bar_h_eq/2+4}" font-size="10" fill="#475569" font-weight="600" text-anchor="start">{str(eq)[:18]}</text>'
+                    x = 100
+                    for j, tec in enumerate(pivot_chart.columns):
+                        val = row[tec]
+                        if val > 0:
+                            w = val * scale_eq
+                            color = colors_eq[j % len(colors_eq)]
+                            svg_eq += f'<rect x="{x}" y="{y}" width="{w}" height="{bar_h_eq}" fill="{color}" rx="4"/>'
+                            if w > 20:
+                                svg_eq += f'<text x="{x+w/2}" y="{y+bar_h_eq/2+4}" text-anchor="middle" font-size="9" fill="white" font-weight="700">{int(val)}</text>'
+                            x += w
+                # Leyenda
+                leg_x = 100
+                for j, tec in enumerate(pivot_chart.columns):
+                    color = colors_eq[j % len(colors_eq)]
+                    svg_eq += f'<rect x="{leg_x}" y="{len(pivot_chart) * (bar_h_eq + gap_eq) + 15}" width="10" height="10" fill="{color}" rx="2"/>'
+                    svg_eq += f'<text x="{leg_x+14}" y="{len(pivot_chart) * (bar_h_eq + gap_eq) + 24}" font-size="9" fill="#64748B">{tec}</text>'
+                    leg_x += len(str(tec)) * 6 + 30
+                svg_eq += '</svg>'
+                st.markdown(svg_eq, unsafe_allow_html=True)
             else:
                 st.info("📭 Aún no hay asignaciones en este filtro.")
             st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
