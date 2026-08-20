@@ -2033,12 +2033,15 @@ def pantalla_asignacion():
             if internal_id:
                 chk_val = seleccion.get(internal_id, False)
 
-            cols_row = st.columns([0.05, 1])
-            with cols_row[0]:
+            # Fila de actividad (sin columnas anidadas)
+            with st.container():
+                # Checkbox de selección masiva
                 if internal_id:
-                    is_sel = st.checkbox("", value=chk_val, key=gen_key("chk_sel", internal_id))
+                    is_sel = st.checkbox("✅ Seleccionar para asignación masiva", value=chk_val,
+                                         key=gen_key("chk_sel", internal_id))
                     seleccion[internal_id] = is_sel
-            with cols_row[1]:
+
+                # Info de la actividad
                 st.markdown(f'''
                 <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
                     <div>
@@ -2052,23 +2055,22 @@ def pantalla_asignacion():
                     </div>
                 </div>''', unsafe_allow_html=True)
 
+                # Selectores de técnico (sin columnas anidadas)
                 if internal_id:
                     esp_fila = limpiar(row.get("Especialidad"), "")
                     lista_tec = ["Sin asignar"] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_fila if esp_fila else "Todas")]
                     idx_tec1 = lista_tec.index(tec_asig) if tec_asig in lista_tec else 0
                     idx_tec2 = lista_tec.index(tec_asig2) if tec_asig2 in lista_tec else 0
 
-                    col_t1, col_t2 = st.columns(2)
-                    with col_t1:
-                        key_t1 = gen_key("sel_tec1", internal_id)
-                        st.selectbox("Técnico 1", lista_tec, index=idx_tec1, key=key_t1,
-                                     on_change=auto_guardar_fila, args=(internal_id, key_t1, "Tecnico_Asignado"),
-                                     label_visibility="collapsed")
-                    with col_t2:
-                        key_t2 = gen_key("sel_tec2", internal_id)
-                        st.selectbox("Técnico 2", lista_tec, index=idx_tec2, key=key_t2,
-                                     on_change=auto_guardar_fila, args=(internal_id, key_t2, "Tecnico_Asignado_2"),
-                                     label_visibility="collapsed")
+                    key_t1 = gen_key("sel_tec1", internal_id)
+                    st.selectbox("👤 Técnico 1", lista_tec, index=idx_tec1, key=key_t1,
+                                 on_change=auto_guardar_fila, args=(internal_id, key_t1, "Tecnico_Asignado"))
+
+                    key_t2 = gen_key("sel_tec2", internal_id)
+                    st.selectbox("👤 Técnico 2 (opcional)", lista_tec, index=idx_tec2, key=key_t2,
+                                 on_change=auto_guardar_fila, args=(internal_id, key_t2, "Tecnico_Asignado_2"))
+
+                st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
 
 # ==================== PANTALLA: SINCRONIZAR EXCEL ====================
 def pantalla_sincronizar():
