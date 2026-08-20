@@ -768,8 +768,111 @@ def autenticar_admin(password):
 # ==================== PANTALLA: LOGIN ====================
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
+
+    # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
+    df = cargar_excel_mantenimiento()
+    if not df.empty:
+        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
+
+        col_e, col_m = st.columns(2)
+
+        for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
+            with col:
+                if "Especialidad" in df.columns:
+                    df_esp = df[df["Especialidad"] == esp_code]
+                else:
+                    df_esp = df
+
+                total_esp = len(df_esp)
+                if total_esp == 0:
+                    st.info(f"📭 Sin datos {esp_label}")
+                    continue
+
+                pend = len(df_esp[df_esp["Estado"] == "Pendiente"]) if "Estado" in df_esp.columns else 0
+                ejec = len(df_esp[df_esp["Estado"] == "Ejecutado"]) if "Estado" in df_esp.columns else 0
+                verif = len(df_esp[df_esp["Estado"] == "Verificado"]) if "Estado" in df_esp.columns else 0
+                pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
+
+                st.markdown(f"""
+                <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
+                        <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
+                    </div>
+                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px; position: relative;">
+                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {esp_color}, {esp_color}aa); border-radius: 14px;"></div>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: 700; color: #0F172A;">{total_esp} actividades</div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                        <div style="flex: 1; text-align: center;">
+                            <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
+                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
+                        </div>
+                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                        <div style="flex: 1; text-align: center;">
+                            <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
+                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
+                        </div>
+                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                        <div style="flex: 1; text-align: center;">
+                            <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
+                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; height: 8px; border-radius: 4px; overflow: hidden;">
+                        <div style="width: {pend/total_esp*100 if total_esp else 0}%; background: #F59E0B;"></div>
+                        <div style="width: {ejec/total_esp*100 if total_esp else 0}%; background: #22C55E;"></div>
+                        <div style="width: {verif/total_esp*100 if total_esp else 0}%; background: #3B82F6;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Torta general
+        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 16px 0 10px 0;'>📈 Distribución General</div>", unsafe_allow_html=True)
+        col_torta, col_barras = st.columns([1, 2])
+        with col_torta:
+            if "Estado" in df.columns:
+                estados_df = df["Estado"].value_counts().reset_index()
+                estados_df.columns = ["Estado", "Cantidad"]
+                for est in ["Pendiente", "Ejecutado", "Verificado"]:
+                    if est not in estados_df["Estado"].values:
+                        estados_df = pd.concat([estados_df, pd.DataFrame({"Estado": [est], "Cantidad": [0]})], ignore_index=True)
+                color_scale = alt.Scale(domain=["Pendiente", "Ejecutado", "Verificado"],
+                                        range=["#F59E0B", "#22C55E", "#3B82F6"])
+                pie = alt.Chart(estados_df).mark_arc(innerRadius=45, outerRadius=80).encode(
+                    theta=alt.Theta("Cantidad:Q", stack=True),
+                    color=alt.Color("Estado:N", scale=color_scale, legend=alt.Legend(orient="bottom", direction="horizontal", title=None)),
+                    tooltip=["Estado", "Cantidad"]
+                ).properties(height=220)
+                text = alt.Chart(estados_df).mark_text(radius=95, size=12, color="#0F172A", fontWeight=700).encode(
+                    theta=alt.Theta("Cantidad:Q", stack=True),
+                    text=alt.Text("Cantidad:Q"),
+                    color=alt.value("#0F172A")
+                )
+                st.altair_chart(alt.layer(pie, text), use_container_width=True)
+
+        with col_barras:
+            if "Especialidad" in df.columns and "Estado" in df.columns:
+                stack_df = df.groupby(["Especialidad", "Estado"]).size().reset_index(name="Cantidad")
+                stack_df = stack_df[stack_df["Especialidad"].isin(["ELE", "MEC"])]
+                bar = alt.Chart(stack_df).mark_bar(cornerRadiusEnd=4).encode(
+                    x=alt.X("Especialidad:N", title=None),
+                    y=alt.Y("Cantidad:Q", title="Actividades"),
+                    color=alt.Color("Estado:N", scale=alt.Scale(domain=["Pendiente", "Ejecutado", "Verificado"],
+                                                                  range=["#F59E0B", "#22C55E", "#3B82F6"])),
+                    tooltip=["Especialidad", "Estado", "Cantidad"]
+                ).properties(height=220)
+                text = alt.Chart(stack_df).mark_text(dy=-8, fontSize=11, fontWeight=700, color="#0F172A").encode(
+                    x="Especialidad:N",
+                    y="sum(Cantidad):Q",
+                    text=alt.Text("sum(Cantidad):Q")
+                )
+                st.altair_chart(alt.layer(bar, text).configure_view(strokeWidth=0), use_container_width=True)
+
+        st.markdown("<hr style='border: none; border-top: 2px solid #E2E8F0; margin: 20px 0;'>", unsafe_allow_html=True)
+
     st.markdown("""
-    <div style="text-align: center; padding: 20px 0;">
+    <div style="text-align: center; padding: 10px 0 20px 0;">
         <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
     </div>""", unsafe_allow_html=True)
 
