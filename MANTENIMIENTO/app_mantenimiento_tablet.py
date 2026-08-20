@@ -2177,3 +2177,4 @@ if pagina_actual in PANTALLAS:
 else:
     st.session_state.pagina = "login"
     st.rerun()
+    
