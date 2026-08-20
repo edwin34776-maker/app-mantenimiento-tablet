@@ -468,6 +468,15 @@ def obtener_especialidad_tecnico(nombre):
         return "MEC"
     return ""
 
+def abreviar_tecnico(nombre):
+    """Convierte 'RIVERA SANTOS LUIS ALVARO' → 'R. SANTOS' (solo para gráficas)"""
+    if not nombre or nombre in ("Sin asignar", "", "—"):
+        return "—"
+    partes = nombre.strip().split()
+    if len(partes) >= 2:
+        return f"{partes[0][0]}. {partes[1]}"
+    return nombre
+
 def contar_ordenes_por_tecnico(df, tecnico):
     if df.empty:
         return 0
@@ -1838,6 +1847,61 @@ def pantalla_asignacion():
             <div style="font-size: 13px; color: #64748B;">{len(df_asig)} actividades encontradas</div>
         </div>""", unsafe_allow_html=True)
 
+        # ========== GRÁFICA: ACTIVIDADES POR TÉCNICO / EQUIPO (SVG nativo) ==========
+        if not df_asig.empty and "Ubicacion" in df_asig.columns:
+            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Actividades por Equipo y Técnico</div>", unsafe_allow_html=True)
+            equipos_tec = {}
+            for _, row in df_asig.iterrows():
+                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
+                t1 = limpiar(row.get("Tecnico_Asignado"), "")
+                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
+                if eq not in equipos_tec:
+                    equipos_tec[eq] = {}
+                for t in [t1, t2]:
+                    if t:
+                        abr = abreviar_tecnico(t)
+                        equipos_tec[eq][abr] = equipos_tec[eq].get(abr, 0) + 1
+            if equipos_tec:
+                chart_data = []
+                for eq, tecs in equipos_tec.items():
+                    for t, c in tecs.items():
+                        chart_data.append({"Equipo": eq, "Técnico": t, "Actividades": c})
+                df_chart = pd.DataFrame(chart_data)
+                pivot_chart = df_chart.pivot(index="Equipo", columns="Técnico", values="Actividades").fillna(0)
+                colors_eq = ["#3B82F6", "#22C55E", "#F59E0B", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316", "#6366F1", "#06B6D4", "#84CC16"]
+                max_val_eq = pivot_chart.sum(axis=1).max() if len(pivot_chart) > 0 else 1
+                bar_h_eq = 22
+                gap_eq = 10
+                svg_h = len(pivot_chart) * (bar_h_eq + gap_eq) + 50
+                svg_eq = f'<svg width="100%" height="{svg_h}" viewBox="0 0 500 {svg_h}" style="font-family: system-ui, sans-serif;">'
+                scale_eq = 350 / max_val_eq if max_val_eq > 0 else 1
+                for i, (eq, row) in enumerate(pivot_chart.iterrows()):
+                    y = 20 + i * (bar_h_eq + gap_eq)
+                    svg_eq += f'<text x="0" y="{y+bar_h_eq/2+4}" font-size="10" fill="#475569" font-weight="600" text-anchor="start">{str(eq)[:20]}</text>'
+                    x = 110
+                    for j, tec in enumerate(pivot_chart.columns):
+                        val = row[tec]
+                        if val > 0:
+                            w = val * scale_eq
+                            color = colors_eq[j % len(colors_eq)]
+                            svg_eq += f'<rect x="{x}" y="{y}" width="{w}" height="{bar_h_eq}" fill="{color}" rx="4"/>'
+                            if w > 20:
+                                svg_eq += f'<text x="{x+w/2}" y="{y+bar_h_eq/2+4}" text-anchor="middle" font-size="9" fill="white" font-weight="700">{int(val)}</text>'
+                            x += w
+                # Leyenda
+                leg_y = svg_h - 25
+                leg_x = 110
+                for j, tec in enumerate(pivot_chart.columns):
+                    color = colors_eq[j % len(colors_eq)]
+                    svg_eq += f'<rect x="{leg_x}" y="{leg_y}" width="10" height="10" fill="{color}" rx="2"/>'
+                    svg_eq += f'<text x="{leg_x+14}" y="{leg_y+9}" font-size="9" fill="#64748B">{tec}</text>'
+                    leg_x += len(str(tec)) * 6 + 30
+                svg_eq += '</svg>'
+                st.markdown(svg_eq, unsafe_allow_html=True)
+            else:
+                st.info("📭 Aún no hay asignaciones en este filtro.")
+            st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
         # ========== GRÁFICA: ACTIVIDADES POR TÉCNICO / EQUIPO ==========
         if not df_asig.empty and "Ubicacion" in df_asig.columns:
             st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Actividades asignadas por Equipo y Técnico</div>", unsafe_allow_html=True)
@@ -2177,4 +2241,3 @@ if pagina_actual in PANTALLAS:
 else:
     st.session_state.pagina = "login"
     st.rerun()
-    
