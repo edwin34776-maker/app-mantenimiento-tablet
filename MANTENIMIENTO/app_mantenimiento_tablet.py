@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -1620,6 +1619,16 @@ def pantalla_detalle():
             <div style="color:{color_texto}; font-size:13px; font-weight:{peso}; margin-top:4px;">{valor}</div>
         </div>"""
 
+    tec1_det = limpiar(row.get("Tecnico_Asignado"), "")
+    tec2_det = limpiar(row.get("Tecnico_Asignado_2"), "")
+    tec_label = "Sin asignar"
+    if tec1_det and tec2_det and tec1_det != tec2_det:
+        tec_label = f"{tec1_det} + {tec2_det}"
+    elif tec1_det:
+        tec_label = tec1_det
+    elif tec2_det:
+        tec_label = tec2_det
+
     duracion_html = (f'<div style="background: #DCFCE7; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; '
                      f'margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>') if duracion else ""
     st.markdown(f"""
@@ -1634,16 +1643,6 @@ def pantalla_detalle():
         </div>
         {duracion_html}
     </div>""", unsafe_allow_html=True)
-
-    tec1_det = limpiar(row.get("Tecnico_Asignado"), "")
-    tec2_det = limpiar(row.get("Tecnico_Asignado_2"), "")
-    tec_label = "Sin asignar"
-    if tec1_det and tec2_det and tec1_det != tec2_det:
-        tec_label = f"{tec1_det} + {tec2_det}"
-    elif tec1_det:
-        tec_label = tec1_det
-    elif tec2_det:
-        tec_label = tec2_det
     comentario_detalle = limpiar(row.get("Comentarios"), "")
     if comentario_detalle:
         st.markdown(f"""
