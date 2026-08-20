@@ -995,7 +995,7 @@ def pantalla_home():
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-        # ========== GRÁFICA DE TORTA GENERAL ==========        # ========== GRÁFICA DE TORTA GENERAL ==========
+        # ========== GRÁFICA DE TORTA GENERAL ==========
         st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 20px 0 10px 0;'>📈 Distribución General</div>", unsafe_allow_html=True)
         col_torta, col_barras = st.columns([1, 2])
         with col_torta:
@@ -2008,22 +2008,7 @@ def pantalla_asignacion():
                     </div>
                 </div>''', unsafe_allow_html=True)
 
-                # Selectores de técnico (sin columnas anidadas)
-                if internal_id:
-                    esp_fila = limpiar(row.get("Especialidad"), "")
-                    lista_tec = ["Sin asignar"] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_fila if esp_fila else "Todas")]
-                    idx_tec1 = lista_tec.index(tec_asig) if tec_asig in lista_tec else 0
-                    idx_tec2 = lista_tec.index(tec_asig2) if tec_asig2 in lista_tec else 0
-
-                    key_t1 = gen_key("sel_tec1", internal_id)
-                    st.selectbox("👤 Técnico 1", lista_tec, index=idx_tec1, key=key_t1,
-                                 on_change=auto_guardar_fila, args=(internal_id, key_t1, "Tecnico_Asignado"))
-
-                    key_t2 = gen_key("sel_tec2", internal_id)
-                    st.selectbox("👤 Técnico 2 (opcional)", lista_tec, index=idx_tec2, key=key_t2,
-                                 on_change=auto_guardar_fila, args=(internal_id, key_t2, "Tecnico_Asignado_2"))
-
-                st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+                # Los técnicos se asignan solo por selección masiva arriba
 
 # ==================== PANTALLA: SINCRONIZAR EXCEL ====================
 def pantalla_sincronizar():
