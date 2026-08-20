@@ -967,6 +967,34 @@ def pantalla_home():
     header_tablet("App Tablet Mtto", "&#128100; Admin" if perfil == "admin" else "&#128295; Tecnico")
 
     if perfil == "admin" and not df.empty:
+        # ========== GAUGES DE ASIGNACIÓN Y VERIFICACIÓN ==========
+        total_act = len(df)
+        asignadas = 0
+        if total_act > 0 and "Tecnico_Asignado" in df.columns:
+            asignadas = len(df[df["Tecnico_Asignado"].notna() & (df["Tecnico_Asignado"] != "")])
+        pendientes_asig = total_act - asignadas
+        pct_asig = round(asignadas / total_act * 100, 1) if total_act else 0
+
+        verificadas = 0
+        ejecutadas = 0
+        if "Estado" in df.columns:
+            verificadas = len(df[df["Estado"] == "Verificado"])
+            ejecutadas = len(df[df["Estado"] == "Ejecutado"])
+        total_verif = verificadas + ejecutadas
+        pct_verif = round(verificadas / total_verif * 100, 1) if total_verif else 0
+
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            gauge_progreso("⏱️ Progreso de Asignación", pct_asig, "#ef4444", "Completado",
+                           asignadas, "Asignadas", "#22c55e",
+                           pendientes_asig, "Pendientes", "#ef4444")
+        with col_g2:
+            gauge_progreso("✅ Progreso de Verificación", pct_verif, "#f59e0b", "Verificadas",
+                           verificadas, "Verificadas", "#22c55e",
+                           ejecutadas, "Ejecutadas", "#f59e0b")
+
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+
         # ========== GRÁFICAS DE AVANCE POR ESPECIALIDAD (ELE / MEC) ==========
         st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
