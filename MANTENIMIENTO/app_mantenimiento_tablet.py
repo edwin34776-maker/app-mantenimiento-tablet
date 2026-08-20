@@ -967,82 +967,35 @@ def pantalla_home():
     header_tablet("App Tablet Mtto", "&#128100; Admin" if perfil == "admin" else "&#128295; Tecnico")
 
     if perfil == "admin" and not df.empty:
-        # ========== GRÁFICAS DE AVANCE POR ESPECIALIDAD (ELE / MEC) ==========
-        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
+        # ========== GAUGES DE ASIGNACIÓN Y VERIFICACIÓN ==========
+        total_act = len(df)
+        asignadas = 0
+        if total_act > 0 and "Tecnico_Asignado" in df.columns:
+            asignadas = len(df[df["Tecnico_Asignado"].notna() & (df["Tecnico_Asignado"] != "")])
+        pendientes_asig = total_act - asignadas
+        pct_asig = round(asignadas / total_act * 100, 1) if total_act else 0
 
-        col_e, col_m = st.columns(2)
+        verificadas = 0
+        ejecutadas = 0
+        if "Estado" in df.columns:
+            verificadas = len(df[df["Estado"] == "Verificado"])
+            ejecutadas = len(df[df["Estado"] == "Ejecutado"])
+        total_verif = verificadas + ejecutadas
+        pct_verif = round(verificadas / total_verif * 100, 1) if total_verif else 0
 
-        for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
-            with col:
-                df_esp = df[df["Especialidad"] == esp_code] if "Especialidad" in df.columns and esp_code != "Todas" else df
-                if esp_code != "Todas" and "Especialidad" in df.columns:
-                    df_esp = df[df["Especialidad"] == esp_code]
-                else:
-                    df_esp = df
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            gauge_progreso("⏱️ Progreso de Asignación", pct_asig, "#ef4444", "Completado",
+                           asignadas, "Asignadas", "#22c55e",
+                           pendientes_asig, "Pendientes", "#ef4444")
+        with col_g2:
+            gauge_progreso("✅ Progreso de Verificación", pct_verif, "#f59e0b", "Verificadas",
+                           verificadas, "Verificadas", "#22c55e",
+                           ejecutadas, "Ejecutadas", "#f59e0b")
 
-                total_esp = len(df_esp)
-                if total_esp == 0:
-                    st.info(f"📭 Sin datos {esp_label}")
-                    continue
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-                pend = len(df_esp[df_esp["Estado"] == "Pendiente"]) if "Estado" in df_esp.columns else 0
-                ejec = len(df_esp[df_esp["Estado"] == "Ejecutado"]) if "Estado" in df_esp.columns else 0
-                verif = len(df_esp[df_esp["Estado"] == "Verificado"]) if "Estado" in df_esp.columns else 0
-                pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
-
-                # Diagrama de proceso visual
-                st.markdown(f"""
-                <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
-                        <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
-                    </div>
-
-                    <!-- Barra de progreso principal -->
-                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px; position: relative;">
-                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {esp_color}, {esp_color}aa); border-radius: 14px; transition: width 0.5s;"></div>
-                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: 700; color: #0F172A;">{total_esp} actividades</div>
-                    </div>
-
-                    <!-- Diagrama de proceso: 3 pasos -->
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                        <!-- Paso 1: Pendiente -->
-                        <div style="flex: 1; text-align: center; position: relative;">
-                            <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">
-                                {pend}
-                            </div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
-                        </div>
-                        <!-- Flecha -->
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <!-- Paso 2: Ejecutado -->
-                        <div style="flex: 1; text-align: center; position: relative;">
-                            <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">
-                                {ejec}
-                            </div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
-                        </div>
-                        <!-- Flecha -->
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <!-- Paso 3: Verificado -->
-                        <div style="flex: 1; text-align: center; position: relative;">
-                            <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">
-                                {verif}
-                            </div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
-                        </div>
-                    </div>
-
-                    <!-- Mini barras por estado -->
-                    <div style="margin-top: 12px; display: flex; height: 8px; border-radius: 4px; overflow: hidden;">
-                        <div style="width: {pend/total_esp*100 if total_esp else 0}%; background: #F59E0B;" title="Pendiente"></div>
-                        <div style="width: {ejec/total_esp*100 if total_esp else 0}%; background: #22C55E;" title="Ejecutado"></div>
-                        <div style="width: {verif/total_esp*100 if total_esp else 0}%; background: #3B82F6;" title="Verificado"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-        # ========== GRÁFICA DE TORTA GENERAL ==========
+        # ========== GRÁFICA DE TORTA GENERAL ==========        # ========== GRÁFICA DE TORTA GENERAL ==========
         st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 20px 0 10px 0;'>📈 Distribución General</div>", unsafe_allow_html=True)
         col_torta, col_barras = st.columns([1, 2])
         with col_torta:
