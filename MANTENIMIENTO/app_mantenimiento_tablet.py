@@ -1855,118 +1855,12 @@ def pantalla_asignacion():
                 st.info("📭 Aún no hay asignaciones en este filtro.")
             st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-        # ========== GRÁFICA: ACTIVIDADES POR TÉCNICO / EQUIPO ==========
-        if not df_asig.empty and "Ubicacion" in df_asig.columns:
-            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Actividades asignadas por Equipo y Técnico</div>", unsafe_allow_html=True)
-
-            # Construir datos: por cada equipo, contar actividades por técnico (considerando ambos campos)
-            equipos_tec = {}
-            for _, row in df_asig.iterrows():
-                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
-                t1 = limpiar(row.get("Tecnico_Asignado"), "")
-                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
-                if eq not in equipos_tec:
-                    equipos_tec[eq] = {}
-                for t in [t1, t2]:
-                    if t:
-                        equipos_tec[eq][t] = equipos_tec[eq].get(t, 0) + 1
-
-            if equipos_tec:
-                chart_data = []
-                for eq, tecs in equipos_tec.items():
-                    for t, c in tecs.items():
-                        chart_data.append({"Equipo": eq, "Técnico": abreviar_tecnico(t), "Actividades": c})
-                df_chart = pd.DataFrame(chart_data)
-                pivot_chart = df_chart.pivot(index="Equipo", columns="Técnico", values="Actividades").fillna(0)
-                # SVG nativo barras horizontales apiladas por técnico
-                colors_eq = ["#3B82F6", "#22C55E", "#F59E0B", "#EC4899", "#8B5CF6", "#14B8A6", "#F97316", "#6366F1"]
-                max_val_eq = pivot_chart.sum(axis=1).max() if len(pivot_chart) > 0 else 1
-                bar_h_eq = 22
-                gap_eq = 10
-                svg_eq = f'<svg width="100%" height="{len(pivot_chart) * (bar_h_eq + gap_eq) + 40}" viewBox="0 0 500 {len(pivot_chart) * (bar_h_eq + gap_eq) + 40}" style="font-family: system-ui, sans-serif;">'
-                scale_eq = 350 / max_val_eq if max_val_eq > 0 else 1
-                for i, (eq, row) in enumerate(pivot_chart.iterrows()):
-                    y = 20 + i * (bar_h_eq + gap_eq)
-                    svg_eq += f'<text x="0" y="{y+bar_h_eq/2+4}" font-size="10" fill="#475569" font-weight="600" text-anchor="start">{str(eq)[:18]}</text>'
-                    x = 100
-                    for j, tec in enumerate(pivot_chart.columns):
-                        val = row[tec]
-                        if val > 0:
-                            w = val * scale_eq
-                            color = colors_eq[j % len(colors_eq)]
-                            svg_eq += f'<rect x="{x}" y="{y}" width="{w}" height="{bar_h_eq}" fill="{color}" rx="4"/>'
-                            if w > 20:
-                                svg_eq += f'<text x="{x+w/2}" y="{y+bar_h_eq/2+4}" text-anchor="middle" font-size="9" fill="white" font-weight="700">{int(val)}</text>'
-                            x += w
-                # Leyenda
-                leg_x = 100
-                for j, tec in enumerate(pivot_chart.columns):
-                    color = colors_eq[j % len(colors_eq)]
-                    svg_eq += f'<rect x="{leg_x}" y="{len(pivot_chart) * (bar_h_eq + gap_eq) + 15}" width="10" height="10" fill="{color}" rx="2"/>'
-                    svg_eq += f'<text x="{leg_x+14}" y="{len(pivot_chart) * (bar_h_eq + gap_eq) + 24}" font-size="9" fill="#64748B">{tec}</text>'
-                    leg_x += len(str(tec)) * 6 + 30
-                svg_eq += '</svg>'
-                st.markdown(svg_eq, unsafe_allow_html=True)
-            else:
-                st.info("📭 Aún no hay asignaciones en este filtro.")
-            st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-
-        # ========== BARRA DE ASIGNACIÓN MASIVA POR SELECCIÓN ==========
-        sel_key = gen_key("seleccion_asig")
-        st.session_state.setdefault(sel_key, {})
-        seleccion = st.session_state[sel_key]
-
-        esp_filtro = st.session_state.filtro_especialidad
-        if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
-            esps_unicas = df_asig["Especialidad"].dropna().unique()
-            if len(esps_unicas) == 1:
-                esp_filtro = esps_unicas[0]
-        lista_tecnicos = [""] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_filtro if esp_filtro else "Todas")]
-
-        st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
-        st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:10px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
-        with c1:
-            tec1_masivo = st.selectbox("Técnico 1", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
-        with c2:
-            tec2_masivo = st.selectbox("Técnico 2", lista_tecnicos, key=gen_key("masivo_tec2"), label_visibility="collapsed")
-        with c3:
-            if st.button("🚀 Asignar a seleccionadas", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
-                guardados = 0
-                for _, row in df_asig.iterrows():
-                    internal_id = limpiar(row.get("ID"), "")
-                    if not internal_id or not seleccion.get(internal_id, False):
-                        continue
-                    datos = {}
-                    if tec1_masivo and tec1_masivo != limpiar(row.get("Tecnico_Asignado"), ""):
-                        datos["Tecnico_Asignado"] = tec1_masivo
-                    if tec2_masivo and tec2_masivo != limpiar(row.get("Tecnico_Asignado_2"), ""):
-                        datos["Tecnico_Asignado_2"] = tec2_masivo
-                    if datos:
-                        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
-                            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
-                            if idx_local is not None:
-                                _reflejar_en_session(idx_local, datos)
-                            guardados += 1
-                if guardados > 0:
-                    st.success(f"✅ {guardados} actividades actualizadas")
-                    st.session_state[sel_key] = {}
-                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                    st.rerun()
-                else:
-                    st.warning("Selecciona actividades y técnicos primero")
-        with c4:
-            if st.button("🗑️ Limpiar", use_container_width=True, type="secondary", key=gen_key("btn_masivo_limpiar")):
-                st.session_state[sel_key] = {}
-                st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
+        st.success(f"✅ {len(df_asig)} actividades encontradas.")
 
         for _, row in df_asig.iterrows():
             estado = limpiar(row.get("Estado"), "Pendiente")
@@ -1982,19 +1876,8 @@ def pantalla_asignacion():
                 tecnicos_str = "Sin asignar"
 
             internal_id = limpiar(row.get("ID"), "")
-            chk_val = False
-            if internal_id:
-                chk_val = seleccion.get(internal_id, False)
-
-            # Fila de actividad (sin columnas anidadas)
-            with st.container():
-                # Checkbox de selección masiva
-                if internal_id:
-                    is_sel = st.checkbox("✅ Seleccionar para asignación masiva", value=chk_val,
-                                         key=gen_key("chk_sel", internal_id))
-                    seleccion[internal_id] = is_sel
-
-                # Info de la actividad
+            
+            # Info de la actividad
                 st.markdown(f'''
                 <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
                     <div>
