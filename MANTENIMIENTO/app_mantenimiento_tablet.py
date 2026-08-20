@@ -1869,12 +1869,10 @@ def pantalla_asignacion():
 
         st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
         st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:10px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+        c1, c2, c3 = st.columns([3, 2, 1])
         with c1:
-            tec1_masivo = st.selectbox("Técnico 1", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
+            tec1_masivo = st.selectbox("Técnico", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
         with c2:
-            tec2_masivo = st.selectbox("Técnico 2", lista_tecnicos, key=gen_key("masivo_tec2"), label_visibility="collapsed")
-        with c3:
             if st.button("🚀 Asignar a seleccionadas", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
                 guardados = 0
                 for _, row in df_asig.iterrows():
@@ -1884,8 +1882,6 @@ def pantalla_asignacion():
                     datos = {}
                     if tec1_masivo and tec1_masivo != limpiar(row.get("Tecnico_Asignado"), ""):
                         datos["Tecnico_Asignado"] = tec1_masivo
-                    if tec2_masivo and tec2_masivo != limpiar(row.get("Tecnico_Asignado_2"), ""):
-                        datos["Tecnico_Asignado_2"] = tec2_masivo
                     if datos:
                         if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                             idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
@@ -1898,8 +1894,8 @@ def pantalla_asignacion():
                     st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                     st.rerun()
                 else:
-                    st.warning("Selecciona actividades y técnicos primero")
-        with c4:
+                    st.warning("Selecciona actividades y un técnico primero")
+        with c3:
             if st.button("🗑️ Limpiar", use_container_width=True, type="secondary", key=gen_key("btn_masivo_limpiar")):
                 st.session_state[sel_key] = {}
                 st.rerun()
