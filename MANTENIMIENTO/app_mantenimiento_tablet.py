@@ -9,6 +9,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import io
 import hashlib
+import altair as alt
 
 # ==================== CONFIGURACIÓN ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
@@ -23,7 +24,7 @@ DESTINATARIOS_DEFAULT = ["mantobogota@gmail.com", "supermantobogota@gmail.com"]
 # Mapeo único entre nombres de la app y columnas de Supabase
 MAPEO_COLUMNAS = {
     "ID": "id", "ID OT": "id_ot", "Actividades": "actividades", "Procedimiento": "procedimiento",
-    "Tecnico_Asignado": "tecnico_asignado", "Prioridad_Actividad": "prioridad_actividad",
+    "Tecnico_Asignado": "tecnico_asignado", "Tecnico_Asignado_2": "tecnico_asignado_2", "Prioridad_Actividad": "prioridad_actividad",
     "Actividades_Hechas": "actividades_hechas", "Fecha_Ejecucion": "fecha_ejecucion",
     "Hora_Inicio": "hora_inicio", "Hora_Fin": "hora_fin", "Estado": "estado",
     "Comentarios": "comentarios", "Equipo": "equipo", "Ubicacion": "ubicacion",
@@ -116,7 +117,7 @@ def cargar_ordenes_supabase():
         df = pd.DataFrame(data)
         inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
         df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
-        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "", "Tecnico_Asignado_2": "",
                              "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
                              "Hora_Fin": "", "Prioridad_Actividad": "", "ID OT": "", "Procedimiento": ""}.items():
             if col not in df.columns:
@@ -166,7 +167,9 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             "actividades": ["actividades", "actividad", "descr", "descripcion", "descripción", "tarea", "trabajo", "falla", "problema"],
             "procedimiento": ["procedimiento", "proc", "proceso", "tipo procedimiento"],
             "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
-            "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"]
+            "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"],
+            "tecnico_asignado": ["tecnico_asignado", "tecnico asignado", "tecnico", "tecnico 1", "tecnico1", "tecnico_asignado_1"],
+            "tecnico_asignado_2": ["tecnico_asignado_2", "tecnico asignado 2", "tecnico 2", "tecnico2", "tecnico2_asignado"]
         }
         columnas_renombrar = {}
         for supabase_col, posibles in mapeo_columnas.items():
@@ -467,9 +470,14 @@ def obtener_especialidad_tecnico(nombre):
     return ""
 
 def contar_ordenes_por_tecnico(df, tecnico):
-    if df.empty or "Tecnico_Asignado" not in df.columns:
+    if df.empty:
         return 0
-    return len(df[df["Tecnico_Asignado"] == tecnico])
+    count = 0
+    if "Tecnico_Asignado" in df.columns:
+        count += len(df[df["Tecnico_Asignado"] == tecnico])
+    if "Tecnico_Asignado_2" in df.columns:
+        count += len(df[df["Tecnico_Asignado_2"] == tecnico])
+    return count
 
 def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     tecnicos = [{"nombre": t, "especialidad": obtener_especialidad_tecnico(t),
@@ -629,9 +637,15 @@ def render_fila_orden(row, con_comentario=False, truncar_tecnico=False):
     tipo = limpiar(row.get("Especialidad"), "SIN ESP")
     descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
     estado = estado_efectivo(row)
-    tecnico = limpiar(row.get("Tecnico_Asignado"), "Sin asignar")
+    tecnico = limpiar(row.get("Tecnico_Asignado"), "")
+    tecnico2 = limpiar(row.get("Tecnico_Asignado_2"), "")
+    tecnicos_str = tecnico
+    if tecnico2 and tecnico2 != tecnico:
+        tecnicos_str = f"{tecnico} + {tecnico2}"
+    if not tecnicos_str:
+        tecnicos_str = "Sin asignar"
     if truncar_tecnico:
-        tecnico = f"{tecnico[:15]}..."
+        tecnicos_str = f"{tecnicos_str[:15]}..."
     desc_corta = descripcion[:35] + "..." if len(descripcion) > 35 else descripcion
     nodo = limpiar(row.get("Nodo"), "")
     nodo_html = f"<span class='nodo-badge-mini' style='margin-left:4px;'>{nodo}</span>" if nodo else ""
@@ -643,15 +657,24 @@ def render_fila_orden(row, con_comentario=False, truncar_tecnico=False):
         <div class="col-esp">{tipo}</div>
         <div class="col-desc" title="{descripcion}">{desc_corta}{com_html}</div>
         <div class="col-estado"><span class="estado-badge {obtener_estado_visual(estado)}">{estado}</span></div>
-        <div class="col-tec">{tecnico}</div>
+        <div class="col-tec">{tecnicos_str}</div>
     </div>""", unsafe_allow_html=True)
     return internal_id
 
 def panel_info_orden(row, incluir_tecnico=False):
     """Panel Equipo/Ubicación/Especialidad/Estado usado en detalle y ejecución."""
     nodo_info = f"<strong>Nodo:</strong> {limpiar(row.get('Nodo'), 'N/A')}<br>" if 'Nodo' in row else ""
+    tec1 = limpiar(row.get("Tecnico_Asignado"), "")
+    tec2 = limpiar(row.get("Tecnico_Asignado_2"), "")
+    tec_label = "Sin asignar"
+    if tec1 and tec2 and tec1 != tec2:
+        tec_label = f"{tec1} + {tec2}"
+    elif tec1:
+        tec_label = tec1
+    elif tec2:
+        tec_label = tec2
     linea_tec = (f'<strong style="color:#0F172A">Tecnico Asignado:</strong> '
-                 f'<span style="color:#0F172A;">{limpiar(row.get("Tecnico_Asignado"), "Sin asignar")}</span><br>') if incluir_tecnico else ""
+                 f'<span style="color:#0F172A;">{tec_label}</span><br>') if incluir_tecnico else ""
     st.markdown(f"""
     <div class="detail-panel" style="background: #FFFFFF; border: 1px solid #CBD5E1;">
         <div class="equipo-info" style="color: #0F172A;">
@@ -869,7 +892,12 @@ def _home_tecnico(df):
     tecnico_actual = tecnico_sel
     esp_sel = obtener_especialidad_tecnico(tecnico_actual)
     df = recargar_datos()
-    df_mias = df[df["Tecnico_Asignado"] == tecnico_actual].copy() if "Tecnico_Asignado" in df.columns else df.copy()
+    mask_tec = pd.Series([False] * len(df), index=df.index)
+    if "Tecnico_Asignado" in df.columns:
+        mask_tec |= df["Tecnico_Asignado"] == tecnico_actual
+    if "Tecnico_Asignado_2" in df.columns:
+        mask_tec |= df["Tecnico_Asignado_2"] == tecnico_actual
+    df_mias = df[mask_tec].copy() if mask_tec.any() else df.copy()
 
     total_asignadas = len(df_mias)
     conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
@@ -1156,13 +1184,23 @@ def pantalla_mis_ordenes():
     with col_f2:
         busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
 
-    df_mias = df[df["Tecnico_Asignado"] == tecnico_sel].copy() if "Tecnico_Asignado" in df.columns else pd.DataFrame()
+    mask_tec = pd.Series([False] * len(df), index=df.index)
+    if "Tecnico_Asignado" in df.columns:
+        mask_tec |= df["Tecnico_Asignado"] == tecnico_sel
+    if "Tecnico_Asignado_2" in df.columns:
+        mask_tec |= df["Tecnico_Asignado_2"] == tecnico_sel
+    df_mias = df[mask_tec].copy() if mask_tec.any() else pd.DataFrame()
     if filtro_estado != "Todos" and "Estado" in df_mias.columns:
         df_mias = df_mias[df_mias["Estado"] == filtro_estado]
     df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo"])
 
+    mask_tec_all = pd.Series([False] * len(df), index=df.index)
     if "Tecnico_Asignado" in df.columns:
-        df_todas = df[df["Tecnico_Asignado"] == tecnico_sel]
+        mask_tec_all |= df["Tecnico_Asignado"] == tecnico_sel
+    if "Tecnico_Asignado_2" in df.columns:
+        mask_tec_all |= df["Tecnico_Asignado_2"] == tecnico_sel
+    if mask_tec_all.any():
+        df_todas = df[mask_tec_all]
         total_asignadas = len(df_todas)
         pendientes = len(df_todas[df_todas["Estado"] == "Pendiente"])
         ejecutadas = len(df_todas[df_todas["Estado"] == "Ejecutado"])
@@ -1342,7 +1380,7 @@ def pantalla_detalle():
     st.markdown(f"""
     <div style="background: #F8FAFC; border-radius: 12px; padding: 16px; border: 1px solid #E2E8F0; margin-bottom: 12px;">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            {_celda("&#128100;", "Tecnico", limpiar(row.get('Tecnico_Asignado'), 'Sin asignar'), "#3b82f6")}
+            {_celda("&#128100;", "Tecnico", tec_label, "#3b82f6")}
             {_celda("&#128308;", "Estado", estado_actual, est_color, est_color, 700)}
             {_celda("&#9888;", "Prioridad", pri_label, pri_color, pri_color, 700)}
             {_celda("&#128197;", "Fecha Ejecucion", fecha_ejec, "#a78bfa")}
@@ -1352,6 +1390,15 @@ def pantalla_detalle():
         {duracion_html}
     </div>""", unsafe_allow_html=True)
 
+    tec1_det = limpiar(row.get("Tecnico_Asignado"), "")
+    tec2_det = limpiar(row.get("Tecnico_Asignado_2"), "")
+    tec_label = "Sin asignar"
+    if tec1_det and tec2_det and tec1_det != tec2_det:
+        tec_label = f"{tec1_det} + {tec2_det}"
+    elif tec1_det:
+        tec_label = tec1_det
+    elif tec2_det:
+        tec_label = tec2_det
     comentario_detalle = limpiar(row.get("Comentarios"), "")
     if comentario_detalle:
         st.markdown(f"""
@@ -1386,6 +1433,15 @@ def pantalla_verificar():
         return
 
     for _, row in df_ejecutadas.iterrows():
+        tec1_v = limpiar(row.get("Tecnico_Asignado"), "")
+        tec2_v = limpiar(row.get("Tecnico_Asignado_2"), "")
+        tec_label = "Sin asignar"
+        if tec1_v and tec2_v and tec1_v != tec2_v:
+            tec_label = f"{tec1_v} + {tec2_v}"
+        elif tec1_v:
+            tec_label = tec1_v
+        elif tec2_v:
+            tec_label = tec2_v
         internal_id = limpiar(row.get("ID"), "")
         id_ot = limpiar(row.get("ID OT"), "SIN ID")
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
@@ -1401,7 +1457,7 @@ def pantalla_verificar():
             </div>
             <div style="font-size: 12px; color: #666;">
                 <strong>{limpiar(row.get('Especialidad'), 'SIN ESP')}</strong> | {limpiar(row.get('Equipo'), 'Sin equipo')} — {limpiar(row.get('Ubicacion'), 'Sin ubicacion')}<br>
-                Tecnico: {limpiar(row.get('Tecnico_Asignado'), 'Sin asignar')}<br>
+                Tecnico: {tec_label}<br>
                 Ejecutado: {limpiar(row.get('Fecha_Ejecucion'), 'N/A')} | {limpiar(row.get('Hora_Inicio'), 'N/A')} - {limpiar(row.get('Hora_Fin'), 'N/A')}
             </div>
             <div style="font-size: 11px; color: #333; margin-top: 6px;">{desc_corta}</div>
@@ -1440,55 +1496,33 @@ def _datos_reasignacion(nuevo_tec, estado_bd):
     return datos
 
 def _reflejar_en_session(idx, datos):
-    st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = datos["Tecnico_Asignado"]
+    if "Tecnico_Asignado" in datos:
+        st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = datos["Tecnico_Asignado"]
+    if "Tecnico_Asignado_2" in datos:
+        st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado_2"] = datos["Tecnico_Asignado_2"]
     if "Estado" in datos:
         st.session_state.df_mantenimientos.loc[idx, "Estado"] = datos["Estado"]
 
-def auto_guardar_fila(internal_id, key_widget):
+def auto_guardar_fila(internal_id, key_widget, campo="Tecnico_Asignado"):
     """Se ejecuta automáticamente cuando cambia el técnico en una fila."""
     nuevo_tec = st.session_state.get(key_widget, "")
     if nuevo_tec == "Sin asignar":
         nuevo_tec = ""
     df = st.session_state.df_mantenimientos
     idx, row = get_row_by_internal_id(df, internal_id)
-    if idx is None or nuevo_tec == limpiar(row.get("Tecnico_Asignado"), ""):
+    if idx is None or nuevo_tec == limpiar(row.get(campo), ""):
         return
     datos = _datos_reasignacion(nuevo_tec, limpiar(row.get("Estado"), "Pendiente"))
-    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
-        _reflejar_en_session(idx, datos)
+    # Solo actualizar el campo específico
+    datos_filtrados = {campo: datos["Tecnico_Asignado"]}
+    for k in ["Estado", "Hora_Inicio", "Hora_Fin", "Fecha_Ejecucion", "Comentarios"]:
+        if k in datos:
+            datos_filtrados[k] = datos[k]
+    if actualizar_campos_supabase(internal_id, datos_filtrados, row.to_dict()):
+        _reflejar_en_session(idx, datos_filtrados)
         msg = f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}"
         st.session_state.asig_rapida_msg = msg
         st.toast(msg, icon="💾")
-
-def auto_guardar_masivo(maquina_sel, tecnico_masivo, desasignar=False):
-    """Asigna o desasigna técnico a todas las actividades visibles de la máquina."""
-    if not desasignar and not tecnico_masivo:
-        return
-    df_asig = aplicar_filtros_globales(st.session_state.df_mantenimientos, maquina=maquina_sel)
-    estado_sel = st.session_state.filtro_estado_asig
-    if estado_sel != "Todos" and "Estado" in df_asig.columns:
-        df_asig = df_asig[df_asig.apply(estado_efectivo, axis=1) == estado_sel]
-
-    guardados = 0
-    valor_nuevo = "" if desasignar else tecnico_masivo
-    for _, row_a in df_asig.iterrows():
-        internal_id = limpiar(row_a.get("ID"), "")
-        if not internal_id or valor_nuevo == limpiar(row_a.get("Tecnico_Asignado"), ""):
-            continue
-        datos = _datos_reasignacion(valor_nuevo, limpiar(row_a.get("Estado"), "Pendiente"))
-        if actualizar_campos_supabase(internal_id, datos, row_a.to_dict()):
-            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
-            if idx_local is not None:
-                _reflejar_en_session(idx_local, datos)
-            guardados += 1
-
-    if guardados > 0:
-        if desasignar:
-            st.success(f"✅ {guardados} actividades desasignadas de **{maquina_sel}**")
-        else:
-            st.success(f"✅ {tecnico_masivo} asignado a {guardados} actividades de **{maquina_sel}**")
-        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-        st.rerun()
 
 # ==================== PANTALLA: ASIGNACIÓN RÁPIDA ====================
 def pantalla_asignacion():
@@ -1504,6 +1538,35 @@ def pantalla_asignacion():
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+
+    # ========== GRÁFICA DE ASIGNACIÓN POR TÉCNICO ==========
+    if not df_asig.empty and "Tecnico_Asignado" in df_asig.columns:
+        st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 12px 0 8px 0;'>📊 Distribución de actividades por técnico</div>", unsafe_allow_html=True)
+        tecnicos_all = [t["nombre"] for t in obtener_tecnicos_con_carga(df, "Todas")]
+        asignaciones = []
+        for tec in tecnicos_all:
+            count = contar_ordenes_por_tecnico(df_asig, tec)
+            if count > 0:
+                asignaciones.append({"Técnico": tec, "Actividades": count})
+        if asignaciones:
+            df_asig_chart = pd.DataFrame(asignaciones)
+            total_asig = df_asig_chart["Actividades"].sum()
+            df_asig_chart["Porcentaje"] = df_asig_chart["Actividades"].apply(lambda x: round(x / total_asig * 100, 1) if total_asig else 0)
+            chart = alt.Chart(df_asig_chart).mark_bar(height=20, cornerRadiusEnd=4).encode(
+                x=alt.X("Porcentaje:Q", title="% del total", scale=alt.Scale(domain=[0, 100])),
+                y=alt.Y("Técnico:N", title=None, sort="-x"),
+                color=alt.Color("Porcentaje:Q", scale=alt.Scale(scheme="blues"), legend=None),
+                tooltip=["Técnico", "Actividades", "Porcentaje"]
+            ).properties(height=alt.Step(28))
+            text = alt.Chart(df_asig_chart).mark_text(align="left", dx=3, fontSize=11, color="#0F172A").encode(
+                x="Porcentaje:Q",
+                y=alt.Y("Técnico:N", sort="-x"),
+                text=alt.Text("Porcentaje:Q", format=".1f")
+            )
+            st.altair_chart(alt.layer(chart, text).configure_view(strokeWidth=0), use_container_width=True)
+        else:
+            st.info("📭 No hay actividades asignadas aún.")
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
     col_izq, col_der = st.columns([1, 3])
 
@@ -1523,55 +1586,117 @@ def pantalla_asignacion():
             <div style="font-size: 13px; color: #64748B;">{len(df_asig)} actividades encontradas</div>
         </div>""", unsafe_allow_html=True)
 
-        # ========== BARRA DE ASIGNACIÓN MASIVA ==========
-        if len(df_asig) > 0 and maq_sel != "Todas":
-            esp_filtro = st.session_state.filtro_especialidad
-            if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
-                esps_unicas = df_asig["Especialidad"].dropna().unique()
-                if len(esps_unicas) == 1:
-                    esp_filtro = esps_unicas[0]
-            lista_tecnicos = [""] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_filtro)]
-
-            st.markdown("<div class='batch-bar-rapida'>", unsafe_allow_html=True)
-            cols_batch = st.columns([2, 2, 1])
-            with cols_batch[0]:
-                st.markdown("<div style='font-weight:600; color:#0369a1; font-size:13px; padding-top:6px;'>👤 Asignar técnico a todas:</div>", unsafe_allow_html=True)
-            with cols_batch[1]:
-                tecnico_masivo = st.selectbox("Técnico masivo", lista_tecnicos, key=gen_key("batch_tec"), label_visibility="collapsed")
-            with cols_batch[2]:
-                if st.button("✓ Asignar", type="primary", use_container_width=True, key=gen_key("btn_batch_asig")):
-                    if tecnico_masivo:
-                        auto_guardar_masivo(maq_sel, tecnico_masivo)
-                    else:
-                        st.warning("Selecciona un técnico primero")
-            st.markdown("</div>", unsafe_allow_html=True)
-
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
+        # ========== BARRA DE ASIGNACIÓN MASIVA POR SELECCIÓN ==========
+        sel_key = gen_key("seleccion_asig")
+        st.session_state.setdefault(sel_key, {})
+        seleccion = st.session_state[sel_key]
+
+        esp_filtro = st.session_state.filtro_especialidad
+        if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
+            esps_unicas = df_asig["Especialidad"].dropna().unique()
+            if len(esps_unicas) == 1:
+                esp_filtro = esps_unicas[0]
+        lista_tecnicos = [""] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_filtro if esp_filtro else "Todas")]
+
+        st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:8px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+        with c1:
+            tec1_masivo = st.selectbox("Técnico 1", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
+        with c2:
+            tec2_masivo = st.selectbox("Técnico 2", lista_tecnicos, key=gen_key("masivo_tec2"), label_visibility="collapsed")
+        with c3:
+            if st.button("🚀 Asignar a seleccionadas", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
+                guardados = 0
+                for _, row in df_asig.iterrows():
+                    internal_id = limpiar(row.get("ID"), "")
+                    if not internal_id or not seleccion.get(internal_id, False):
+                        continue
+                    datos = {}
+                    if tec1_masivo and tec1_masivo != limpiar(row.get("Tecnico_Asignado"), ""):
+                        datos["Tecnico_Asignado"] = tec1_masivo
+                    if tec2_masivo and tec2_masivo != limpiar(row.get("Tecnico_Asignado_2"), ""):
+                        datos["Tecnico_Asignado_2"] = tec2_masivo
+                    if datos:
+                        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+                            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+                            if idx_local is not None:
+                                _reflejar_en_session(idx_local, datos)
+                            guardados += 1
+                if guardados > 0:
+                    st.success(f"✅ {guardados} actividades actualizadas")
+                    st.session_state[sel_key] = {}
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                    st.rerun()
+                else:
+                    st.warning("Selecciona actividades y técnicos primero")
+        with c4:
+            if st.button("🗑️ Limpiar", use_container_width=True, type="secondary", key=gen_key("btn_masivo_limpiar")):
+                st.session_state[sel_key] = {}
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        st.success(f"✅ {len(df_asig)} actividades listas para asignar. Usa la barra de arriba.")
+        st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
         for _, row in df_asig.iterrows():
             estado = limpiar(row.get("Estado"), "Pendiente")
             tec_asig = limpiar(row.get("Tecnico_Asignado"), "")
+            tec_asig2 = limpiar(row.get("Tecnico_Asignado_2"), "")
             nodo = limpiar(row.get("Nodo"), "")
             nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
             estado_cls = {"Ejecutado": "eq-estado-ej", "Verificado": "eq-estado-vf"}.get(estado, "eq-estado-pd")
+            tecnicos_str = tec_asig
+            if tec_asig2 and tec_asig2 != tec_asig:
+                tecnicos_str = f"{tec_asig} + {tec_asig2}"
+            if not tecnicos_str:
+                tecnicos_str = "Sin asignar"
 
-            st.markdown(f'''
-            <div class="asig-rapida-fila {'asignada' if tec_asig else ''}">
-                <div>
-                    <div class="asig-ot"><strong>OT {limpiar(row.get("ID OT"), "SIN ID")}</strong> {nodo_badge}</div>
-                    <div style="font-size:11px;color:#64748B;">{limpiar(row.get("Procedimiento"), "")}</div>
-                    <div style="font-size:12px;color:#0F172A;margin-top:2px;">{limpiar(row.get("Actividades"), "Sin descripción")}</div>
-                </div>
-                <div style="text-align:right;">
-                    <span class="estado-badge {estado_cls}">{estado}</span>
-                    <div style="font-size:10px;color:#64748B;margin-top:4px;">{tec_asig if tec_asig else "Sin asignar"}</div>
-                </div>
-            </div>''', unsafe_allow_html=True)
+            internal_id = limpiar(row.get("ID"), "")
+            chk_val = False
+            if internal_id:
+                chk_val = seleccion.get(internal_id, False)
+
+            cols_row = st.columns([0.05, 1])
+            with cols_row[0]:
+                if internal_id:
+                    is_sel = st.checkbox("", value=chk_val, key=gen_key("chk_sel", internal_id))
+                    seleccion[internal_id] = is_sel
+            with cols_row[1]:
+                st.markdown(f'''
+                <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
+                    <div>
+                        <div class="asig-ot"><strong>OT {limpiar(row.get("ID OT"), "SIN ID")}</strong> {nodo_badge}</div>
+                        <div style="font-size:11px;color:#64748B;">{limpiar(row.get("Procedimiento"), "")}</div>
+                        <div style="font-size:12px;color:#0F172A;margin-top:2px;">{limpiar(row.get("Actividades"), "Sin descripción")}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <span class="estado-badge {estado_cls}">{estado}</span>
+                        <div style="font-size:10px;color:#64748B;margin-top:4px;">{tecnicos_str}</div>
+                    </div>
+                </div>''', unsafe_allow_html=True)
+
+                if internal_id:
+                    esp_fila = limpiar(row.get("Especialidad"), "")
+                    lista_tec = ["Sin asignar"] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_fila if esp_fila else "Todas")]
+                    idx_tec1 = lista_tec.index(tec_asig) if tec_asig in lista_tec else 0
+                    idx_tec2 = lista_tec.index(tec_asig2) if tec_asig2 in lista_tec else 0
+
+                    col_t1, col_t2 = st.columns(2)
+                    with col_t1:
+                        key_t1 = gen_key("sel_tec1", internal_id)
+                        st.selectbox("Técnico 1", lista_tec, index=idx_tec1, key=key_t1,
+                                     on_change=auto_guardar_fila, args=(internal_id, key_t1, "Tecnico_Asignado"),
+                                     label_visibility="collapsed")
+                    with col_t2:
+                        key_t2 = gen_key("sel_tec2", internal_id)
+                        st.selectbox("Técnico 2", lista_tec, index=idx_tec2, key=key_t2,
+                                     on_change=auto_guardar_fila, args=(internal_id, key_t2, "Tecnico_Asignado_2"),
+                                     label_visibility="collapsed")
 
 # ==================== PANTALLA: SINCRONIZAR EXCEL ====================
 def pantalla_sincronizar():
