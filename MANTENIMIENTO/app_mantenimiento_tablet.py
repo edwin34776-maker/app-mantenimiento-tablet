@@ -1855,12 +1855,62 @@ def pantalla_asignacion():
                 st.info("📭 Aún no hay asignaciones en este filtro.")
             st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
+        # ========== BARRA DE ASIGNACIÓN MASIVA POR SELECCIÓN ==========
+        sel_key = gen_key("seleccion_asig")
+        st.session_state.setdefault(sel_key, {})
+        seleccion = st.session_state[sel_key]
+
+        esp_filtro = st.session_state.filtro_especialidad
+        if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
+            esps_unicas = df_asig["Especialidad"].dropna().unique()
+            if len(esps_unicas) == 1:
+                esp_filtro = esps_unicas[0]
+        lista_tecnicos = [""] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_filtro if esp_filtro else "Todas")]
+
+        st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:10px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+        with c1:
+            tec1_masivo = st.selectbox("Técnico 1", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
+        with c2:
+            tec2_masivo = st.selectbox("Técnico 2", lista_tecnicos, key=gen_key("masivo_tec2"), label_visibility="collapsed")
+        with c3:
+            if st.button("🚀 Asignar a seleccionadas", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
+                guardados = 0
+                for _, row in df_asig.iterrows():
+                    internal_id = limpiar(row.get("ID"), "")
+                    if not internal_id or not seleccion.get(internal_id, False):
+                        continue
+                    datos = {}
+                    if tec1_masivo and tec1_masivo != limpiar(row.get("Tecnico_Asignado"), ""):
+                        datos["Tecnico_Asignado"] = tec1_masivo
+                    if tec2_masivo and tec2_masivo != limpiar(row.get("Tecnico_Asignado_2"), ""):
+                        datos["Tecnico_Asignado_2"] = tec2_masivo
+                    if datos:
+                        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+                            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+                            if idx_local is not None:
+                                _reflejar_en_session(idx_local, datos)
+                            guardados += 1
+                if guardados > 0:
+                    st.success(f"✅ {guardados} actividades actualizadas")
+                    st.session_state[sel_key] = {}
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                    st.rerun()
+                else:
+                    st.warning("Selecciona actividades y técnicos primero")
+        with c4:
+            if st.button("🗑️ Limpiar", use_container_width=True, type="secondary", key=gen_key("btn_masivo_limpiar")):
+                st.session_state[sel_key] = {}
+                st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
         if df_asig.empty:
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        st.success(f"✅ {len(df_asig)} actividades encontradas.")
+        st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
         for _, row in df_asig.iterrows():
             estado = limpiar(row.get("Estado"), "Pendiente")
@@ -1876,8 +1926,19 @@ def pantalla_asignacion():
                 tecnicos_str = "Sin asignar"
 
             internal_id = limpiar(row.get("ID"), "")
-            
-            # Info de la actividad
+            chk_val = False
+            if internal_id:
+                chk_val = seleccion.get(internal_id, False)
+
+            # Fila de actividad (sin columnas anidadas)
+            with st.container():
+                # Checkbox de selección masiva
+                if internal_id:
+                    is_sel = st.checkbox("✅ Seleccionar para asignación masiva", value=chk_val,
+                                         key=gen_key("chk_sel", internal_id))
+                    seleccion[internal_id] = is_sel
+
+                # Info de la actividad
                 st.markdown(f'''
                 <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
                     <div>
