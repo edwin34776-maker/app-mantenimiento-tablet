@@ -680,32 +680,38 @@ def render_fila_orden(row, con_comentario=False, truncar_tecnico=False):
 
 def panel_info_orden(row, incluir_tecnico=False):
     """Panel Equipo/Ubicación/Especialidad/Estado usado en detalle y ejecución."""
-    with st.container():
-        st.markdown('<div style="background: #FFFFFF; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-top: 10px; border: 1px solid #CBD5E1;">', unsafe_allow_html=True)
+    nodo = limpiar(row.get('Nodo'), '')
+    equipo = limpiar(row.get('Equipo'), 'N/A')
+    ubicacion = limpiar(row.get('Ubicacion'), 'N/A')
+    especialidad = limpiar(row.get('Especialidad'), 'N/A')
+    estado = limpiar(row.get('Estado'), 'Pendiente')
 
-        if 'Nodo' in row and limpiar(row.get('Nodo'), ''):
-            st.markdown(f"**Nodo:** {limpiar(row.get('Nodo'), 'N/A')}")
-        st.markdown(f"**Equipo:** {limpiar(row.get('Equipo'), 'N/A')}")
-        st.markdown(f"**Ubicación:** {limpiar(row.get('Ubicacion'), 'N/A')}")
-        st.markdown(f"**Especialidad:** {limpiar(row.get('Especialidad'), 'N/A')}")
+    est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado, "#64748b")
 
-        estado = limpiar(row.get('Estado'), 'Pendiente')
-        est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado, "#64748b")
-        st.markdown(f"**Estado:** <span style='color:{est_color}; font-weight:700;'>{estado}</span>", unsafe_allow_html=True)
+    html = f"""<div style="background: #FFFFFF; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-top: 10px; border: 1px solid #CBD5E1; color: #0F172A;">
+        <div style="font-size: 14px; line-height: 1.8;">"""
 
-        if incluir_tecnico:
-            tec1 = limpiar(row.get("Tecnico_Asignado"), "")
-            tec2 = limpiar(row.get("Tecnico_Asignado_2"), "")
-            tec_label = "Sin asignar"
-            if tec1 and tec2 and tec1 != tec2:
-                tec_label = f"{tec1} + {tec2}"
-            elif tec1:
-                tec_label = tec1
-            elif tec2:
-                tec_label = tec2
-            st.markdown(f"**Técnico Asignado:** {tec_label}")
+    if nodo:
+        html += f'<div><strong>Nodo:</strong> {nodo}</div>'
+    html += f'<div><strong>Equipo:</strong> {equipo}</div>'
+    html += f'<div><strong>Ubicación:</strong> {ubicacion}</div>'
+    html += f'<div><strong>Especialidad:</strong> {especialidad}</div>'
+    html += f'<div><strong>Estado:</strong> <span style="color:{est_color}; font-weight:700;">{estado}</span></div>'
 
-        st.markdown('</div>', unsafe_allow_html=True)
+    if incluir_tecnico:
+        tec1 = limpiar(row.get("Tecnico_Asignado"), "")
+        tec2 = limpiar(row.get("Tecnico_Asignado_2"), "")
+        tec_label = "Sin asignar"
+        if tec1 and tec2 and tec1 != tec2:
+            tec_label = f"{tec1} + {tec2}"
+        elif tec1:
+            tec_label = tec1
+        elif tec2:
+            tec_label = tec2
+        html += f'<div><strong>Técnico Asignado:</strong> {tec_label}</div>'
+
+    html += """</div></div>"""
+    st.markdown(html, unsafe_allow_html=True)
 
 def gauge_progreso(titulo, pct, color_restante, label_centro, val_a, label_a, color_a, val_b, label_b, color_b):
     arc = 251.33
