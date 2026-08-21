@@ -1629,20 +1629,28 @@ def pantalla_detalle():
     elif tec2_det:
         tec_label = tec2_det
 
-    duracion_html = (f'<div style="background: #DCFCE7; color: #34d399; text-align: center; padding: 8px; border-radius: 8px; '
-                     f'margin-top: 12px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duracion: {duracion}</div>') if duracion else ""
-    st.markdown(f"""
-    <div style="background: #F8FAFC; border-radius: 12px; padding: 16px; border: 1px solid #E2E8F0; margin-bottom: 12px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            {_celda("&#128100;", "Tecnico", tec_label, "#3b82f6")}
-            {_celda("&#128308;", "Estado", estado_actual, est_color, est_color, 700)}
-            {_celda("&#9888;", "Prioridad", pri_label, pri_color, pri_color, 700)}
-            {_celda("&#128197;", "Fecha Ejecucion", fecha_ejec, "#a78bfa")}
-            {_celda("&#9200;", "Hora Inicio", h_ini, "#60a5fa")}
-            {_celda("&#9201;", "Hora Fin", h_fin, "#f472b6")}
-        </div>
-        {duracion_html}
-    </div>""", unsafe_allow_html=True)
+    def _info_card(icono, label, valor, color_borde, color_texto="#0F172A", peso=600):
+        st.markdown(f"""
+        <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {color_borde}; margin-bottom: 8px;">
+            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">{icono} {label}</div>
+            <div style="color:{color_texto}; font-size:13px; font-weight:{peso}; margin-top:4px;">{valor}</div>
+        </div>""", unsafe_allow_html=True)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        _info_card("&#128100;", "Técnico", tec_label, "#3b82f6")
+        _info_card("&#9888;", "Prioridad", pri_label, pri_color, pri_color, 700)
+        _info_card("&#9200;", "Hora Inicio", h_ini, "#60a5fa")
+    with col_b:
+        _info_card("&#128308;", "Estado", estado_actual, est_color, est_color, 700)
+        _info_card("&#128197;", "Fecha Ejecución", fecha_ejec, "#a78bfa")
+        _info_card("&#9201;", "Hora Fin", h_fin, "#f472b6")
+
+    if duracion:
+        st.markdown(f"""
+        <div style="background: #DCFCE7; color: #059669; text-align: center; padding: 8px; border-radius: 8px; 
+        margin-top: 4px; font-size: 14px; font-weight: 700; border: 1px solid #059669;">&#9989; Duración: {duracion}</div>""", unsafe_allow_html=True)
+
     comentario_detalle = limpiar(row.get("Comentarios"), "")
     if comentario_detalle:
         st.markdown(f"""
