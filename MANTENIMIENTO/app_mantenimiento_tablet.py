@@ -1604,7 +1604,6 @@ def pantalla_asignacion():
         </div>""", unsafe_allow_html=True)
 
 
-
         # ========== GRÁFICA: TORTA 3D DISTRIBUCIÓN POR EQUIPO ==========
         def _render_torta_3d(datos, titulo="Distribución por Equipo"):
             import math
@@ -1614,185 +1613,93 @@ def pantalla_asignacion():
             if total == 0:
                 return ""
 
-            # Colores vibrantes tipo la imagen de referencia
-            colores = [
-                "#E91E63",  # Rosa/Magenta
-                "#9C27B0",  # Púrpura
-                "#673AB7",  # Violeta
-                "#3F51B5",  # Azul índigo
-                "#2196F3",  # Azul
-                "#00BCD4",  # Cyan
-                "#009688",  # Verde azulado
-                "#8BC34A",  # Verde lima
-                "#FF9800",  # Naranja
-                "#FF5722",  # Naranja oscuro
-            ]
-            colores_dark = [
-                "#D81B60", "#8E24AA", "#5E35B1", "#3949AB",
-                "#1E88E5", "#00ACC1", "#00897B", "#7CB342",
-                "#F57C00", "#E64A19"
-            ]
+            colores = ["#E040FB", "#7C4DFF", "#536DFE", "#448AFF", "#40C4FF", 
+                       "#18FFFF", "#64FFDA", "#69F0AE", "#B2FF59", "#FFD740", 
+                       "#FFAB40", "#FF6E40", "#F50057", "#D500F9"]
 
-            cx, cy = 350, 220
-            rx, ry = 140, 85
-            extrusion = 35
-            explode = 18  # Distancia de separación de slices
+            cx, cy, r = 230, 200, 130
+            extrusion = 18
+            svg_parts = []
+            callouts = []
 
-            def pol2cart(cx, cy, rx, ry, ang_deg):
+            def pol2cart(cx, cy, r, ang_deg):
                 rad = math.radians(ang_deg)
-                return cx + rx * math.cos(rad), cy + ry * math.sin(rad)
+                return cx + r * math.cos(rad), cy + r * math.sin(rad)
 
-            def en_mitad_inferior(ang):
-                a = ang % 360
-                if a < 0: a += 360
-                return 0 <= a <= 180
-
-            # Pre-calcular ángulos
-            slices_data = []
             start_angle = -90
+
             for i, d in enumerate(datos):
                 pct = round(d["valor"] / total * 100, 1)
                 sweep = (d["valor"] / total) * 360
                 end_angle = start_angle + sweep
+                color = colores[i % len(colores)]
+
+                x1, y1 = pol2cart(cx, cy, r, start_angle)
+                x2, y2 = pol2cart(cx, cy, r, end_angle)
+                large_arc = 1 if sweep > 180 else 0
+
+                # Cara inferior (sombra)
+                path_bottom = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (cx, cy+extrusion, x1, y1+extrusion, r, r, large_arc, x2, y2+extrusion)
+                svg_parts.append('<path d="%s" fill="%s" opacity="0.30"/>' % (path_bottom, color))
+
+                # Lados laterales para bordes en mitad inferior
+                def en_mitad_inferior(ang):
+                    a = ang % 360
+                    if a < 0: a += 360
+                    return 0 <= a <= 180
+
+                if en_mitad_inferior(start_angle):
+                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.50"/>' % (x1, y1, x1, y1+extrusion, cx, cy+extrusion, cx, cy, color))
+                if en_mitad_inferior(end_angle):
+                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.50"/>' % (x2, y2, x2, y2+extrusion, cx, cy+extrusion, cx, cy, color))
+
+                # Arco inferior visible
+                as_i = max(start_angle, 0) if start_angle < 180 else start_angle
+                as_e = min(end_angle, 180) if end_angle > 0 else end_angle
+                if start_angle < 0 and end_angle > 0:
+                    as_i = 0
+                if start_angle < 180 and end_angle > 180:
+                    as_e = 180
+                if as_i < as_e:
+                    ix1, iy1 = pol2cart(cx, cy, r, as_i)
+                    ix2, iy2 = pol2cart(cx, cy, r, as_e)
+                    large_arc_inf = 1 if (as_e - as_i) > 180 else 0
+                    svg_parts.append('<path d="M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f L %.1f %.1f A %d %d 0 %d 0 %.1f %.1f Z" fill="%s" opacity="0.40"/>' % (ix1, iy1, r, r, large_arc_inf, ix2, iy2, ix2, iy2+extrusion, r, r, large_arc_inf, ix1, iy1+extrusion, color))
+
+                # Cara superior
+                path_top = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (cx, cy, x1, y1, r, r, large_arc, x2, y2)
+                svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, color))
+
+                # Callout
                 mid_angle = start_angle + sweep / 2
+                mx, my = pol2cart(cx, cy, r + 25, mid_angle)
 
-                # Offset para exploded pie
-                off_rad = math.radians(mid_angle)
-                off_x = explode * math.cos(off_rad)
-                off_y = explode * math.sin(off_rad)
-
-                slices_data.append({
-                    "i": i, "nombre": d["nombre"], "valor": d["valor"],
-                    "pct": pct, "start": start_angle, "end": end_angle,
-                    "mid": mid_angle, "sweep": sweep,
-                    "off_x": off_x, "off_y": off_y,
-                    "color": colores[i % len(colores)],
-                    "color_dark": colores_dark[i % len(colores_dark)]
-                })
-                start_angle = end_angle
-
-            svg_parts = []
-            callouts = []
-
-            for s in slices_data:
-                i = s["i"]
-                ox, oy = s["off_x"], s["off_y"]
-                c = s["color"]
-                cd = s["color_dark"]
-                sa, ea, ma = s["start"], s["end"], s["mid"]
-                sw = s["sweep"]
-
-                x1, y1 = pol2cart(cx + ox, cy + oy, rx, ry, sa)
-                x2, y2 = pol2cart(cx + ox, cy + oy, rx, ry, ea)
-                large_arc = 1 if sw > 180 else 0
-
-                # === CARA INFERIOR (sombra/base) ===
-                # Arco inferior completo del slice
-                a_start_norm = sa % 360
-                a_end_norm = ea % 360
-                if a_start_norm < 0: a_start_norm += 360
-                if a_end_norm < 0: a_end_norm += 360
-
-                # Determinar rango del arco inferior visible (0-180 grados)
-                if sw >= 360:
-                    inf_start, inf_end = 0, 180
+                if -90 <= mid_angle <= 90:
+                    box_x = mx + 20
+                    line_x2 = box_x + 5
+                    if box_x > 520: box_x = 520
                 else:
-                    if sa < 0 and ea > 0:
-                        inf_start = 0
-                    else:
-                        inf_start = max(a_start_norm, 0) if a_start_norm < 180 else None
-                    if sa < 180 and ea > 180:
-                        inf_end = 180
-                    else:
-                        inf_end = min(a_end_norm, 180) if a_end_norm > 0 else None
+                    box_x = mx - 150
+                    line_x2 = box_x + 145
+                    if box_x < 10: box_x = 10
 
-                # Cara inferior como path
-                if sw < 360:
-                    path_inf = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
-                        int(cx + ox), int(cy + oy + extrusion),
-                        x1, y1 + extrusion, rx, ry, large_arc, x2, y2 + extrusion)
-                    svg_parts.append('<path d="%s" fill="%s" opacity="0.25"/>' % (path_inf, cd))
-
-                # === CARAS LATERALES (extrusión) ===
-                # Borde inicial
-                if en_mitad_inferior(sa):
-                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.45"/>' % (
-                        x1, y1, x1, y1 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
-
-                # Borde final
-                if en_mitad_inferior(ea):
-                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.45"/>' % (
-                        x2, y2, x2, y2 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
-
-                # Arco lateral inferior (la cara curva del cilindro)
-                if sw < 360:
-                    as_i = sa if sa > 0 else 0
-                    as_e = ea if ea < 180 else 180
-                    if sa < 0 and ea > 0: as_i = 0
-                    if sa < 180 and ea > 180: as_e = 180
-                    if as_i < as_e:
-                        ix1, iy1 = pol2cart(cx + ox, cy + oy, rx, ry, as_i)
-                        ix2, iy2 = pol2cart(cx + ox, cy + oy, rx, ry, as_e)
-                        large_arc_inf = 1 if (as_e - as_i) > 180 else 0
-                        svg_parts.append('<path d="M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f L %.1f %.1f A %d %d 0 %d 0 %.1f %.1f Z" fill="%s" opacity="0.35"/>' % (
-                            ix1, iy1, rx, ry, large_arc_inf, ix2, iy2, ix2, iy2 + extrusion, rx, ry, large_arc_inf, ix1, iy1 + extrusion, cd))
-
-                # === CARA SUPERIOR ===
-                if sw >= 360:
-                    path_top = 'M %d %d A %d %d 0 1 1 %d %d A %d %d 0 1 1 %d %d' % (
-                        int(cx + ox + rx), int(cy + oy), rx, ry, int(cx + ox - rx), int(cy + oy), rx, ry, int(cx + ox + rx), int(cy + oy))
-                    svg_parts.append('<ellipse cx="%d" cy="%d" rx="%d" ry="%d" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (
-                        int(cx + ox), int(cy + oy), rx, ry, c))
-                else:
-                    path_top = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
-                        int(cx + ox), int(cy + oy), x1, y1, rx, ry, large_arc, x2, y2)
-                    svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, c))
-
-                # === CALLOUT ===
-                # Punto en el borde exterior de la torta
-                mx, my = pol2cart(cx + ox, cy + oy, rx + 12, ry + 8, ma)
-
-                # Determinar posición de la caja
-                box_w = 130
-                box_h = 42
-                line_len = 35
-
-                if ma >= -90 and ma <= 90:
-                    # Derecha
-                    box_x = mx + line_len
-                    line_x2 = box_x - 5
-                    if box_x + box_w > 690:
-                        box_x = 690 - box_w
-                        line_x2 = box_x - 5
-                else:
-                    # Izquierda
-                    box_x = mx - line_len - box_w
-                    line_x2 = box_x + box_w + 5
-                    if box_x < 10:
-                        box_x = 10
-                        line_x2 = box_x + box_w + 5
-
-                # Ajustar Y de la caja para evitar solapamientos
-                box_y = my - box_h / 2
+                box_y = my - 22
                 if box_y < 10: box_y = 10
-                if box_y > 390: box_y = 390
+                if box_y > 360: box_y = 360
 
-                # Línea en ángulo recto (forma L o Γ)
-                # Punto → horizontal → vertical → caja
-                mid_y = box_y + box_h / 2
+                nombre_corto = d["nombre"][:16]
+                callouts.append('<circle cx="%.1f" cy="%.1f" r="3" fill="%s" stroke="white" stroke-width="1.5"/>' % (mx, my, color))
+                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="1.5" stroke-dasharray="3,2"/>' % (mx, my, line_x2, box_y+16, color))
+                callouts.append('<rect x="%.1f" y="%.1f" width="130" height="32" rx="8" fill="white" stroke="%s" stroke-width="2"/>' % (box_x, box_y, color))
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x+65, box_y+13, nombre_corto))
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="13" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x+65, box_y+27, color, pct))
 
-                callouts.append('<circle cx="%.1f" cy="%.1f" r="4" fill="%s"/>' % (mx, my, c))
-                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2.5"/>' % (mx, my, line_x2, my, c))
-                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2.5"/>' % (line_x2, my, line_x2, mid_y, c))
-                callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="10" fill="white" stroke="%s" stroke-width="3"/>' % (box_x, box_y, box_w, box_h, c))
-
-                nombre_corto = s["nombre"][:18]
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 17, nombre_corto))
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="16" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 36, c, s["pct"]))
+                start_angle = end_angle
 
             svg_content = '
 '.join(svg_parts + callouts)
-            svg = '<svg width="100%%" height="440" viewBox="0 0 700 440" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="440" fill="transparent"/>%s</svg>' % svg_content
+
+            svg = '<svg width="100%%" height="420" viewBox="0 0 700 420" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="420" fill="transparent"/>%s</svg>' % svg_content
             return svg
 
         if not df_asig.empty and "Ubicacion" in df_asig.columns:
