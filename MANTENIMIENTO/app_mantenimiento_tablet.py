@@ -446,6 +446,31 @@ st.markdown("""
         .tabla-fila .col-estado { grid-column: 1; }
         .tabla-fila .col-tec { grid-column: 2; text-align: right; font-size: 11px; }
     }
+
+    /* === ASIGNACIÓN RÁPIDA: CHECKBOX PEGADO A LA TARJETA === */
+    .asig-rapida-fila { margin-bottom: 2px !important; }
+    div[data-testid="stHorizontalBlock"]:has(.asig-rapida-fila) > div[data-testid="column"]:first-child {
+        padding-right: 2px !important;
+        min-width: 24px !important;
+        max-width: 28px !important;
+        flex: none !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.asig-rapida-fila) > div[data-testid="column"]:nth-child(2) {
+        padding-left: 2px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.asig-rapida-fila) {
+        gap: 0px !important;
+        margin-bottom: 2px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.asig-rapida-fila) div[data-testid="stCheckbox"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(.asig-rapida-fila) div[data-testid="stCheckbox"] > label {
+        min-height: 18px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1909,14 +1934,14 @@ def pantalla_asignacion():
             if internal_id in seen_ids:
                 continue
             seen_ids.add(internal_id)
-            col_chk, col_info = st.columns([0.06, 1], gap="small")
+            col_chk, col_info = st.columns([0.04, 1], gap="small")
             with col_chk:
                 if internal_id:
                     is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
                     seleccion[internal_id] = is_sel
             with col_info:
                 st.markdown(f"""
-                <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
+                <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:2px;">
                     <div>
                         <div class="asig-ot"><strong>OT {escapar(limpiar(row.get("ID OT"), "SIN ID"))}</strong> {nodo_badge}</div>
                         <div style="font-size:11px;color:#64748B;">{escapar(limpiar(row.get("Procedimiento"), ""))}</div>
