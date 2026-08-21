@@ -1608,6 +1608,7 @@ def pantalla_asignacion():
 
 
 
+
         # ========== GRÁFICA: TORTA 3D POR EQUIPO + LEYENDA POR TÉCNICO ==========
         def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Equipo"):
             import math
@@ -1629,9 +1630,9 @@ def pantalla_asignacion():
             ]
 
             cx, cy = 350, 230
-            rx, ry = 130, 70
-            extrusion = 28
-            explode = 14
+            rx, ry = 125, 68
+            extrusion = 26
+            explode = 12
 
             def pol2cart(cx, cy, rx, ry, ang_deg):
                 rad = math.radians(ang_deg)
@@ -1713,10 +1714,12 @@ def pantalla_asignacion():
                         int(cx + ox), int(cy + oy), x1, y1, rx, ry, large_arc, x2, y2)
                     svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, c))
 
-                mx, my = pol2cart(cx + ox, cy + oy, rx + 12, ry + 8, ma)
-                box_w = 120
-                box_h = 38
-                line_len = 28
+                # === CALLOUT MEJORADO ===
+                mx, my = pol2cart(cx + ox, cy + oy, rx + 10, ry + 6, ma)
+
+                box_w = 140
+                box_h = 44
+                line_len = 32
 
                 if ma >= -90 and ma <= 90:
                     box_x = mx + line_len
@@ -1733,7 +1736,7 @@ def pantalla_asignacion():
 
                 box_y = my - box_h / 2
                 if box_y < 10: box_y = 10
-                if box_y > 360: box_y = 360
+                if box_y > 350: box_y = 350
 
                 mid_y = box_y + box_h / 2
 
@@ -1742,9 +1745,9 @@ def pantalla_asignacion():
                 callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
                 callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
 
-                nombre_corto = s["nombre"][:15]
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="8" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 14, nombre_corto))
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="14" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 30, c, s["pct"]))
+                nombre_corto = s["nombre"][:16]
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 16, nombre_corto))
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="15" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 34, c, s["pct"]))
 
             svg_content = '\n'.join(svg_parts + callouts)
             svg = '<svg width="100%%" height="400" viewBox="0 0 700 400" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="400" fill="transparent"/>%s</svg>' % svg_content
@@ -1762,7 +1765,7 @@ def pantalla_asignacion():
             for i, d in enumerate(datos_tecnicos):
                 c = colores[i % len(colores)]
                 items.append(
-                    '<div style="display:flex; align-items:center; gap:6px; padding:4px 10px; background:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0;">'
+                    '<div style="display:flex; align-items:center; gap:6px; padding:5px 12px; background:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0;">'
                     '<div style="width:14px; height:14px; border-radius:4px; background:%s; flex-shrink:0;"></div>'
                     '<span style="font-size:12px; color:#0F172A; font-weight:600;">%s</span>'
                     '<span style="font-size:11px; color:#64748B;">(%s)</span></div>' % (c, d["nombre"], d["valor"])
@@ -1809,7 +1812,6 @@ def pantalla_asignacion():
                 st.info("📭 Sin datos para la gráfica.")
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        # ========== BARRA DE ASIGNACIÓN MASIVA POR SELECCIÓN ==========
         sel_key = gen_key("seleccion_asig")
         st.session_state.setdefault(sel_key, {})
         seleccion = st.session_state[sel_key]
