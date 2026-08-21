@@ -1909,7 +1909,7 @@ def pantalla_asignacion():
             if internal_id in seen_ids:
                 continue
             seen_ids.add(internal_id)
-            col_chk, col_info, col_tec = st.columns([0.5, 3, 1.5])
+            col_chk, col_info = st.columns([0.5, 4.5])
             with col_chk:
                 if internal_id:
                     is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
@@ -1927,25 +1927,6 @@ def pantalla_asignacion():
                         <div style="font-size:10px;color:#64748B;margin-top:4px;">{escapar(tecnicos_str)}</div>
                     </div>
                 </div>""", unsafe_allow_html=True)
-            with col_tec:
-                tec_key = gen_key("sel_tec_asig", internal_id)
-                tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
-                idx_tec = 0
-                if tec_actual in lista_tecnicos:
-                    idx_tec = lista_tecnicos.index(tec_actual)
-                nuevo_tec = st.selectbox("Técnico", lista_tecnicos, index=idx_tec, key=tec_key, label_visibility="collapsed")
-                if nuevo_tec != tec_actual:
-                    datos = _datos_reasignacion(nuevo_tec, estado)
-                    datos_filtrados = {"Tecnico_Asignado": datos["Tecnico_Asignado"]}
-                    for k in ["Estado", "Hora_Inicio", "Hora_Fin", "Fecha_Ejecucion", "Comentarios"]:
-                        if k in datos:
-                            datos_filtrados[k] = datos[k]
-                    if actualizar_campos_supabase(internal_id, datos_filtrados, row.to_dict()):
-                        idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
-                        if idx_local is not None:
-                            _reflejar_en_session(idx_local, datos_filtrados)
-                        st.toast(f"Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}", icon="💾")
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
 
 def pantalla_sincronizar():
     header_tablet("🔄 Sincronizar desde Excel")
