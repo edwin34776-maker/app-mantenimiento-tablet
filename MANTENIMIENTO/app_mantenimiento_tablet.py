@@ -1588,6 +1588,14 @@ def pantalla_asignacion():
     header_tablet("Asignacion de Tecnicos")
     boton_volver_inicio("asignacion")
 
+    # MARCADOR DE VERSIÓN — si no ves esta barra verde, estás usando el archivo viejo
+    st.markdown("""
+    <div style="background: #10B981; color: white; padding: 6px 12px; border-radius: 6px; 
+                text-align: center; font-size: 12px; font-weight: 700; margin-bottom: 8px;">
+        ✅ VERSIÓN CORREGIDA — Selectbox individual por fila ACTIVO
+    </div>""", unsafe_allow_html=True)
+
+
     if st.session_state.get("asig_rapida_msg"):
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
