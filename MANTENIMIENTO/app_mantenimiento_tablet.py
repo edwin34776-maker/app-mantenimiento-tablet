@@ -1820,25 +1820,9 @@ def pantalla_asignacion():
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
         if not df_asig.empty and st.session_state.filtro_maquina == "Todas" and len(df_asig["Ubicacion"].dropna().unique()) > 1:
-            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Equipo</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
 
-            # === TORTA: Agrupar por EQUIPO (Ubicacion) ===
-            equipos_count = {}
-            for _, row in df_asig.iterrows():
-                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
-                equipos_count[eq] = equipos_count.get(eq, 0) + 1
-
-            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
-            if len(equipos_sorted) > 8:
-                top = equipos_sorted[:7]
-                otros_val = sum(v for _, v in equipos_sorted[7:])
-                datos_torta = [{"nombre": k, "valor": v} for k, v in top]
-                if otros_val > 0:
-                    datos_torta.append({"nombre": "Otros", "valor": otros_val})
-            else:
-                datos_torta = [{"nombre": k, "valor": v} for k, v in equipos_sorted]
-
-            # === LEYENDA: Agrupar por TÉCNICO ===
+            # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
             tecnicos_count = {}
             for _, row in df_asig.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "")
@@ -1848,8 +1832,33 @@ def pantalla_asignacion():
                 if t2 and t2 != t1:
                     tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
 
+            # Agregar "Sin asignar" si hay actividades sin técnico
+            sin_asignar = 0
+            for _, row in df_asig.iterrows():
+                t1 = limpiar(row.get("Tecnico_Asignado"), "")
+                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
+                if not t1 and not t2:
+                    sin_asignar += 1
+            if sin_asignar > 0:
+                tecnicos_count["Sin asignar"] = sin_asignar
+
             tecnicos_sorted = sorted(tecnicos_count.items(), key=lambda x: x[1], reverse=True)
-            datos_leyenda = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted[:10]]
+            if len(tecnicos_sorted) > 8:
+                top = tecnicos_sorted[:7]
+                otros_val = sum(v for _, v in tecnicos_sorted[7:])
+                datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in top]
+                if otros_val > 0:
+                    datos_torta.append({"nombre": "Otros", "valor": otros_val})
+            else:
+                datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
+
+            # === LEYENDA: Agrupar por EQUIPO ===
+            equipos_count = {}
+            for _, row in df_asig.iterrows():
+                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
+                equipos_count[eq] = equipos_count.get(eq, 0) + 1
+            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
+            datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted[:10]]
 
             if datos_torta:
                 svg_torta = _render_torta_3d_equipos(datos_torta)
