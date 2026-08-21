@@ -975,6 +975,11 @@ def pantalla_home():
     boton_cerrar_sesion()
 
 
+def _chk_key(internal_id):
+    """Genera la key única del checkbox para una actividad."""
+    return gen_key("chk_eq", internal_id)
+
+
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
     opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
@@ -1049,10 +1054,10 @@ def _home_tecnico(df):
             tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
-            checks_dict = st.session_state.setdefault(f"checks_{eq_key}", {})
-            realizadas_chk = sum(1 for _, r in grupo_eq_df.iterrows() if checks_dict.get(limpiar(r.get("ID"), ""), False))
-            pct_realizadas = round(realizadas_chk / total_act * 100, 1) if total_act else 0
-            estado_bloque = "Completado" if realizadas_chk == total_act and total_act > 0 else "Pendiente"
+            # Contar realizadas basado en ESTADO de BD
+            realizadas_bd = len(grupo_eq_df[grupo_eq_df["Estado"].isin(["Ejecutado", "Verificado"])])
+            pct_realizadas = round(realizadas_bd / total_act * 100, 1) if total_act else 0
+            estado_bloque = "Completado" if realizadas_bd == total_act and total_act > 0 else "Pendiente"
 
             st.markdown(f"""
             <div class="eq-bloque" style="margin-bottom: 10px; border-radius: 12px; overflow: hidden; border: 1px solid #1E3A5F;">
@@ -1060,7 +1065,7 @@ def _home_tecnico(df):
                     <div style="flex:1; min-width:0;">
                         <div class="eq-bloque-titulo">🔧 {equipo_limpio}</div>
                         <div class="eq-bloque-meta">
-                            👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_chk} realizadas
+                            👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_bd} realizadas
                         </div>
                         <div class="eq-progress-bar">
                             <div class="eq-progress-fill" style="width: {pct_realizadas}%;"></div>
@@ -1076,16 +1081,21 @@ def _home_tecnico(df):
                     continue
                 desc = limpiar(row.get("Actividades"), "Sin descripcion")
                 estado = limpiar(row.get("Estado"), "Pendiente")
-                valor_inicial = checks_dict.get(internal_id, estado == "Ejecutado")
+                ya_ejecutada = estado in ["Ejecutado", "Verificado"]
+
+                # === FIX CRÍTICO: 1 sola fuente de verdad — el session_state del widget ===
+                chk_key = _chk_key(internal_id)
+                if chk_key not in st.session_state:
+                    st.session_state[chk_key] = ya_ejecutada
 
                 cols_fila = st.columns([0.02, 1], gap="small")
                 with cols_fila[0]:
-                    chk_val = st.checkbox("", value=valor_inicial, key=gen_key("chk_eq", internal_id), label_visibility="collapsed")
-                    if chk_val and not checks_dict.get(internal_id, False) and estado not in ["Ejecutado", "Verificado"]:
+                    chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
+                    if chk_val and not ya_ejecutada and not st.session_state.get(f"hora_ini_auto_{internal_id}"):
                         st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
-                    checks_dict[internal_id] = chk_val
+
                 with cols_fila[1]:
-                    clase_ej = "ejecutada" if (valor_inicial or estado == "Ejecutado") else ""
+                    clase_ej = "ejecutada" if (chk_val or ya_ejecutada) else ""
                     st.markdown(f"""
                     <div class="fila-compacta {clase_ej}">
                         <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
@@ -1098,40 +1108,22 @@ def _home_tecnico(df):
         st.markdown("</div></div>", unsafe_allow_html=True)
 
 
-def _eq_check_key(ubi_key, row):
-    eq_k = ubi_key + "__" + str(limpiar(row.get("Equipo"), "Sin equipo")).replace(" ", "_").replace("-", "_").replace(".", "")
-    return f"checks_{eq_k}"
-
-
 def _bloque_acciones_ubicacion(ubi_key, grupo_ubi_df):
-    """Comentario general + botones Marcar/Desmarcar/Guardar de un bloque de ubicación."""
+    """Comentario general + botones Desmarcar/Guardar de un bloque de ubicación."""
     comentario_key = f"com_ubi_{ubi_key}"
     st.session_state.setdefault(comentario_key, "")
     st.text_input("💬 Comentario general del bloque:", value=st.session_state[comentario_key],
                   key=comentario_key, placeholder="Escribe un comentario para todas las actividades de este bloque...")
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
-    col_marcar, col_desmarcar, col_guardar = st.columns(3)
-    with col_marcar:
-        if st.button("✅ Marcar todas", use_container_width=True, type="primary", key=gen_key("btn_marcar_todas_ubi", ubi_key)):
-            ahora = datetime.now().strftime("%H:%M")
-            for _, row in grupo_ubi_df.iterrows():
-                internal_id = limpiar(row.get("ID"), "")
-                if internal_id:
-                    ck = _eq_check_key(ubi_key, row)
-                    if ck in st.session_state:
-                        st.session_state[ck][internal_id] = True
-                    st.session_state[f"hora_ini_auto_{internal_id}"] = ahora
-            st.rerun()
-
+    col_desmarcar, col_guardar = st.columns(2)
     with col_desmarcar:
         if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas_ubi", ubi_key)):
             for _, row in grupo_ubi_df.iterrows():
                 internal_id = limpiar(row.get("ID"), "")
                 if internal_id:
-                    ck = _eq_check_key(ubi_key, row)
-                    if ck in st.session_state:
-                        st.session_state[ck][internal_id] = False
+                    chk_key = _chk_key(internal_id)
+                    st.session_state[chk_key] = False
                     st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
             st.rerun()
 
@@ -1147,8 +1139,8 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
         internal_id = limpiar(row.get("ID"), "")
         if not internal_id:
             continue
-        ck = _eq_check_key(ubi_key, row)
-        chk_val = st.session_state.get(ck, {}).get(internal_id, False)
+        chk_key = _chk_key(internal_id)
+        chk_val = st.session_state.get(chk_key, False)
         estado_actual = limpiar(row.get("Estado"), "Pendiente")
         comentario_bd = limpiar(row.get("Comentarios"), "")
         cambia_comentario = comentario_general != comentario_bd
@@ -1164,8 +1156,7 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
             if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                 guardados += 1
                 st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
-                if ck in st.session_state:
-                    st.session_state[ck].pop(internal_id, None)
+                st.session_state.pop(chk_key, None)
 
         elif not chk_val and estado_actual == "Ejecutado":
             datos = {"Estado": "Pendiente"}
@@ -1173,6 +1164,7 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
                 datos["Comentarios"] = comentario_general
             if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
                 guardados += 1
+                st.session_state.pop(chk_key, None)
 
         elif cambia_comentario:
             if actualizar_orden_supabase(internal_id, "Comentarios", comentario_general):
@@ -1183,48 +1175,6 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
         st.rerun()
     else:
         st.info("No hay cambios para guardar")
-
-
-def _home_envio_correo(df):
-    st.divider()
-    st.subheader("Enviar Resumen por Correo")
-    df_envio = aplicar_filtros_globales(df)
-    pct_ejec, pct_pdte, pct_verif = calcular_progreso(df_envio)
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Ejecutadas", f"{pct_ejec}%")
-    with col2:
-        st.metric("Pendientes", f"{pct_pdte}%")
-    with col3:
-        st.metric("Verificar", f"{pct_verif}%")
-    st.write(f"**Total de ordenes a enviar:** {len(df_envio)}")
-
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        cuenta = st.radio("Cuenta de envio:", DESTINATARIOS_DEFAULT, key=gen_key("radio_cuenta_correo"))
-    with col_c2:
-        area = st.text_input("Area / Proyecto", value="INY4 MEC", key=gen_key("txt_area_correo"))
-    asunto = st.text_input("Asunto del correo", value=f"Ordenes preventivas {area}", key=gen_key("txt_asunto_correo"))
-    st.text_area("Destinatarios:", value="\n".join(DESTINATARIOS_DEFAULT), disabled=True, key=gen_key("txt_destinatarios"))
-
-    col_env1, col_env2 = st.columns(2)
-    with col_env1:
-        if st.button("ENVIAR CORREO AHORA", use_container_width=True, type="primary", key=gen_key("btn_enviar_correo")):
-            if len(df_envio) == 0:
-                st.error("No hay ordenes para enviar con el filtro actual")
-            else:
-                with st.spinner("Enviando correo..."):
-                    exito, mensaje = enviar_correo_preventivo(df_envio, DESTINATARIOS_DEFAULT, asunto, area, cuenta)
-                if exito:
-                    st.success(mensaje)
-                    st.session_state.mostrar_envio_correo = False
-                else:
-                    st.error(mensaje)
-    with col_env2:
-        if st.button("CANCELAR", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_correo")):
-            st.session_state.mostrar_envio_correo = False
-            st.rerun()
-
 # ==================== PANTALLA: ORDENES (ADMIN) ====================
 def pantalla_ordenes():
     df = recargar_datos()
