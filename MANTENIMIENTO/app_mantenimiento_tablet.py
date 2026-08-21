@@ -1879,6 +1879,7 @@ def pantalla_asignacion():
                 esp_filtro = esps_unicas[0]
         lista_tecnicos = ["NO APLICA DEFINIR ACTIVIDAD", ""] + [t["nombre"] for t in obtener_tecnicos_con_carga(df, esp_filtro if esp_filtro else "Todas")]
 
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
         st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:10px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([3, 2, 1])
