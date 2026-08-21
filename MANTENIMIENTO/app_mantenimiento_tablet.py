@@ -1628,6 +1628,7 @@ def pantalla_asignacion():
     df = recargar_datos()
     header_tablet("Asignacion de Tecnicos")
     boton_volver_inicio("asignacion")
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
 
     if st.session_state.get("asig_rapida_msg"):
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
@@ -1649,7 +1650,7 @@ def pantalla_asignacion():
                 st.rerun()
 
     with col_der:
-        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
         maq_sel = st.session_state.filtro_maquina
         st.markdown(f"""
         <div style="margin-bottom: 12px;">
