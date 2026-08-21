@@ -685,19 +685,15 @@ def panel_info_orden(row, incluir_tecnico=False):
     ubicacion = limpiar(row.get('Ubicacion'), 'N/A')
     especialidad = limpiar(row.get('Especialidad'), 'N/A')
     estado = limpiar(row.get('Estado'), 'Pendiente')
-
     est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado, "#64748b")
-
     html = f"""<div style="background: #FFFFFF; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-top: 10px; border: 1px solid #CBD5E1; color: #0F172A;">
         <div style="font-size: 14px; line-height: 1.8;">"""
-
     if nodo:
         html += f'<div><strong>Nodo:</strong> {nodo}</div>'
     html += f'<div><strong>Equipo:</strong> {equipo}</div>'
     html += f'<div><strong>Ubicación:</strong> {ubicacion}</div>'
     html += f'<div><strong>Especialidad:</strong> {especialidad}</div>'
     html += f'<div><strong>Estado:</strong> <span style="color:{est_color}; font-weight:700;">{estado}</span></div>'
-
     if incluir_tecnico:
         tec1 = limpiar(row.get("Tecnico_Asignado"), "")
         tec2 = limpiar(row.get("Tecnico_Asignado_2"), "")
@@ -709,7 +705,6 @@ def panel_info_orden(row, incluir_tecnico=False):
         elif tec2:
             tec_label = tec2
         html += f'<div><strong>Técnico Asignado:</strong> {tec_label}</div>'
-
     html += """</div></div>"""
     st.markdown(html, unsafe_allow_html=True)
 
@@ -1621,13 +1616,6 @@ def pantalla_detalle():
     pri_label = obtener_color_prioridad(prioridad)["label"] if prioridad else "SIN CLASIFICAR"
     est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado_actual, "#64748b")
 
-    def _celda(icono, label, valor, color_borde, color_texto="#0F172A", peso=600):
-        return f"""
-        <div style="background: #F1F5F9; padding: 10px 12px; border-radius: 8px; border-left: 3px solid {color_borde};">
-            <div style="color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">{icono} {label}</div>
-            <div style="color:{color_texto}; font-size:13px; font-weight:{peso}; margin-top:4px;">{valor}</div>
-        </div>"""
-
     tec1_det = limpiar(row.get("Tecnico_Asignado"), "")
     tec2_det = limpiar(row.get("Tecnico_Asignado_2"), "")
     tec_label = "Sin asignar"
@@ -1983,20 +1971,38 @@ def pantalla_sincronizar():
         </div>
     </div>""", unsafe_allow_html=True)
 
-    st.session_state.setdefault("sync_skiprows", 1)
-    col_skip, col_info = st.columns([1, 3])
-    with col_skip:
-        st.session_state.sync_skiprows = int(st.number_input(
-            "Saltar filas antes del header", min_value=0, max_value=10,
-            value=st.session_state.sync_skiprows, step=1, key="sync_skiprows_input"))
-    with col_info:
-        st.caption("💡 Tu Excel tiene una fila de título arriba (Control Órdenes...). Déjalo en 1.")
+    # --- PASO 1: SUBIR ARCHIVO ---
+    st.subheader("📁 Paso 1: Sube tu Excel")
+    archivo = st.file_uploader("Arrastra tu archivo Excel aquí", type=["xlsx", "xls"], key="sync_upload_excel_v3")
 
-    archivo = st.file_uploader("📁 Arrastra tu Excel aquí", type=["xlsx", "xls"], key="sync_upload_excel_v2")
     if archivo is None:
         st.info("⬆️ Sube un archivo Excel para comenzar")
+        # Limpiar session si había uno anterior
+        for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel"]:
+            st.session_state.pop(k, None)
         return
 
+    # Guardar en session_state para que no se pierda al interactuar con otros widgets
+    if "sync_archivo_bytes" not in st.session_state or st.session_state.get("sync_archivo_name") != archivo.name:
+        st.session_state.sync_archivo_bytes = archivo.read()
+        st.session_state.sync_archivo_name = archivo.name
+        # Resetear df cacheado si cambia el archivo
+        st.session_state.pop("sync_df_excel", None)
+
+    archivo_bytes = io.BytesIO(st.session_state.sync_archivo_bytes)
+    nombre_archivo = st.session_state.sync_archivo_name.lower()
+
+    # --- PASO 2: CONFIGURAR SKIPROWS ---
+    st.subheader("⚙️ Paso 2: Configurar encabezados")
+    col_skip, col_info = st.columns([1, 3])
+    with col_skip:
+        skiprows_int = int(st.number_input(
+            "Saltar filas antes del header", min_value=0, max_value=10,
+            value=1, step=1, key="sync_skiprows_input_v2"))
+    with col_info:
+        st.caption("💡 Si tu Excel tiene título arriba del encabezado, pon 1. Si no, pon 0.")
+
+    # --- FUNCIONES AUXILIARES (definidas con nombre_archivo ya conocido) ---
     def leer_excel(buf, skip):
         buf.seek(0)
         engine = "xlrd" if nombre_archivo.endswith(".xls") else "openpyxl"
@@ -2017,44 +2023,60 @@ def pantalla_sincronizar():
                 continue
         return mejor_skip
 
-    try:
-        nombre_archivo = archivo.name.lower()
-        archivo_bytes = io.BytesIO(archivo.read())
-        skiprows_int = st.session_state.sync_skiprows
-        df_excel = leer_excel(archivo_bytes, skiprows_int)
+    # --- PASO 3: LEER Y VALIDAR ---
+    st.subheader("📊 Paso 3: Vista previa")
 
-        cols_lower = [str(c).strip().lower() for c in df_excel.columns]
-        headers_ok = any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades", "procedimiento"])
-        if any("unnamed" in c for c in cols_lower) or not headers_ok:
-            st.warning("⚠️ Los headers no se leyeron bien. Auto-detectando fila de encabezados...")
-            auto_skip = detectar_header(archivo_bytes)
-            if auto_skip != skiprows_int:
-                st.info(f"🔍 Header real detectado en fila {auto_skip + 1}. Releyendo con skiprows={auto_skip}...")
-                df_excel = leer_excel(archivo_bytes, auto_skip)
-                st.session_state.sync_skiprows = skiprows_int = auto_skip
+    # Cachear df_excel en session_state para no releer al cambiar modo
+    cache_key = f"sync_df_excel_{skiprows_int}_{nombre_archivo}"
+    if st.session_state.get("sync_df_cache_key") != cache_key:
+        st.session_state.pop("sync_df_excel", None)
+        st.session_state.sync_df_cache_key = cache_key
+
+    if "sync_df_excel" in st.session_state:
+        df_excel = st.session_state.sync_df_excel
+        st.success(f"📊 Excel en caché: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
+    else:
+        try:
+            df_excel = leer_excel(archivo_bytes, skiprows_int)
+            cols_lower = [str(c).strip().lower() for c in df_excel.columns]
+            headers_ok = any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades", "procedimiento"])
+
+            if any("unnamed" in c for c in cols_lower) or not headers_ok:
+                st.warning("⚠️ Los headers no se leyeron bien. Auto-detectando fila de encabezados...")
+                auto_skip = detectar_header(archivo_bytes)
+                if auto_skip != skiprows_int:
+                    st.info(f"🔍 Header real detectado en fila {auto_skip + 1}. Releyendo...")
+                    df_excel = leer_excel(archivo_bytes, auto_skip)
+                    skiprows_int = auto_skip
+                else:
+                    st.error("❌ No se pudieron detectar los headers automáticamente. Revisa el archivo.")
+                    return
+
+            st.session_state.sync_df_excel = df_excel
+            st.success(f"✅ Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas** (saltadas {skiprows_int} filas)")
+        except ImportError as e:
+            if "xlrd" in str(e):
+                st.error("❌ Falta la librería 'xlrd' para archivos .xls. Agrega `xlrd>=2.0.1` a requirements.txt.")
             else:
-                st.error("❌ No se pudieron detectar los headers automáticamente. Revisa el archivo.")
-                return
-        st.success(f"📊 Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas** (saltadas {skiprows_int} filas)")
-    except ImportError as e:
-        if "xlrd" in str(e):
-            st.error("❌ Falta la librería 'xlrd' para leer archivos .xls. Agrega `xlrd>=2.0.1` a tu requirements.txt y vuelve a desplegar.")
-        else:
-            st.error(f"❌ Error de importación: {e}")
-        return
-    except Exception as e:
-        st.error(f"❌ Error leyendo Excel: {e}")
-        return
+                st.error(f"❌ Error de importación: {e}")
+            return
+        except Exception as e:
+            st.error(f"❌ Error leyendo Excel: {e}")
+            return
 
-    with st.expander("👁️ Vista previa (primeras 10 filas)", expanded=True):
+    with st.expander("👁️ Ver primeras 10 filas", expanded=True):
         st.dataframe(df_excel.head(10), use_container_width=True)
+
     st.markdown(f"<div style='font-size:11px;color:#64748B;'>📋 Columnas detectadas: <code>{list(df_excel.columns)}</code></div>", unsafe_allow_html=True)
 
+    # Validaciones
     cols_lower = [str(c).strip().lower() for c in df_excel.columns]
     if any("unnamed" in c for c in cols_lower):
-        st.error("❌ **Los headers no se leyeron correctamente.** Hay columnas 'Unnamed'. Aumenta 'Saltar filas antes del header' a 1 o más.")
+        st.error("❌ Hay columnas 'Unnamed'. Aumenta 'Saltar filas antes del header'.")
+        return
     elif not any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades"]):
-        st.error("❌ **No se detectaron las columnas esperadas.** Revisa que 'Saltar filas antes del header' esté correcto.")
+        st.error("❌ No se detectaron columnas esperadas. Revisa el archivo.")
+        return
 
     cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
     esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
@@ -2064,45 +2086,45 @@ def pantalla_sincronizar():
     else:
         st.success("✅ Todas las columnas principales detectadas.")
 
+    # Preview de IDs únicos
     st.subheader("🔑 IDs Únicos generados")
-    st.caption("La app crea estos IDs automáticamente para cada fila. Si el contenido no cambia, el ID se mantiene.")
+    st.caption("La app crea estos IDs automáticamente para cada fila.")
     df_preview = df_excel.head(5).copy()
-    df_preview.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_preview.columns]
+    df_preview.columns = cols_norm
     if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
         df_preview["id_unico_generado"] = df_preview.apply(
             lambda r: hashlib.md5("|".join(str(r.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"]).encode()).hexdigest()[:20], axis=1)
         cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
         st.dataframe(df_preview[cols_show], use_container_width=True)
 
-    st.subheader("⚙️ Modo de Sincronización")
+    # --- PASO 4: MODO Y SINCRONIZAR ---
+    st.subheader("🚀 Paso 4: Sincronizar")
     modo = st.radio("Elige qué hacer:", [
-        "🗑️ REEMPLAZAR TODO — Borra todo en Supabase e inserta el Excel nuevo (usa la primera vez)",
-        "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único (usa todos los días)"
-    ], key="sync_modo_sync_v2")
+        "🗑️ REEMPLAZAR TODO — Borra todo e inserta el Excel nuevo",
+        "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único"
+    ], key="sync_modo_sync_v3")
     modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
 
     if modo_valor == "reemplazar":
-        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. Úsalo solo la primera vez o si quieres empezar de cero.")
-    else:
-        st.info("ℹ️ Este modo usa el ID único generado automáticamente. Actualiza lo que cambió, crea lo nuevo, y respeta asignaciones de técnicos.")
-        st.markdown("""
-        <div style="font-size: 11px; color: #64748B; background: #F8FAFC; padding: 8px; border-radius: 6px;">
-            💡 <b>Requisito para Actualizar/Insertar:</b><br>
-            Debes haber usado "Reemplazar Todo" al menos una vez con esta versión de la app,<br>
-            o ejecutar en SQL Editor:<br>
-            <code>ALTER TABLE ordenes_trabajo ADD CONSTRAINT unique_id_unico UNIQUE (id_unico);</code>
-        </div>""", unsafe_allow_html=True)
+        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. ¡Usa con cuidado!")
 
-    st.divider()
+    # Checkbox de confirmación para reemplazar
+    confirmar = True
+    if modo_valor == "reemplazar":
+        confirmar = st.checkbox("✅ Sí, quiero borrar todo y reemplazar", key="sync_confirmar_borrar")
+
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
-        if st.button(btn_text, use_container_width=True, type="primary", key="sync_btn_sync_v2"):
+        if st.button(btn_text, use_container_width=True, type="primary", key="sync_btn_sync_v3", disabled=not confirmar):
             with st.spinner("Sincronizando, por favor espera..."):
                 exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
             if exito:
                 st.success(mensaje)
                 st.balloons()
+                # Limpiar archivo de session_state
+                for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel", "sync_df_cache_key"]:
+                    st.session_state.pop(k, None)
                 st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                 st.info("🔄 Datos actualizados. Puedes volver al inicio.")
             else:
