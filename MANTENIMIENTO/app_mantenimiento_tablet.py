@@ -1907,7 +1907,7 @@ def pantalla_asignacion():
                     </div>
                     <div style="text-align:right;">
                         <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
-
+                        <div style="font-size:10px;color:#64748B;margin-top:4px;">{escapar(tecnicos_str)}</div>
                     </div>
                 </div>""", unsafe_allow_html=True)
             with col_tec:
