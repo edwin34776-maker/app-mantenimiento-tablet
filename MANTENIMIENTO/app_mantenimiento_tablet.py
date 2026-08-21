@@ -1886,6 +1886,7 @@ def pantalla_asignacion():
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
+        seen_ids = set()
         for _, row in df_asig.iterrows():
             estado = limpiar(row.get("Estado"), "Pendiente")
             tec_asig = limpiar(row.get("Tecnico_Asignado"), "")
@@ -1904,66 +1905,47 @@ def pantalla_asignacion():
             if internal_id:
                 chk_val = seleccion.get(internal_id, False)
 
-            # Fila de actividad (sin columnas anidadas)
-            with st.container():
-                # Checkbox de selección masiva
+            # Fila de actividad
+            if internal_id in seen_ids:
+                continue
+            seen_ids.add(internal_id)
+            col_chk, col_info, col_tec = st.columns([0.5, 3, 1.5])
+            with col_chk:
                 if internal_id:
-                    is_sel = st.checkbox("✅ Seleccionar para asignación masiva", value=chk_val,
-                                         key=gen_key("chk_sel", internal_id))
+                    is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
                     seleccion[internal_id] = is_sel
-
-                # Info de la actividad
-                st.markdown(f'''
+            with col_info:
+                st.markdown(f"""
                 <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
                     <div>
-                        <div class="asig-ot"><strong>OT {limpiar(row.get("ID OT"), "SIN ID")}</strong> {nodo_badge}</div>
-                        <div style="font-size:11px;color:#64748B;">{limpiar(row.get("Procedimiento"), "")}</div>
-                        <div style="font-size:12px;color:#0F172A;margin-top:2px;">{limpiar(row.get("Actividades"), "Sin descripción")}</div>
+                        <div class="asig-ot"><strong>OT {escapar(limpiar(row.get("ID OT"), "SIN ID"))}</strong> {nodo_badge}</div>
+                        <div style="font-size:11px;color:#64748B;">{escapar(limpiar(row.get("Procedimiento"), ""))}</div>
+                        <div style="font-size:12px;color:#0F172A;margin-top:2px;">{escapar(limpiar(row.get("Actividades"), "Sin descripción"))}</div>
                     </div>
                     <div style="text-align:right;">
-                        <span class="estado-badge {estado_cls}">{estado}</span>
-                        <div style="font-size:10px;color:#64748B;margin-top:4px;">{tecnicos_str}</div>
+                        <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
+                        <div style="font-size:10px;color:#64748B;margin-top:4px;">{escapar(tecnicos_str)}</div>
                     </div>
-                </div>''', unsafe_allow_html=True)
-
-                # Asignación individual por fila
-                col_chk, col_info, col_tec = st.columns([0.5, 3, 1.5])
-                with col_chk:
-                    if internal_id:
-                        is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
-                        seleccion[internal_id] = is_sel
-                with col_info:
-                    st.markdown(f"""
-                    <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
-                        <div>
-                            <div class="asig-ot"><strong>OT {escapar(limpiar(row.get("ID OT"), "SIN ID"))}</strong> {nodo_badge}</div>
-                            <div style="font-size:11px;color:#64748B;">{escapar(limpiar(row.get("Procedimiento"), ""))}</div>
-                            <div style="font-size:12px;color:#0F172A;margin-top:2px;">{escapar(limpiar(row.get("Actividades"), "Sin descripción"))}</div>
-                        </div>
-                        <div style="text-align:right;">
-                            <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
-                            <div style="font-size:10px;color:#64748B;margin-top:4px;">{escapar(tecnicos_str)}</div>
-                        </div>
-                    </div>""", unsafe_allow_html=True)
-                with col_tec:
-                    tec_key = gen_key("sel_tec_asig", internal_id)
-                    tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
-                    idx_tec = 0
-                    if tec_actual in lista_tecnicos:
-                        idx_tec = lista_tecnicos.index(tec_actual)
-                    nuevo_tec = st.selectbox("Técnico", lista_tecnicos, index=idx_tec, key=tec_key, label_visibility="collapsed")
-                    if nuevo_tec != tec_actual:
-                        datos = _datos_reasignacion(nuevo_tec, estado)
-                        datos_filtrados = {"Tecnico_Asignado": datos["Tecnico_Asignado"]}
-                        for k in ["Estado", "Hora_Inicio", "Hora_Fin", "Fecha_Ejecucion", "Comentarios"]:
-                            if k in datos:
-                                datos_filtrados[k] = datos[k]
-                        if actualizar_campos_supabase(internal_id, datos_filtrados, row.to_dict()):
-                            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
-                            if idx_local is not None:
-                                _reflejar_en_session(idx_local, datos_filtrados)
-                            st.toast(f"Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}", icon="💾")
-                            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                </div>""", unsafe_allow_html=True)
+            with col_tec:
+                tec_key = gen_key("sel_tec_asig", internal_id)
+                tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
+                idx_tec = 0
+                if tec_actual in lista_tecnicos:
+                    idx_tec = lista_tecnicos.index(tec_actual)
+                nuevo_tec = st.selectbox("Técnico", lista_tecnicos, index=idx_tec, key=tec_key, label_visibility="collapsed")
+                if nuevo_tec != tec_actual:
+                    datos = _datos_reasignacion(nuevo_tec, estado)
+                    datos_filtrados = {"Tecnico_Asignado": datos["Tecnico_Asignado"]}
+                    for k in ["Estado", "Hora_Inicio", "Hora_Fin", "Fecha_Ejecucion", "Comentarios"]:
+                        if k in datos:
+                            datos_filtrados[k] = datos[k]
+                    if actualizar_campos_supabase(internal_id, datos_filtrados, row.to_dict()):
+                        idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+                        if idx_local is not None:
+                            _reflejar_en_session(idx_local, datos_filtrados)
+                        st.toast(f"Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}", icon="💾")
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
 
 def pantalla_sincronizar():
     header_tablet("🔄 Sincronizar desde Excel")
