@@ -9,6 +9,7 @@ from email.mime.base import MIMEBase
 from email import encoders
 import io
 import hashlib
+import html
 
 # ==================== CONFIGURACIÓN ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
@@ -58,6 +59,10 @@ def _norm_valor(v):
     return v
 
 # ==================== CORREO ====================
+
+def escapar(texto):
+    """Escapa HTML para prevenir XSS en st.markdown con unsafe_allow_html."""
+    return html.escape(str(texto)) if texto is not None else ""
 def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", email_remitente=None):
     suf = "_2" if email_remitente == "supermantobogota@gmail.com" else ""
     email_user = st.secrets.get(f"EMAIL_USER{suf}", "")
@@ -108,7 +113,8 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         return False, f"Error al enviar: {e}"
 
 # ==================== SUPABASE: CARGA Y ACTUALIZACIÓN ====================
-def cargar_ordenes_supabase():
+@st.cache_data(ttl=30, show_spinner=False)
+def _cargar_ordenes_cache():
     try:
         data = supabase.table("ordenes_trabajo").select("*").order("id", desc=False).execute().data
         if not data:
@@ -116,9 +122,10 @@ def cargar_ordenes_supabase():
         df = pd.DataFrame(data)
         inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
         df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
-        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "", "Tecnico_Asignado_2": "",
-                             "Actividades_Hechas": "", "Fecha_Ejecucion": "", "Hora_Inicio": "",
-                             "Hora_Fin": "", "Prioridad_Actividad": "", "ID OT": "", "Procedimiento": ""}.items():
+        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+                             "Tecnico_Asignado_2": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
+                             "Hora_Inicio": "", "Hora_Fin": "", "Prioridad_Actividad": "",
+                             "ID OT": "", "Procedimiento": ""}.items():
             if col not in df.columns:
                 df[col] = default
         return df
@@ -126,6 +133,8 @@ def cargar_ordenes_supabase():
         st.error(f"Error cargando ordenes: {e}")
         return pd.DataFrame()
 
+def cargar_ordenes_supabase():
+    return _cargar_ordenes_cache()
 def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
     try:
         datos_a_enviar = {}
@@ -486,15 +495,6 @@ def contar_ordenes_por_tecnico(df, tecnico):
         count += len(df[df["Tecnico_Asignado_2"] == tecnico])
     return count
 
-def abreviar_tecnico(nombre):
-    """Convierte 'RIVERA SANTOS LUIS ALVARO' → 'R. SANTOS'"""
-    if not nombre or nombre == "Sin asignar":
-        return "—"
-    partes = nombre.strip().split()
-    if len(partes) >= 2:
-        return f"{partes[0][0]}. {partes[1]}"
-    return nombre
-
 def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     tecnicos = [{"nombre": t, "especialidad": obtener_especialidad_tecnico(t),
                  "carga": contar_ordenes_por_tecnico(df, t)}
@@ -510,11 +510,11 @@ def cargar_excel_mantenimiento():
         st.error(f"Error al cargar ordenes: {e}")
         return pd.DataFrame()
 
-def recargar_datos():
-    df = cargar_excel_mantenimiento()
-    st.session_state.df_mantenimientos = df
-    return df
-
+def recargar_datos(forzar=False):
+    if forzar or "df_mantenimientos" not in st.session_state:
+        df = cargar_ordenes_supabase()
+        st.session_state.df_mantenimientos = df
+    return st.session_state.df_mantenimientos
 def calcular_progreso(df):
     total = len(df)
     if total == 0:
@@ -596,9 +596,9 @@ def aplicar_filtros_globales(df, maquina=""):
     return d
 
 def gen_key(base, *parts):
-    raw = f"{base}_{st.session_state.get('perfil', 'none')}_{st.session_state.get('pagina', 'none')}_{'_'.join(str(p) for p in parts)}"
+    # Ya NO usamos perfil/pagina para no invalidar widgets al navegar
+    raw = f"{base}_{'_'.join(str(p) for p in parts)}"
     return hashlib.md5(raw.encode()).hexdigest()[:16]
-
 def get_row_by_internal_id(df, internal_id):
     if df.empty or "ID" not in df.columns or not internal_id:
         return None, None
@@ -771,12 +771,11 @@ if "df_mantenimientos" not in st.session_state:
 
 # ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
-    admin_pass = st.secrets.get("ADMIN_PASSWORD", "")
-    if not admin_pass:
-        return False, "ADMIN_PASSWORD no configurado en Secrets"
-    return (True, "OK") if password == admin_pass else (False, "Contrasena incorrecta")
-
-# ==================== PANTALLA: LOGIN ====================
+    admin_hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
+    if not admin_hash:
+        return False, "ADMIN_PASSWORD_HASH no configurado en Secrets"
+    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+    return (True, "OK") if pwd_hash == admin_hash else (False, "Contrasena incorrecta")
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
 
@@ -891,6 +890,23 @@ def pantalla_login():
             st.rerun()
 
 # ==================== PANTALLA: HOME ====================
+def _home_envio_correo(df):
+    st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("**📧 Configurar envío de reporte**")
+        col1, col2 = st.columns(2)
+        with col1:
+            dest = st.multiselect("Destinatarios", DESTINATARIOS_DEFAULT, default=DESTINATARIOS_DEFAULT, key="mail_dest")
+        with col2:
+            area = st.text_input("Área / Mecánica", value="INY4 MEC", key="mail_area")
+        if st.button("📤 ENVIAR AHORA", use_container_width=True, type="primary", key="btn_send_mail"):
+            ok, msg = enviar_correo_preventivo(df, dest, f"Reporte Preventivo {area}", area)
+            if ok:
+                st.success(msg)
+                st.session_state.mostrar_envio_correo = False
+            else:
+                st.error(msg)
+
 def pantalla_home():
     perfil = st.session_state.perfil
     df = recargar_datos()
@@ -1904,9 +1920,45 @@ def pantalla_asignacion():
                     </div>
                 </div>''', unsafe_allow_html=True)
 
-                # Los técnicos se asignan solo por selección masiva arriba
+                # Asignación individual por fila
+                col_chk, col_info, col_tec = st.columns([0.5, 3, 1.5])
+                with col_chk:
+                    if internal_id:
+                        is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
+                        seleccion[internal_id] = is_sel
+                with col_info:
+                    st.markdown(f"""
+                    <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:4px;">
+                        <div>
+                            <div class="asig-ot"><strong>OT {escapar(limpiar(row.get("ID OT"), "SIN ID"))}</strong> {nodo_badge}</div>
+                            <div style="font-size:11px;color:#64748B;">{escapar(limpiar(row.get("Procedimiento"), ""))}</div>
+                            <div style="font-size:12px;color:#0F172A;margin-top:2px;">{escapar(limpiar(row.get("Actividades"), "Sin descripción"))}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
+                            <div style="font-size:10px;color:#64748B;margin-top:4px;">{escapar(tecnicos_str)}</div>
+                        </div>
+                    </div>""", unsafe_allow_html=True)
+                with col_tec:
+                    tec_key = gen_key("sel_tec_asig", internal_id)
+                    tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
+                    idx_tec = 0
+                    if tec_actual in lista_tecnicos:
+                        idx_tec = lista_tecnicos.index(tec_actual)
+                    nuevo_tec = st.selectbox("Técnico", lista_tecnicos, index=idx_tec, key=tec_key, label_visibility="collapsed")
+                    if nuevo_tec != tec_actual:
+                        datos = _datos_reasignacion(nuevo_tec, estado)
+                        datos_filtrados = {"Tecnico_Asignado": datos["Tecnico_Asignado"]}
+                        for k in ["Estado", "Hora_Inicio", "Hora_Fin", "Fecha_Ejecucion", "Comentarios"]:
+                            if k in datos:
+                                datos_filtrados[k] = datos[k]
+                        if actualizar_campos_supabase(internal_id, datos_filtrados, row.to_dict()):
+                            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+                            if idx_local is not None:
+                                _reflejar_en_session(idx_local, datos_filtrados)
+                            st.toast(f"Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}", icon="💾")
+                            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
 
-# ==================== PANTALLA: SINCRONIZAR EXCEL ====================
 def pantalla_sincronizar():
     header_tablet("🔄 Sincronizar desde Excel")
     boton_volver_inicio("sincronizar")
