@@ -1649,6 +1649,7 @@ def pantalla_asignacion():
                 st.rerun()
 
     with col_der:
+        st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
         maq_sel = st.session_state.filtro_maquina
         st.markdown(f"""
         <div style="margin-bottom: 12px;">
