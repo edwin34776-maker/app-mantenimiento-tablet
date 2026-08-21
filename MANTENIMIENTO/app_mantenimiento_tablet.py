@@ -1819,7 +1819,7 @@ def pantalla_asignacion():
                 )
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
-        if not df_asig.empty:
+        if not df_asig.empty and st.session_state.filtro_maquina == "Todas":
             st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Equipo</div>", unsafe_allow_html=True)
 
             # === TORTA: Agrupar por EQUIPO (Ubicacion) ===
