@@ -59,10 +59,10 @@ def _norm_valor(v):
     return v
 
 # ==================== CORREO ====================
-
 def escapar(texto):
     """Escapa HTML para prevenir XSS en st.markdown con unsafe_allow_html."""
     return html.escape(str(texto)) if texto is not None else ""
+
 def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC", email_remitente=None):
     suf = "_2" if email_remitente == "supermantobogota@gmail.com" else ""
     email_user = st.secrets.get(f"EMAIL_USER{suf}", "")
@@ -135,6 +135,7 @@ def _cargar_ordenes_cache():
 
 def cargar_ordenes_supabase():
     return _cargar_ordenes_cache()
+
 def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
     try:
         datos_a_enviar = {}
@@ -495,6 +496,15 @@ def contar_ordenes_por_tecnico(df, tecnico):
         count += len(df[df["Tecnico_Asignado_2"] == tecnico])
     return count
 
+def abreviar_tecnico(nombre):
+    """Convierte 'RIVERA SANTOS LUIS ALVARO' → 'R. SANTOS'"""
+    if not nombre or nombre == "Sin asignar":
+        return "—"
+    partes = nombre.strip().split()
+    if len(partes) >= 2:
+        return f"{partes[0][0]}. {partes[1]}"
+    return nombre
+
 def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     tecnicos = [{"nombre": t, "especialidad": obtener_especialidad_tecnico(t),
                  "carga": contar_ordenes_por_tecnico(df, t)}
@@ -515,6 +525,7 @@ def recargar_datos(forzar=False):
         df = cargar_ordenes_supabase()
         st.session_state.df_mantenimientos = df
     return st.session_state.df_mantenimientos
+
 def calcular_progreso(df):
     total = len(df)
     if total == 0:
@@ -599,6 +610,7 @@ def gen_key(base, *parts):
     # Ya NO usamos perfil/pagina para no invalidar widgets al navegar
     raw = f"{base}_{'_'.join(str(p) for p in parts)}"
     return hashlib.md5(raw.encode()).hexdigest()[:16]
+
 def get_row_by_internal_id(df, internal_id):
     if df.empty or "ID" not in df.columns or not internal_id:
         return None, None
@@ -771,17 +783,12 @@ if "df_mantenimientos" not in st.session_state:
 
 # ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
-    # 1. Intentar hash primero (más seguro)
-    admin_hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
-    if admin_hash:
-        pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-        return (True, "OK") if pwd_hash == admin_hash else (False, "Contrasena incorrecta")
-
-    # 2. Fallback a texto plano (para no romper config actual)
     admin_pass = st.secrets.get("ADMIN_PASSWORD", "")
     if not admin_pass:
         return False, "ADMIN_PASSWORD no configurado en Secrets"
     return (True, "OK") if password == admin_pass else (False, "Contrasena incorrecta")
+
+# ==================== PANTALLA: LOGIN ====================
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
 
@@ -896,23 +903,6 @@ def pantalla_login():
             st.rerun()
 
 # ==================== PANTALLA: HOME ====================
-def _home_envio_correo(df):
-    st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
-    with st.container(border=True):
-        st.markdown("**📧 Configurar envío de reporte**")
-        col1, col2 = st.columns(2)
-        with col1:
-            dest = st.multiselect("Destinatarios", DESTINATARIOS_DEFAULT, default=DESTINATARIOS_DEFAULT, key="mail_dest")
-        with col2:
-            area = st.text_input("Área / Mecánica", value="INY4 MEC", key="mail_area")
-        if st.button("📤 ENVIAR AHORA", use_container_width=True, type="primary", key="btn_send_mail"):
-            ok, msg = enviar_correo_preventivo(df, dest, f"Reporte Preventivo {area}", area)
-            if ok:
-                st.success(msg)
-                st.session_state.mostrar_envio_correo = False
-            else:
-                st.error(msg)
-
 def pantalla_home():
     perfil = st.session_state.perfil
     df = recargar_datos()
