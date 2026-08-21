@@ -1605,34 +1605,38 @@ def pantalla_asignacion():
 
 
 
-
-
-        # ========== GRÁFICA: TORTA 3D DISTRIBUCIÓN POR TÉCNICO ==========
-        def _render_torta_3d_tecnicos(datos, titulo="Distribución por Técnico"):
+        # ========== GRÁFICA: TORTA 3D DISTRIBUCIÓN POR EQUIPO ==========
+        def _render_torta_3d(datos, titulo="Distribución por Equipo"):
             import math
             if not datos:
-                return "", ""
+                return ""
             total = sum(d["valor"] for d in datos)
             if total == 0:
-                return "", ""
+                return ""
 
+            # Colores vibrantes tipo la imagen de referencia
             colores = [
-                "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
-                "#2196F3", "#00BCD4", "#009688", "#8BC34A",
-                "#FF9800", "#FF5722", "#795548", "#607D8B",
-                "#E040FB", "#00E676", "#2979FF", "#FF9100"
+                "#E91E63",  # Rosa/Magenta
+                "#9C27B0",  # Púrpura
+                "#673AB7",  # Violeta
+                "#3F51B5",  # Azul índigo
+                "#2196F3",  # Azul
+                "#00BCD4",  # Cyan
+                "#009688",  # Verde azulado
+                "#8BC34A",  # Verde lima
+                "#FF9800",  # Naranja
+                "#FF5722",  # Naranja oscuro
             ]
             colores_dark = [
-                "#AD1457", "#6A1B9A", "#4527A0", "#283593",
-                "#1565C0", "#00838F", "#00695C", "#558B2F",
-                "#E65100", "#BF360C", "#3E2723", "#37474F",
-                "#AA00FF", "#00C853", "#2962FF", "#FF6D00"
+                "#D81B60", "#8E24AA", "#5E35B1", "#3949AB",
+                "#1E88E5", "#00ACC1", "#00897B", "#7CB342",
+                "#F57C00", "#E64A19"
             ]
 
-            cx, cy = 350, 230
-            rx, ry = 130, 70
-            extrusion = 28
-            explode = 14
+            cx, cy = 350, 220
+            rx, ry = 140, 85
+            extrusion = 35
+            explode = 18  # Distancia de separación de slices
 
             def pol2cart(cx, cy, rx, ry, ang_deg):
                 rad = math.radians(ang_deg)
@@ -1643,6 +1647,7 @@ def pantalla_asignacion():
                 if a < 0: a += 360
                 return 0 <= a <= 180
 
+            # Pre-calcular ángulos
             slices_data = []
             start_angle = -90
             for i, d in enumerate(datos):
@@ -1651,6 +1656,7 @@ def pantalla_asignacion():
                 end_angle = start_angle + sweep
                 mid_angle = start_angle + sweep / 2
 
+                # Offset para exploded pie
                 off_rad = math.radians(mid_angle)
                 off_x = explode * math.cos(off_rad)
                 off_y = explode * math.sin(off_rad)
@@ -1680,20 +1686,45 @@ def pantalla_asignacion():
                 x2, y2 = pol2cart(cx + ox, cy + oy, rx, ry, ea)
                 large_arc = 1 if sw > 180 else 0
 
+                # === CARA INFERIOR (sombra/base) ===
+                # Arco inferior completo del slice
+                a_start_norm = sa % 360
+                a_end_norm = ea % 360
+                if a_start_norm < 0: a_start_norm += 360
+                if a_end_norm < 0: a_end_norm += 360
+
+                # Determinar rango del arco inferior visible (0-180 grados)
+                if sw >= 360:
+                    inf_start, inf_end = 0, 180
+                else:
+                    if sa < 0 and ea > 0:
+                        inf_start = 0
+                    else:
+                        inf_start = max(a_start_norm, 0) if a_start_norm < 180 else None
+                    if sa < 180 and ea > 180:
+                        inf_end = 180
+                    else:
+                        inf_end = min(a_end_norm, 180) if a_end_norm > 0 else None
+
+                # Cara inferior como path
                 if sw < 360:
                     path_inf = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
                         int(cx + ox), int(cy + oy + extrusion),
                         x1, y1 + extrusion, rx, ry, large_arc, x2, y2 + extrusion)
-                    svg_parts.append('<path d="%s" fill="%s" opacity="0.30"/>' % (path_inf, cd))
+                    svg_parts.append('<path d="%s" fill="%s" opacity="0.25"/>' % (path_inf, cd))
 
+                # === CARAS LATERALES (extrusión) ===
+                # Borde inicial
                 if en_mitad_inferior(sa):
-                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.55"/>' % (
+                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.45"/>' % (
                         x1, y1, x1, y1 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
 
+                # Borde final
                 if en_mitad_inferior(ea):
-                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.55"/>' % (
+                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.45"/>' % (
                         x2, y2, x2, y2 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
 
+                # Arco lateral inferior (la cara curva del cilindro)
                 if sw < 360:
                     as_i = sa if sa > 0 else 0
                     as_e = ea if ea < 180 else 180
@@ -1703,10 +1734,13 @@ def pantalla_asignacion():
                         ix1, iy1 = pol2cart(cx + ox, cy + oy, rx, ry, as_i)
                         ix2, iy2 = pol2cart(cx + ox, cy + oy, rx, ry, as_e)
                         large_arc_inf = 1 if (as_e - as_i) > 180 else 0
-                        svg_parts.append('<path d="M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f L %.1f %.1f A %d %d 0 %d 0 %.1f %.1f Z" fill="%s" opacity="0.40"/>' % (
+                        svg_parts.append('<path d="M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f L %.1f %.1f A %d %d 0 %d 0 %.1f %.1f Z" fill="%s" opacity="0.35"/>' % (
                             ix1, iy1, rx, ry, large_arc_inf, ix2, iy2, ix2, iy2 + extrusion, rx, ry, large_arc_inf, ix1, iy1 + extrusion, cd))
 
+                # === CARA SUPERIOR ===
                 if sw >= 360:
+                    path_top = 'M %d %d A %d %d 0 1 1 %d %d A %d %d 0 1 1 %d %d' % (
+                        int(cx + ox + rx), int(cy + oy), rx, ry, int(cx + ox - rx), int(cy + oy), rx, ry, int(cx + ox + rx), int(cy + oy))
                     svg_parts.append('<ellipse cx="%d" cy="%d" rx="%d" ry="%d" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (
                         int(cx + ox), int(cy + oy), rx, ry, c))
                 else:
@@ -1714,89 +1748,76 @@ def pantalla_asignacion():
                         int(cx + ox), int(cy + oy), x1, y1, rx, ry, large_arc, x2, y2)
                     svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, c))
 
-                # Callout
+                # === CALLOUT ===
+                # Punto en el borde exterior de la torta
                 mx, my = pol2cart(cx + ox, cy + oy, rx + 12, ry + 8, ma)
-                box_w = 120
-                box_h = 38
-                line_len = 28
+
+                # Determinar posición de la caja
+                box_w = 130
+                box_h = 42
+                line_len = 35
 
                 if ma >= -90 and ma <= 90:
+                    # Derecha
                     box_x = mx + line_len
                     line_x2 = box_x - 5
                     if box_x + box_w > 690:
                         box_x = 690 - box_w
                         line_x2 = box_x - 5
                 else:
+                    # Izquierda
                     box_x = mx - line_len - box_w
                     line_x2 = box_x + box_w + 5
                     if box_x < 10:
                         box_x = 10
                         line_x2 = box_x + box_w + 5
 
+                # Ajustar Y de la caja para evitar solapamientos
                 box_y = my - box_h / 2
                 if box_y < 10: box_y = 10
-                if box_y > 360: box_y = 360
+                if box_y > 390: box_y = 390
 
+                # Línea en ángulo recto (forma L o Γ)
+                # Punto → horizontal → vertical → caja
                 mid_y = box_y + box_h / 2
 
-                callouts.append('<circle cx="%.1f" cy="%.1f" r="3.5" fill="%s"/>' % (mx, my, c))
-                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (mx, my, line_x2, my, c))
-                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
-                callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
+                callouts.append('<circle cx="%.1f" cy="%.1f" r="4" fill="%s"/>' % (mx, my, c))
+                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2.5"/>' % (mx, my, line_x2, my, c))
+                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2.5"/>' % (line_x2, my, line_x2, mid_y, c))
+                callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="10" fill="white" stroke="%s" stroke-width="3"/>' % (box_x, box_y, box_w, box_h, c))
 
-                nombre_corto = s["nombre"][:15]
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="8" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 14, nombre_corto))
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="14" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 30, c, s["pct"]))
+                nombre_corto = s["nombre"][:18]
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 17, nombre_corto))
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="16" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 36, c, s["pct"]))
 
-            svg_content = '\n'.join(svg_parts + callouts)
-            svg = '<svg width="100%%" height="400" viewBox="0 0 700 400" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="400" fill="transparent"/>%s</svg>' % svg_content
+            svg_content = '
+'.join(svg_parts + callouts)
+            svg = '<svg width="100%%" height="440" viewBox="0 0 700 440" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="440" fill="transparent"/>%s</svg>' % svg_content
+            return svg
 
-            # Leyenda HTML
-            leyenda_items = []
-            for s in slices_data:
-                leyenda_items.append(
-                    '<div style="display:flex; align-items:center; gap:6px; margin:3px 8px;">'
-                    '<div style="width:14px; height:14px; border-radius:4px; background:%s; flex-shrink:0;"></div>'
-                    '<span style="font-size:12px; color:#0F172A; font-weight:600;">%s</span>'
-                    '<span style="font-size:11px; color:#64748B;">(%s)</span></div>' % (s["color"], s["nombre"], s["valor"])
-                )
-            leyenda_html = '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:4px; margin-top:12px; padding-top:12px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(leyenda_items)
+        if not df_asig.empty and "Ubicacion" in df_asig.columns:
+            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Equipo</div>", unsafe_allow_html=True)
 
-            return svg, leyenda_html
-
-        if not df_asig.empty:
-            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Técnico</div>", unsafe_allow_html=True)
-
-            # Agrupar por técnico asignado
-            tecnicos_count = {}
+            equipos_count = {}
             for _, row in df_asig.iterrows():
-                t1 = limpiar(row.get("Tecnico_Asignado"), "")
-                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
-                if t1:
-                    tecnicos_count[t1] = tecnicos_count.get(t1, 0) + 1
-                if t2 and t2 != t1:
-                    tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
+                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
+                equipos_count[eq] = equipos_count.get(eq, 0) + 1
 
-            # Si no hay técnicos asignados, mostrar mensaje
-            if not tecnicos_count:
-                st.info("📭 No hay técnicos asignados en este filtro.")
+            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
+            if len(equipos_sorted) > 8:
+                top = equipos_sorted[:7]
+                otros_val = sum(v for _, v in equipos_sorted[7:])
+                datos_torta = [{"nombre": k, "valor": v} for k, v in top]
+                if otros_val > 0:
+                    datos_torta.append({"nombre": "Otros", "valor": otros_val})
             else:
-                tecnicos_sorted = sorted(tecnicos_count.items(), key=lambda x: x[1], reverse=True)
-                # Top 8 técnicos, resto como Otros
-                if len(tecnicos_sorted) > 8:
-                    top = tecnicos_sorted[:7]
-                    otros_val = sum(v for _, v in tecnicos_sorted[7:])
-                    datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in top]
-                    if otros_val > 0:
-                        datos_torta.append({"nombre": "Otros", "valor": otros_val})
-                else:
-                    datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
+                datos_torta = [{"nombre": k, "valor": v} for k, v in equipos_sorted]
 
-                if datos_torta:
-                    svg_torta, leyenda_html = _render_torta_3d_tecnicos(datos_torta)
-                    st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + leyenda_html + '</div>', unsafe_allow_html=True)
-                else:
-                    st.info("📭 Sin datos para la gráfica.")
+            if datos_torta:
+                svg_torta = _render_torta_3d(datos_torta)
+                st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + '</div>', unsafe_allow_html=True)
+            else:
+                st.info("📭 Sin datos para la gráfica.")
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         # ========== BARRA DE ASIGNACIÓN MASIVA POR SELECCIÓN ==========
