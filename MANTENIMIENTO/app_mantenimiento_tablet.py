@@ -1909,7 +1909,7 @@ def pantalla_asignacion():
             if internal_id in seen_ids:
                 continue
             seen_ids.add(internal_id)
-            col_chk, col_info = st.columns([0.5, 4.5])
+            col_chk, col_info = st.columns([0.06, 1], gap="small")
             with col_chk:
                 if internal_id:
                     is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
