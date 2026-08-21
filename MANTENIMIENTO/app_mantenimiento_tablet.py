@@ -924,7 +924,13 @@ def pantalla_login():
 def _home_envio_correo(df):
     st.markdown("<div style='margin-top:12px;'></div>", unsafe_allow_html=True)
     with st.container(border=True):
-        st.markdown("**📧 Configurar envío de reporte**")
+        col_title, col_close = st.columns([5, 1])
+        with col_title:
+            st.markdown("**📧 Configurar envío de reporte**")
+        with col_close:
+            if st.button("❌", use_container_width=True, type="secondary", key="btn_cerrar_correo"):
+                st.session_state.mostrar_envio_correo = False
+                st.rerun()
         col1, col2 = st.columns(2)
         with col1:
             dest = st.multiselect("Destinatarios", DESTINATARIOS_DEFAULT, default=DESTINATARIOS_DEFAULT, key="mail_dest")
@@ -1820,7 +1826,7 @@ def pantalla_asignacion():
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
         if not df_asig.empty and st.session_state.filtro_maquina == "Todas" and len(df_asig["Ubicacion"].dropna().unique()) > 1:
-            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
 
             # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
             tecnicos_count = {}
