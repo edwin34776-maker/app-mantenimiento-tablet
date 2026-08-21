@@ -1607,32 +1607,32 @@ def pantalla_asignacion():
 
 
 
-
-
-        # ========== GRÁFICA: TORTA 3D POR EQUIPO + LEYENDA POR TÉCNICO ==========
-        def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Equipo"):
+        # ========== GRÁFICA: TORTA 3D DISTRIBUCIÓN POR TÉCNICO ==========
+        def _render_torta_3d_tecnicos(datos, titulo="Distribución por Técnico"):
             import math
-            if not datos_equipos:
-                return ""
-            total = sum(d["valor"] for d in datos_equipos)
+            if not datos:
+                return "", ""
+            total = sum(d["valor"] for d in datos)
             if total == 0:
-                return ""
+                return "", ""
 
             colores = [
                 "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
                 "#2196F3", "#00BCD4", "#009688", "#8BC34A",
                 "#FF9800", "#FF5722", "#795548", "#607D8B",
+                "#E040FB", "#00E676", "#2979FF", "#FF9100"
             ]
             colores_dark = [
                 "#AD1457", "#6A1B9A", "#4527A0", "#283593",
                 "#1565C0", "#00838F", "#00695C", "#558B2F",
                 "#E65100", "#BF360C", "#3E2723", "#37474F",
+                "#AA00FF", "#00C853", "#2962FF", "#FF6D00"
             ]
 
             cx, cy = 350, 230
-            rx, ry = 125, 68
-            extrusion = 26
-            explode = 12
+            rx, ry = 130, 70
+            extrusion = 28
+            explode = 14
 
             def pol2cart(cx, cy, rx, ry, ang_deg):
                 rad = math.radians(ang_deg)
@@ -1645,7 +1645,7 @@ def pantalla_asignacion():
 
             slices_data = []
             start_angle = -90
-            for i, d in enumerate(datos_equipos):
+            for i, d in enumerate(datos):
                 pct = round(d["valor"] / total * 100, 1)
                 sweep = (d["valor"] / total) * 360
                 end_angle = start_angle + sweep
@@ -1714,12 +1714,11 @@ def pantalla_asignacion():
                         int(cx + ox), int(cy + oy), x1, y1, rx, ry, large_arc, x2, y2)
                     svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, c))
 
-                # === CALLOUT MEJORADO ===
-                mx, my = pol2cart(cx + ox, cy + oy, rx + 10, ry + 6, ma)
-
-                box_w = 140
-                box_h = 44
-                line_len = 32
+                # Callout
+                mx, my = pol2cart(cx + ox, cy + oy, rx + 12, ry + 8, ma)
+                box_w = 120
+                box_h = 38
+                line_len = 28
 
                 if ma >= -90 and ma <= 90:
                     box_x = mx + line_len
@@ -1736,7 +1735,7 @@ def pantalla_asignacion():
 
                 box_y = my - box_h / 2
                 if box_y < 10: box_y = 10
-                if box_y > 350: box_y = 350
+                if box_y > 360: box_y = 360
 
                 mid_y = box_y + box_h / 2
 
@@ -1745,53 +1744,30 @@ def pantalla_asignacion():
                 callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
                 callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
 
-                nombre_corto = s["nombre"][:16]
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 16, nombre_corto))
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="15" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 34, c, s["pct"]))
+                nombre_corto = s["nombre"][:15]
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="8" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 14, nombre_corto))
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="14" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 30, c, s["pct"]))
 
             svg_content = '\n'.join(svg_parts + callouts)
             svg = '<svg width="100%%" height="400" viewBox="0 0 700 400" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="400" fill="transparent"/>%s</svg>' % svg_content
-            return svg
 
-        def _render_leyenda_tecnicos(datos_tecnicos):
-            if not datos_tecnicos:
-                return ""
-            items = []
-            colores = [
-                "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
-                "#2196F3", "#00BCD4", "#009688", "#8BC34A",
-                "#FF9800", "#FF5722", "#795548", "#607D8B",
-            ]
-            for i, d in enumerate(datos_tecnicos):
-                c = colores[i % len(colores)]
-                items.append(
-                    '<div style="display:flex; align-items:center; gap:6px; padding:5px 12px; background:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0;">'
+            # Leyenda HTML
+            leyenda_items = []
+            for s in slices_data:
+                leyenda_items.append(
+                    '<div style="display:flex; align-items:center; gap:6px; margin:3px 8px;">'
                     '<div style="width:14px; height:14px; border-radius:4px; background:%s; flex-shrink:0;"></div>'
                     '<span style="font-size:12px; color:#0F172A; font-weight:600;">%s</span>'
-                    '<span style="font-size:11px; color:#64748B;">(%s)</span></div>' % (c, d["nombre"], d["valor"])
+                    '<span style="font-size:11px; color:#64748B;">(%s)</span></div>' % (s["color"], s["nombre"], s["valor"])
                 )
-            return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
+            leyenda_html = '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:4px; margin-top:12px; padding-top:12px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(leyenda_items)
+
+            return svg, leyenda_html
 
         if not df_asig.empty:
-            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Equipo</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 8px 0 10px 0;'>📊 Distribución de Actividades por Técnico</div>", unsafe_allow_html=True)
 
-            # === TORTA: Agrupar por EQUIPO (Ubicacion) ===
-            equipos_count = {}
-            for _, row in df_asig.iterrows():
-                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
-                equipos_count[eq] = equipos_count.get(eq, 0) + 1
-
-            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
-            if len(equipos_sorted) > 8:
-                top = equipos_sorted[:7]
-                otros_val = sum(v for _, v in equipos_sorted[7:])
-                datos_torta = [{"nombre": k, "valor": v} for k, v in top]
-                if otros_val > 0:
-                    datos_torta.append({"nombre": "Otros", "valor": otros_val})
-            else:
-                datos_torta = [{"nombre": k, "valor": v} for k, v in equipos_sorted]
-
-            # === LEYENDA: Agrupar por TÉCNICO ===
+            # Agrupar por técnico asignado
             tecnicos_count = {}
             for _, row in df_asig.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "")
@@ -1801,17 +1777,29 @@ def pantalla_asignacion():
                 if t2 and t2 != t1:
                     tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
 
-            tecnicos_sorted = sorted(tecnicos_count.items(), key=lambda x: x[1], reverse=True)
-            datos_leyenda = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted[:10]]
-
-            if datos_torta:
-                svg_torta = _render_torta_3d_equipos(datos_torta)
-                leyenda_html = _render_leyenda_tecnicos(datos_leyenda)
-                st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + leyenda_html + '</div>', unsafe_allow_html=True)
+            # Si no hay técnicos asignados, mostrar mensaje
+            if not tecnicos_count:
+                st.info("📭 No hay técnicos asignados en este filtro.")
             else:
-                st.info("📭 Sin datos para la gráfica.")
+                tecnicos_sorted = sorted(tecnicos_count.items(), key=lambda x: x[1], reverse=True)
+                # Top 8 técnicos, resto como Otros
+                if len(tecnicos_sorted) > 8:
+                    top = tecnicos_sorted[:7]
+                    otros_val = sum(v for _, v in tecnicos_sorted[7:])
+                    datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in top]
+                    if otros_val > 0:
+                        datos_torta.append({"nombre": "Otros", "valor": otros_val})
+                else:
+                    datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
+
+                if datos_torta:
+                    svg_torta, leyenda_html = _render_torta_3d_tecnicos(datos_torta)
+                    st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + leyenda_html + '</div>', unsafe_allow_html=True)
+                else:
+                    st.info("📭 Sin datos para la gráfica.")
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        # ========== BARRA DE ASIGNACIÓN MASIVA POR SELECCIÓN ==========
         sel_key = gen_key("seleccion_asig")
         st.session_state.setdefault(sel_key, {})
         seleccion = st.session_state[sel_key]
