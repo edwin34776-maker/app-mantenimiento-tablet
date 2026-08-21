@@ -771,11 +771,17 @@ if "df_mantenimientos" not in st.session_state:
 
 # ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
+    # 1. Intentar hash primero (más seguro)
     admin_hash = st.secrets.get("ADMIN_PASSWORD_HASH", "")
-    if not admin_hash:
-        return False, "ADMIN_PASSWORD_HASH no configurado en Secrets"
-    pwd_hash = hashlib.sha256(password.encode()).hexdigest()
-    return (True, "OK") if pwd_hash == admin_hash else (False, "Contrasena incorrecta")
+    if admin_hash:
+        pwd_hash = hashlib.sha256(password.encode()).hexdigest()
+        return (True, "OK") if pwd_hash == admin_hash else (False, "Contrasena incorrecta")
+
+    # 2. Fallback a texto plano (para no romper config actual)
+    admin_pass = st.secrets.get("ADMIN_PASSWORD", "")
+    if not admin_pass:
+        return False, "ADMIN_PASSWORD no configurado en Secrets"
+    return (True, "OK") if password == admin_pass else (False, "Contrasena incorrecta")
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
 
