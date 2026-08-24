@@ -114,7 +114,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
 
 # ==================== SUPABASE: CARGA Y ACTUALIZACIÓN ====================
 @st.cache_data(ttl=30, show_spinner=False)
-def _cargar_ordenes_cache():
+def _cargar_ordenes_cache(_cache_buster=0):
     try:
         data = supabase.table("ordenes_trabajo").select("*").order("id", desc=False).execute().data
         if not data:
@@ -134,7 +134,7 @@ def _cargar_ordenes_cache():
         return pd.DataFrame()
 
 def cargar_ordenes_supabase():
-    return _cargar_ordenes_cache()
+    return _cargar_ordenes_cache(st.session_state.get('cache_buster', 0))
 def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
     try:
         datos_a_enviar = {}
@@ -405,7 +405,8 @@ st.markdown("""
         width: 100%;
         min-height: 28px;
     }
-.eq-tabla-header { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 6px 10px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 4px; }
+
+    .eq-tabla-header { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 6px 10px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 4px; }
     .eq-tabla-fila { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 4px 8px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
     .eq-tabla-fila:hover { background: #27354f; color: #e2e8f0; }
     .eq-tabla-fila:last-child { border-bottom: none; }
@@ -825,7 +826,8 @@ for k, v in {
     "mostrar_todos_tecnicos": False, "asignacion_exitosa": None,
     "mostrar_opciones_ordenes": False, "actividad_expandida": None,
     "admin_autenticado": False, "mostrar_login_admin": False,
-    "asignaciones_temp": {}, "asig_rapida_msg": None
+    "asignaciones_temp": {}, "asig_rapida_msg": None,
+    "cache_buster": 0
 }.items():
     st.session_state.setdefault(k, v)
 if "df_mantenimientos" not in st.session_state:
@@ -1070,6 +1072,11 @@ def _chk_key(internal_id):
     return gen_key("chk_eq", internal_id)
 
 
+def _on_marcar_actividad():
+    """Fuerza rerun para actualizar la barra de progreso al instante."""
+    st.rerun()
+
+
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
     opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
@@ -1187,7 +1194,7 @@ def _home_tecnico(df):
 
                 cols_fila = st.columns([0.07, 1], gap="small")
                 with cols_fila[0]:
-                    chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
+                    chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed", on_change=_on_marcar_actividad)
                     if chk_val and not ya_ejecutada and not st.session_state.get(f"hora_ini_auto_{internal_id}"):
                         st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
 
@@ -1269,6 +1276,8 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
 
     if guardados > 0:
         st.success(f"✅ {guardados} cambios guardados en Supabase")
+        st.session_state.cache_buster = st.session_state.get('cache_buster', 0) + 1
+        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
         st.rerun()
     else:
         st.info("No hay cambios para guardar")
