@@ -1244,8 +1244,6 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
     else:
         st.info("No hay cambios para guardar")
         st.rerun()
-    else:
-        st.info("No hay cambios para guardar")
 # ==================== PANTALLA: ORDENES (ADMIN) ====================
 def pantalla_ordenes():
     df = recargar_datos()
