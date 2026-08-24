@@ -1941,22 +1941,37 @@ def pantalla_asignacion():
         with c1:
             tec1_masivo = st.selectbox("Técnico", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
         with c2:
-            if st.button("🚀 Asignar a seleccionadas", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
+            if st.button("Asignar", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
                 guardados = 0
                 tec1_masivo_valor = "" if tec1_masivo in ("NO APLICA DEFINIR ACTIVIDAD", "") else tec1_masivo
                 for _, row in df_asig.iterrows():
                     internal_id = limpiar(row.get("ID"), "")
                     if not internal_id or not seleccion.get(internal_id, False):
                         continue
-                    # 🛠️ FIX: Usar _datos_reasignacion para resetear estado si cambia técnico
                     estado_bd = limpiar(row.get("Estado"), "Pendiente")
-                    datos = _datos_reasignacion(tec1_masivo_valor, estado_bd)
-                    datos["Tecnico_Asignado"] = tec1_masivo_valor
-                    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+                    tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
+                    # Si ya tiene ese técnico, saltar
+                    if tec1_masivo_valor == tec_actual:
+                        continue
+                    # Preparar datos: cambiar técnico y resetear estado si es necesario
+                    datos = {"Tecnico_Asignado": tec1_masivo_valor}
+                    if estado_bd in ["Ejecutado", "Verificado"]:
+                        datos["Estado"] = "Pendiente"
+                        datos["Hora_Inicio"] = None
+                        datos["Hora_Fin"] = None
+                        datos["Fecha_Ejecucion"] = None
+                        datos["Comentarios"] = None
+                    # Enviar directamente a Supabase sin comparación interna
+                    try:
+                        datos_enviar = {mapear_campo_supabase(k): v for k, v in datos.items()}
+                        supabase.table("ordenes_trabajo").update(datos_enviar).eq("id", internal_id).execute()
                         idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
                         if idx_local is not None:
-                            _reflejar_en_session(idx_local, datos)
+                            for k, v in datos.items():
+                                st.session_state.df_mantenimientos.at[idx_local, k] = v
                         guardados += 1
+                    except Exception as e:
+                        st.error(f"Error en OT {limpiar(row.get('ID OT'), 'SIN ID')}: {e}")
                 if guardados > 0:
                     st.success(f"✅ {guardados} actividades actualizadas")
                     st.session_state[sel_key] = {}
