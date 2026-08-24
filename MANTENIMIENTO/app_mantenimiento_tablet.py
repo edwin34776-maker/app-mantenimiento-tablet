@@ -2019,7 +2019,7 @@ def pantalla_asignacion():
             if internal_id in seen_ids:
                 continue
             seen_ids.add(internal_id)
-            col_chk, col_info, col_tec = st.columns([0.04, 1, 0.35], gap="small")
+            col_chk, col_info = st.columns([0.04, 1], gap="small")
             with col_chk:
                 if internal_id:
                     is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
@@ -2034,54 +2034,10 @@ def pantalla_asignacion():
                     </div>
                     <div style="text-align:right;">
                         <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
+                        <div style="font-size:10px;color:#64748B;margin-top:4px;">{escapar(tecnicos_str)}</div>
                     </div>
                 </div>""", unsafe_allow_html=True)
-            with col_tec:
-                # 🛠️ FIX: Selectbox individual por fila - guarda en session_state para procesar después
-                esp_fila = limpiar(row.get("Especialidad"), "")
-                tecnicos_fila = ["Sin asignar"] + obtener_tecnicos_por_especialidad(esp_fila if esp_fila else "Todas")
-                tec_actual_fila = limpiar(row.get("Tecnico_Asignado"), "")
-                idx_tec_fila = tecnicos_fila.index(tec_actual_fila) if tec_actual_fila in tecnicos_fila else 0
 
-                tec_key = f"tec_fila_{internal_id}"
-                st.session_state.setdefault(tec_key, tecnicos_fila[idx_tec_fila])
-                st.selectbox("Téc", tecnicos_fila, index=idx_tec_fila, 
-                            key=tec_key, label_visibility="collapsed")
-
-
-        # 🛠️ FIX: Botón para guardar todos los cambios individuales de técnico
-        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        if st.button("💾 Guardar cambios de técnicos", use_container_width=True, type="primary", key=gen_key("btn_guardar_tec_individuales")):
-            cambios = 0
-            for _, row in df_asig.iterrows():
-                internal_id = limpiar(row.get("ID"), "")
-                if not internal_id:
-                    continue
-                tec_key = f"tec_fila_{internal_id}"
-                nuevo_tec = st.session_state.get(tec_key, "Sin asignar")
-                if nuevo_tec == "Sin asignar":
-                    nuevo_tec = ""
-                tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
-                if nuevo_tec == tec_actual:
-                    continue
-                estado_bd = limpiar(row.get("Estado"), "Pendiente")
-                datos = _datos_reasignacion(nuevo_tec, estado_bd)
-                datos["Tecnico_Asignado"] = nuevo_tec
-                if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
-                    idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
-                    if idx_local is not None:
-                        _reflejar_en_session(idx_local, datos)
-                    cambios += 1
-            if cambios > 0:
-                st.success(f"✅ {cambios} técnicos actualizados")
-                try:
-                    _cargar_ordenes_cache.clear()
-                except Exception:
-                    pass
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-                st.rerun()
-            else:
-                st.info("No hay cambios de técnico para guardar")
 
 def pantalla_sincronizar():
     header_tablet("🔄 Sincronizar desde Excel")
