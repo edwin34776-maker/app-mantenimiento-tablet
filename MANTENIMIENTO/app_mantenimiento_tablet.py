@@ -832,16 +832,7 @@ def pantalla_login():
             """, unsafe_allow_html=True)
 
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
-    col_dash_title, col_dash_refresh = st.columns([5, 1])
-    with col_dash_title:
-        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
-    with col_dash_refresh:
-        if st.button("🔄", key="btn_refresh_dashboard_login", help="Actualizar datos ahora"):
-            try:
-                _cargar_ordenes_cache.clear()
-            except Exception:
-                pass
-            st.rerun()
+    st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
     df = cargar_excel_mantenimiento()
     if not df.empty:
