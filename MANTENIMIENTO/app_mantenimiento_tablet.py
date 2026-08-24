@@ -355,20 +355,57 @@ st.markdown("""
     .eq-bloque-contenido { padding: 10px 14px; }
 
     /* === FILAS COMPACTAS DE ACTIVIDADES DENTRO DEL BLOQUE DE EQUIPO === */
-    .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div { margin-bottom: 2px !important; padding-bottom: 2px !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] { gap: 0.3rem !important; margin-bottom: 2px !important; padding-bottom: 2px !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div { padding: 0 !important; margin: 0 !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div:first-child { min-width: 24px !important; max-width: 28px !important; flex: none !important; }
-    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) { padding-left: 2px !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"], .eq-bloque-contenido .stCheckbox { margin: 0 !important; padding: 0 !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label, .eq-bloque-contenido .stCheckbox > label { min-height: 20px !important; margin: 0 !important; padding: 0 !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div { margin: 0 !important; padding: 0 !important; }
-    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] { display: none !important; }
-    .eq-bloque-contenido div[data-testid="stTextInput"] { margin-bottom: 0 !important; }
-    .eq-bloque-contenido div[data-testid="stTextInput"] > div > div > input { padding: 2px 6px !important; height: 28px !important; font-size: 11px !important; min-height: 28px !important; }
-    .eq-bloque-contenido div[data-testid="element-container"] { margin-bottom: 0 !important; }
-
-    .eq-tabla-header { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 6px 10px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 4px; }
+    .eq-bloque-contenido div[data-testid="stVerticalBlock"] {
+        gap: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div {
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] {
+        gap: 0px !important;
+        margin-bottom: 0px !important;
+        padding-bottom: 0px !important;
+        align-items: center !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div {
+        padding: 0px !important;
+        margin: 0px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"] > div:first-child {
+        min-width: 36px !important;
+        max-width: 40px !important;
+        flex: none !important;
+        justify-content: center !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label {
+        min-height: 20px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .eq-bloque-contenido div[data-testid="stCheckbox"] > label > div[data-testid="stWidgetLabel"] {
+        display: none !important;
+    }
+    .eq-bloque-contenido div[data-testid="element-container"] {
+        margin-bottom: 0px !important;
+    }
+    .fila-compacta {
+        width: 100%;
+        min-height: 28px;
+    }
+.eq-tabla-header { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 6px 10px; background: #FFFFFF; border-radius: 8px; font-weight: 700; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; align-items: center; margin-bottom: 4px; }
     .eq-tabla-fila { display: grid; grid-template-columns: 36px 45px 1fr 70px 70px 140px; gap: 6px; padding: 4px 8px; background: #FFFFFF; border-bottom: 1px solid #334155; align-items: center; font-size: 12px; transition: background 0.2s; }
     .eq-tabla-fila:hover { background: #27354f; color: #e2e8f0; }
     .eq-tabla-fila:last-child { border-bottom: none; }
@@ -1107,10 +1144,17 @@ def _home_tecnico(df):
             tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
-            # Contar realizadas basado en ESTADO de BD
+            # Contar realizadas: BD + las marcadas en pantalla ahora mismo
             realizadas_bd = len(grupo_eq_df[grupo_eq_df["Estado"].isin(["Ejecutado", "Verificado"])])
-            pct_realizadas = round(realizadas_bd / total_act * 100, 1) if total_act else 0
-            estado_bloque = "Completado" if realizadas_bd == total_act and total_act > 0 else "Pendiente"
+            marcadas_pantalla = 0
+            for _, row_chk in grupo_eq_df.iterrows():
+                iid_chk = limpiar(row_chk.get("ID"), "")
+                if iid_chk and st.session_state.get(_chk_key(iid_chk), False):
+                    if limpiar(row_chk.get("Estado"), "Pendiente") not in ["Ejecutado", "Verificado"]:
+                        marcadas_pantalla += 1
+            realizadas_visual = realizadas_bd + marcadas_pantalla
+            pct_realizadas = round(realizadas_visual / total_act * 100, 1) if total_act else 0
+            estado_bloque = "Completado" if realizadas_visual >= total_act and total_act > 0 else "Pendiente"
 
             st.markdown(f"""
             <div class="eq-bloque" style="margin-bottom: 10px; border-radius: 12px; overflow: hidden; border: 1px solid #1E3A5F;">
@@ -1141,7 +1185,7 @@ def _home_tecnico(df):
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = ya_ejecutada
 
-                cols_fila = st.columns([0.02, 1], gap="small")
+                cols_fila = st.columns([0.07, 1], gap="small")
                 with cols_fila[0]:
                     chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
                     if chk_val and not ya_ejecutada and not st.session_state.get(f"hora_ini_auto_{internal_id}"):
