@@ -341,7 +341,17 @@ st.markdown("""
     .eq-bloque-meta { font-size: 11px; color: #0F172A; margin-top: 4px; }
     .eq-progress-bar { width: 100%; height: 6px; background: #FFFFFF; border-radius: 3px; margin-top: 8px; overflow: hidden; }
     .eq-progress-fill { height: 100%; background: linear-gradient(90deg, #22c55e 0%, #16a34a 100%); border-radius: 3px; transition: width 0.3s ease; }
-    .eq-bloque-contenido { padding: 10px 14px; }
+    .eq-bloque-contenido { padding: 2px 10px 6px 10px !important; }
+    .eq-bloque-contenido div[data-testid="stHorizontalBlock"]:first-of-type {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    .eq-bloque-contenido div[data-testid="element-container"]:first-of-type {
+        margin-top: 0 !important;
+    }
+    .eq-bloque-header {
+        margin-bottom: 0 !important;
+    }
 
     /* === FILAS COMPACTAS DE ACTIVIDADES DENTRO DEL BLOQUE DE EQUIPO === */
     .eq-bloque-contenido div[data-testid="stVerticalBlock"] > div { margin-bottom: 2px !important; padding-bottom: 2px !important; }
