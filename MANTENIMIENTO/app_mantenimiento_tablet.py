@@ -1107,10 +1107,19 @@ def _home_tecnico(df):
             tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
-            # Contar realizadas basado en ESTADO de BD
+            # Contar realizadas basado en ESTADO de BD + checkboxes marcados en UI
             realizadas_bd = len(grupo_eq_df[grupo_eq_df["Estado"].isin(["Ejecutado", "Verificado"])])
-            pct_realizadas = round(realizadas_bd / total_act * 100, 1) if total_act else 0
-            estado_bloque = "Completado" if realizadas_bd == total_act and total_act > 0 else "Pendiente"
+            realizadas_marcadas = 0
+            for _, r_chk in grupo_eq_df.iterrows():
+                iid_chk = limpiar(r_chk.get("ID"), "")
+                if iid_chk:
+                    estado_chk = limpiar(r_chk.get("Estado"), "Pendiente")
+                    if estado_chk not in ["Ejecutado", "Verificado"]:
+                        if st.session_state.get(_chk_key(iid_chk), False):
+                            realizadas_marcadas += 1
+            realizadas_total = realizadas_bd + realizadas_marcadas
+            pct_realizadas = round(realizadas_total / total_act * 100, 1) if total_act else 0
+            estado_bloque = "Completado" if realizadas_total == total_act and total_act > 0 else "Pendiente"
 
             st.markdown(f"""
             <div class="eq-bloque" style="margin-bottom: 10px; border-radius: 12px; overflow: hidden; border: 1px solid #1E3A5F;">
@@ -1225,6 +1234,15 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
 
     if guardados > 0:
         st.success(f"✅ {guardados} cambios guardados en Supabase")
+        # 🛠️ FIX: Limpiar caché para forzar recarga de datos frescos de Supabase
+        try:
+            _cargar_ordenes_cache.clear()
+        except Exception:
+            pass
+        st.session_state.df_mantenimientos = cargar_ordenes_supabase()
+        st.rerun()
+    else:
+        st.info("No hay cambios para guardar")
         st.rerun()
     else:
         st.info("No hay cambios para guardar")
