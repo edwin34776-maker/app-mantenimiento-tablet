@@ -1213,30 +1213,8 @@ def _bloque_acciones_ubicacion(ubi_key, grupo_ubi_df):
                   key=comentario_key, placeholder="Escribe un comentario para todas las actividades de este bloque...")
     st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
 
-    col_desmarcar, col_guardar = st.columns(2)
-    with col_desmarcar:
-        if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas_ubi", ubi_key)):
-            desmarcadas = 0
-            for _, row in grupo_ubi_df.iterrows():
-                internal_id = limpiar(row.get("ID"), "")
-                if not internal_id:
-                    continue
-                estado_bd = limpiar(row.get("Estado"), "Pendiente")
-                # Solo desmarcar las que aún NO están ejecutadas/verificadas en BD
-                if estado_bd not in ["Ejecutado", "Verificado"]:
-                    chk_key = _chk_key(internal_id)
-                    st.session_state[chk_key] = False
-                    st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
-                    desmarcadas += 1
-            if desmarcadas > 0:
-                st.toast(f"✕ {desmarcadas} actividades desmarcadas", icon="🔄")
-            else:
-                st.toast("ℹ️ No hay actividades pendientes para desmarcar", icon="ℹ️")
-            st.rerun()
-
-    with col_guardar:
-        if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_ubi", ubi_key)):
-            _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key)
+    if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_ubi", ubi_key)):
+        _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key)
 
 
 def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
