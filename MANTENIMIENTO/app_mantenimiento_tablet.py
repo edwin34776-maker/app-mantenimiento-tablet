@@ -814,6 +814,22 @@ def autenticar_admin(password):
     if not admin_pass:
         return False, "ADMIN_PASSWORD no configurado en Secrets"
     return (True, "OK") if password == admin_pass else (False, "Contrasena incorrecta")
+
+def color_porcentaje(pct):
+    """Devuelve un color HEX que va de rojo (0%) → amarillo (50%) → verde (100%)."""
+    pct = max(0, min(100, pct))
+    if pct <= 50:
+        # Rojo (#EF4444) → Amarillo (#F59E0B)
+        r = int(239 + (245 - 239) * (pct / 50))
+        g = int(68 + (158 - 68) * (pct / 50))
+        b = int(68 + (11 - 68) * (pct / 50))
+    else:
+        # Amarillo (#F59E0B) → Verde (#22C55E)
+        r = int(245 + (34 - 245) * ((pct - 50) / 50))
+        g = int(158 + (197 - 158) * ((pct - 50) / 50))
+        b = int(11 + (94 - 11) * ((pct - 50) / 50))
+    return f"#{r:02X}{g:02X}{b:02X}"
+
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
 
@@ -863,8 +879,8 @@ def pantalla_login():
                         <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
                     </div>
                     <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
-                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {esp_color}, {esp_color}aa); border-radius: 14px;"></div>
-</div>
+                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
+                    </div>
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
                         <div style="flex: 1; text-align: center;">
                             <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
@@ -881,10 +897,8 @@ def pantalla_login():
                             <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
                         </div>
                     </div>
-                    <div style="margin-top: 12px; display: flex; height: 8px; border-radius: 4px; overflow: hidden;">
-                        <div style="width: {pend/total_esp*100 if total_esp else 0}%; background: #F59E0B;"></div>
-                        <div style="width: {ejec/total_esp*100 if total_esp else 0}%; background: #22C55E;"></div>
-                        <div style="width: {verif/total_esp*100 if total_esp else 0}%; background: #3B82F6;"></div>
+                    <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
+                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1202,12 +1216,22 @@ def _bloque_acciones_ubicacion(ubi_key, grupo_ubi_df):
     col_desmarcar, col_guardar = st.columns(2)
     with col_desmarcar:
         if st.button("✕ Desmarcar todas", use_container_width=True, type="secondary", key=gen_key("btn_desmarcar_todas_ubi", ubi_key)):
+            desmarcadas = 0
             for _, row in grupo_ubi_df.iterrows():
                 internal_id = limpiar(row.get("ID"), "")
-                if internal_id:
+                if not internal_id:
+                    continue
+                estado_bd = limpiar(row.get("Estado"), "Pendiente")
+                # Solo desmarcar las que aún NO están ejecutadas/verificadas en BD
+                if estado_bd not in ["Ejecutado", "Verificado"]:
                     chk_key = _chk_key(internal_id)
                     st.session_state[chk_key] = False
                     st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
+                    desmarcadas += 1
+            if desmarcadas > 0:
+                st.toast(f"✕ {desmarcadas} actividades desmarcadas", icon="🔄")
+            else:
+                st.toast("ℹ️ No hay actividades pendientes para desmarcar", icon="ℹ️")
             st.rerun()
 
     with col_guardar:
