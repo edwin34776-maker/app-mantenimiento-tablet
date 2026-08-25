@@ -862,10 +862,9 @@ def pantalla_login():
                         <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
                         <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
                     </div>
-                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px; position: relative;">
+                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
                         <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {esp_color}, {esp_color}aa); border-radius: 14px;"></div>
-                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 11px; font-weight: 700; color: #0F172A;">{total_esp} actividades</div>
-                    </div>
+</div>
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
                         <div style="flex: 1; text-align: center;">
                             <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
