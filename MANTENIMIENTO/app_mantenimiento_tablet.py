@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -124,26 +123,69 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
 # ==================== SUPABASE: CARGA Y ACTUALIZACIÓN ====================
 @st.cache_data(ttl=5, show_spinner=False)
 def _cargar_ordenes_cache():
+    """Carga TODOS los registros de ordenes_trabajo usando paginación."""
     try:
-        data = supabase.table("ordenes_trabajo").select("*").order("id", desc=False).execute().data
-        if not data:
+        todos_los_datos = []
+        batch_size = 1000
+        inicio = 0
+
+        while True:
+            respuesta = (
+                supabase.table("ordenes_trabajo")
+                .select("*")
+                .order("id", desc=False)
+                .range(inicio, inicio + batch_size - 1)
+                .execute()
+            )
+
+            lote = respuesta.data or []
+            if not lote:
+                break
+
+            todos_los_datos.extend(lote)
+
+            if len(lote) < batch_size:
+                break
+
+            inicio += batch_size
+
+        if not todos_los_datos:
             return pd.DataFrame()
-        df = pd.DataFrame(data)
+
+        df = pd.DataFrame(todos_los_datos)
         inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
         df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
-        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
-                             "Tecnico_Asignado_2": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
-                             "Hora_Inicio": "", "Hora_Fin": "", "Prioridad_Actividad": "",
-                             "ID OT": "", "Procedimiento": ""}.items():
+
+        columnas_default = {
+            "Estado": "Pendiente", "Comentarios": "",
+            "Tecnico_Asignado": "", "Tecnico_Asignado_2": "",
+            "Actividades_Hechas": "", "Fecha_Ejecucion": "",
+            "Hora_Inicio": "", "Hora_Fin": "",
+            "Prioridad_Actividad": "", "ID OT": "",
+            "Procedimiento": "", "Equipo": "", "Ubicacion": "",
+            "Especialidad": "", "Nodo": ""
+        }
+        for col, default in columnas_default.items():
             if col not in df.columns:
                 df[col] = default
+
+        if "ID" in df.columns:
+            df = df.sort_values("ID", ascending=True).reset_index(drop=True)
+
         return df
     except Exception as e:
         st.error(f"Error cargando ordenes: {e}")
         return pd.DataFrame()
 
-def cargar_ordenes_supabase():
+def cargar_ordenes_supabase(forzar=False):
+    """Carga datos; con forzar=True limpia cache antes de consultar Supabase."""
+    if forzar:
+        try:
+            _cargar_ordenes_cache.clear()
+        except Exception:
+            pass
     return _cargar_ordenes_cache()
+
 def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
     try:
         datos_a_enviar = {}
@@ -537,18 +579,23 @@ def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     return tecnicos
 
 # ==================== HELPERS DE DATOS ====================
-def cargar_excel_mantenimiento():
+def cargar_excel_mantenimiento(forzar=False):
     try:
-        return cargar_ordenes_supabase()
+        return cargar_ordenes_supabase(forzar=forzar)
     except Exception as e:
         st.error(f"Error al cargar ordenes: {e}")
         return pd.DataFrame()
 
 def recargar_datos(forzar=False):
-    if forzar or "df_mantenimientos" not in st.session_state:
-        df = cargar_ordenes_supabase()
-        st.session_state.df_mantenimientos = df
+    """Actualiza session_state y permite forzar una lectura completa de Supabase."""
+    if forzar:
+        st.session_state.pop("df_mantenimientos", None)
+
+    if "df_mantenimientos" not in st.session_state:
+        st.session_state.df_mantenimientos = cargar_ordenes_supabase(forzar=forzar)
+
     return st.session_state.df_mantenimientos
+
 def calcular_progreso(df):
     total = len(df)
     if total == 0:
@@ -1264,7 +1311,7 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
             _cargar_ordenes_cache.clear()
         except Exception:
             pass
-        st.session_state.df_mantenimientos = cargar_ordenes_supabase()
+        st.session_state.df_mantenimientos = cargar_ordenes_supabase(forzar=True)
         st.rerun()
     else:
         st.info("No hay cambios para guardar")
@@ -1555,7 +1602,7 @@ def pantalla_detalle():
             if actualizar_orden_supabase(internal_id, "Estado", "Verificado"):
                 df.at[idx, "Estado"] = "Verificado"
                 st.success("Orden VERIFICADA")
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
                 st.rerun()
             else:
                 st.error("Error al verificar")
@@ -1612,7 +1659,7 @@ def pantalla_verificar():
                 if st.button("Verificado", use_container_width=True, type="primary", key=gen_key("verif_btn", internal_id)):
                     if actualizar_orden_supabase(internal_id, "Estado", "Verificado"):
                         st.success(f"OT {id_ot} verificada correctamente")
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
                         st.rerun()
                     else:
                         st.error("Error al verificar")
@@ -1620,7 +1667,7 @@ def pantalla_verificar():
                 if st.button("RECHAZAR", use_container_width=True, type="secondary", key=gen_key("rech_btn", internal_id)):
                     if actualizar_orden_supabase(internal_id, "Estado", "Pendiente"):
                         st.warning(f"OT {id_ot} devuelta a Pendiente")
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
                         st.rerun()
                     else:
                         st.error("Error al rechazar")
@@ -1973,7 +2020,7 @@ def pantalla_asignacion():
                         _cargar_ordenes_cache.clear()
                     except Exception:
                         pass
-                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
                     st.rerun()
                 else:
                     st.warning("Selecciona actividades y un técnico primero")
@@ -2202,7 +2249,7 @@ def pantalla_sincronizar():
                 # Limpiar archivo de session_state
                 for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel", "sync_df_cache_key"]:
                     st.session_state.pop(k, None)
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
                 st.info("🔄 Datos actualizados. Puedes volver al inicio.")
             else:
                 st.error(mensaje)
