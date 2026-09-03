@@ -585,11 +585,24 @@ def extraer_subsistema_nodo(nodo):
     return partes[1] if len(partes) > 1 else "SIN_CODIGO"
 
 def obtener_maquinas_disponibles(df):
-    if df.empty or "Ubicacion" not in df.columns:
+    """
+    Devuelve TODAS las máquinas/ubicaciones existentes.
+    Normaliza espacios y valores vacíos para que no desaparezcan
+    opciones por diferencias como "KREYENBORG" y "KREYENBORG ".
+    """
+    if df is None or df.empty:
         return ["Todas"]
     try:
-        maquinas = [m for m in df["Ubicacion"].dropna().unique().tolist() if str(m).strip()]
-        return ["Todas"] + sorted(maquinas)
+        columna = "Ubicacion" if "Ubicacion" in df.columns else ("Equipo" if "Equipo" in df.columns else None)
+        if columna is None:
+            return ["Todas"]
+        valores = (
+            df[columna].dropna().astype(str)
+            .str.replace(r"\s+", " ", regex=True).str.strip()
+        )
+        valores = [v for v in valores.unique().tolist()
+                   if v and v.lower() not in ("nan", "none", "null")]
+        return ["Todas"] + sorted(valores, key=lambda x: x.casefold())
     except Exception:
         return ["Todas"]
 
@@ -615,19 +628,35 @@ def estado_efectivo(row):
     return estado
 
 def aplicar_filtros_globales(df, maquina=""):
-    """Aplica especialidad + máquina + nodo/subsistema. maquina=None omite el filtro de máquina."""
+    """Aplica especialidad + máquina + nodo/subsistema."""
     d = df.copy()
-    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in d.columns:
-        d = d[d["Especialidad"] == st.session_state.filtro_especialidad]
-    maq = st.session_state.filtro_maquina if maquina == "" else maquina
-    if maq and maq != "Todas" and "Ubicacion" in d.columns:
-        d = d[d["Ubicacion"] == maq]
+
+    if "Especialidad" in d.columns:
+        d["_esp_norm"] = (
+            d["Especialidad"].fillna("").astype(str)
+            .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+        )
+    if "Ubicacion" in d.columns:
+        d["_maq_norm"] = (
+            d["Ubicacion"].fillna("").astype(str)
+            .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+        )
+
+    especialidad = str(st.session_state.get("filtro_especialidad", "Todas")).strip()
+    if especialidad != "Todas" and "_esp_norm" in d.columns:
+        d = d[d["_esp_norm"] == especialidad.casefold()]
+
+    maq = st.session_state.get("filtro_maquina", "Todas") if maquina == "" else maquina
+    if maq and maq != "Todas" and "_maq_norm" in d.columns:
+        d = d[d["_maq_norm"] == str(maq).strip().casefold()]
+
     if "Nodo" in d.columns:
-        if st.session_state.filtro_maquina_nodo != "Todas":
+        if st.session_state.get("filtro_maquina_nodo", "Todas") != "Todas":
             d = d[d["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
-        if st.session_state.filtro_subsistema_nodo != "Todos":
+        if st.session_state.get("filtro_subsistema_nodo", "Todos") != "Todos":
             d = d[d["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
-    return d
+
+    return d.drop(columns=[c for c in ["_esp_norm", "_maq_norm"] if c in d.columns])
 
 def gen_key(base, *parts):
     # Ya NO usamos perfil/pagina para no invalidar widgets al navegar
@@ -1675,16 +1704,37 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
+    # Las opciones del filtro salen del dataframe COMPLETO.
+    # Así una máquina no desaparece porque otro filtro (especialidad/nodo)
+    # haya reducido temporalmente la lista.
+    maquinas_disponibles = obtener_maquinas_disponibles(df)
+
+    if st.session_state.filtro_maquina not in maquinas_disponibles:
+        st.session_state.filtro_maquina = "Todas"
+
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+
+    if st.session_state.filtro_maquina != "Todas":
+        maq_sel_norm = str(st.session_state.filtro_maquina).strip().casefold()
+        if "Ubicacion" in df_asig.columns:
+            ubic_norm = (
+                df_asig["Ubicacion"].fillna("").astype(str)
+                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+            )
+            df_asig = df_asig[ubic_norm == maq_sel_norm]
+        elif "Equipo" in df_asig.columns:
+            equipo_norm = (
+                df_asig["Equipo"].fillna("").astype(str)
+                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+            )
+            df_asig = df_asig[equipo_norm == maq_sel_norm]
 
     col_izq, col_der = st.columns([1, 3])
 
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        for maq in obtener_maquinas_disponibles(df_asig_base):
+        for maq in maquinas_disponibles:
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
