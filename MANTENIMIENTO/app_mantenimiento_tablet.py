@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -123,69 +124,26 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
 # ==================== SUPABASE: CARGA Y ACTUALIZACIÓN ====================
 @st.cache_data(ttl=5, show_spinner=False)
 def _cargar_ordenes_cache():
-    """Carga TODOS los registros de ordenes_trabajo usando paginación."""
     try:
-        todos_los_datos = []
-        batch_size = 1000
-        inicio = 0
-
-        while True:
-            respuesta = (
-                supabase.table("ordenes_trabajo")
-                .select("*")
-                .order("id", desc=False)
-                .range(inicio, inicio + batch_size - 1)
-                .execute()
-            )
-
-            lote = respuesta.data or []
-            if not lote:
-                break
-
-            todos_los_datos.extend(lote)
-
-            if len(lote) < batch_size:
-                break
-
-            inicio += batch_size
-
-        if not todos_los_datos:
+        data = supabase.table("ordenes_trabajo").select("*").order("id", desc=False).execute().data
+        if not data:
             return pd.DataFrame()
-
-        df = pd.DataFrame(todos_los_datos)
+        df = pd.DataFrame(data)
         inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
         df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
-
-        columnas_default = {
-            "Estado": "Pendiente", "Comentarios": "",
-            "Tecnico_Asignado": "", "Tecnico_Asignado_2": "",
-            "Actividades_Hechas": "", "Fecha_Ejecucion": "",
-            "Hora_Inicio": "", "Hora_Fin": "",
-            "Prioridad_Actividad": "", "ID OT": "",
-            "Procedimiento": "", "Equipo": "", "Ubicacion": "",
-            "Especialidad": "", "Nodo": ""
-        }
-        for col, default in columnas_default.items():
+        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+                             "Tecnico_Asignado_2": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
+                             "Hora_Inicio": "", "Hora_Fin": "", "Prioridad_Actividad": "",
+                             "ID OT": "", "Procedimiento": ""}.items():
             if col not in df.columns:
                 df[col] = default
-
-        if "ID" in df.columns:
-            df = df.sort_values("ID", ascending=True).reset_index(drop=True)
-
         return df
     except Exception as e:
         st.error(f"Error cargando ordenes: {e}")
         return pd.DataFrame()
 
-def cargar_ordenes_supabase(forzar=False):
-    """Carga datos; con forzar=True limpia cache antes de consultar Supabase."""
-    if forzar:
-        try:
-            _cargar_ordenes_cache.clear()
-        except Exception:
-            pass
+def cargar_ordenes_supabase():
     return _cargar_ordenes_cache()
-
 def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
     try:
         datos_a_enviar = {}
@@ -579,23 +537,18 @@ def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     return tecnicos
 
 # ==================== HELPERS DE DATOS ====================
-def cargar_excel_mantenimiento(forzar=False):
+def cargar_excel_mantenimiento():
     try:
-        return cargar_ordenes_supabase(forzar=forzar)
+        return cargar_ordenes_supabase()
     except Exception as e:
         st.error(f"Error al cargar ordenes: {e}")
         return pd.DataFrame()
 
 def recargar_datos(forzar=False):
-    """Actualiza session_state y permite forzar una lectura completa de Supabase."""
-    if forzar:
-        st.session_state.pop("df_mantenimientos", None)
-
-    if "df_mantenimientos" not in st.session_state:
-        st.session_state.df_mantenimientos = cargar_ordenes_supabase(forzar=forzar)
-
+    if forzar or "df_mantenimientos" not in st.session_state:
+        df = cargar_ordenes_supabase()
+        st.session_state.df_mantenimientos = df
     return st.session_state.df_mantenimientos
-
 def calcular_progreso(df):
     total = len(df)
     if total == 0:
@@ -632,11 +585,24 @@ def extraer_subsistema_nodo(nodo):
     return partes[1] if len(partes) > 1 else "SIN_CODIGO"
 
 def obtener_maquinas_disponibles(df):
-    if df.empty or "Ubicacion" not in df.columns:
+    """
+    Devuelve TODAS las máquinas/ubicaciones existentes.
+    Normaliza espacios y valores vacíos para que no desaparezcan
+    opciones por diferencias como "KREYENBORG" y "KREYENBORG ".
+    """
+    if df is None or df.empty:
         return ["Todas"]
     try:
-        maquinas = [m for m in df["Ubicacion"].dropna().unique().tolist() if str(m).strip()]
-        return ["Todas"] + sorted(maquinas)
+        columna = "Ubicacion" if "Ubicacion" in df.columns else ("Equipo" if "Equipo" in df.columns else None)
+        if columna is None:
+            return ["Todas"]
+        valores = (
+            df[columna].dropna().astype(str)
+            .str.replace(r"\s+", " ", regex=True).str.strip()
+        )
+        valores = [v for v in valores.unique().tolist()
+                   if v and v.lower() not in ("nan", "none", "null")]
+        return ["Todas"] + sorted(valores, key=lambda x: x.casefold())
     except Exception:
         return ["Todas"]
 
@@ -662,19 +628,35 @@ def estado_efectivo(row):
     return estado
 
 def aplicar_filtros_globales(df, maquina=""):
-    """Aplica especialidad + máquina + nodo/subsistema. maquina=None omite el filtro de máquina."""
+    """Aplica especialidad + máquina + nodo/subsistema."""
     d = df.copy()
-    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in d.columns:
-        d = d[d["Especialidad"] == st.session_state.filtro_especialidad]
-    maq = st.session_state.filtro_maquina if maquina == "" else maquina
-    if maq and maq != "Todas" and "Ubicacion" in d.columns:
-        d = d[d["Ubicacion"] == maq]
+
+    if "Especialidad" in d.columns:
+        d["_esp_norm"] = (
+            d["Especialidad"].fillna("").astype(str)
+            .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+        )
+    if "Ubicacion" in d.columns:
+        d["_maq_norm"] = (
+            d["Ubicacion"].fillna("").astype(str)
+            .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+        )
+
+    especialidad = str(st.session_state.get("filtro_especialidad", "Todas")).strip()
+    if especialidad != "Todas" and "_esp_norm" in d.columns:
+        d = d[d["_esp_norm"] == especialidad.casefold()]
+
+    maq = st.session_state.get("filtro_maquina", "Todas") if maquina == "" else maquina
+    if maq and maq != "Todas" and "_maq_norm" in d.columns:
+        d = d[d["_maq_norm"] == str(maq).strip().casefold()]
+
     if "Nodo" in d.columns:
-        if st.session_state.filtro_maquina_nodo != "Todas":
+        if st.session_state.get("filtro_maquina_nodo", "Todas") != "Todas":
             d = d[d["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
-        if st.session_state.filtro_subsistema_nodo != "Todos":
+        if st.session_state.get("filtro_subsistema_nodo", "Todos") != "Todos":
             d = d[d["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
-    return d
+
+    return d.drop(columns=[c for c in ["_esp_norm", "_maq_norm"] if c in d.columns])
 
 def gen_key(base, *parts):
     # Ya NO usamos perfil/pagina para no invalidar widgets al navegar
@@ -1311,7 +1293,7 @@ def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
             _cargar_ordenes_cache.clear()
         except Exception:
             pass
-        st.session_state.df_mantenimientos = cargar_ordenes_supabase(forzar=True)
+        st.session_state.df_mantenimientos = cargar_ordenes_supabase()
         st.rerun()
     else:
         st.info("No hay cambios para guardar")
@@ -1602,7 +1584,7 @@ def pantalla_detalle():
             if actualizar_orden_supabase(internal_id, "Estado", "Verificado"):
                 df.at[idx, "Estado"] = "Verificado"
                 st.success("Orden VERIFICADA")
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                 st.rerun()
             else:
                 st.error("Error al verificar")
@@ -1659,7 +1641,7 @@ def pantalla_verificar():
                 if st.button("Verificado", use_container_width=True, type="primary", key=gen_key("verif_btn", internal_id)):
                     if actualizar_orden_supabase(internal_id, "Estado", "Verificado"):
                         st.success(f"OT {id_ot} verificada correctamente")
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
                     else:
                         st.error("Error al verificar")
@@ -1667,7 +1649,7 @@ def pantalla_verificar():
                 if st.button("RECHAZAR", use_container_width=True, type="secondary", key=gen_key("rech_btn", internal_id)):
                     if actualizar_orden_supabase(internal_id, "Estado", "Pendiente"):
                         st.warning(f"OT {id_ot} devuelta a Pendiente")
-                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                         st.rerun()
                     else:
                         st.error("Error al rechazar")
@@ -1722,16 +1704,37 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
+    # Las opciones del filtro salen del dataframe COMPLETO.
+    # Así una máquina no desaparece porque otro filtro (especialidad/nodo)
+    # haya reducido temporalmente la lista.
+    maquinas_disponibles = obtener_maquinas_disponibles(df)
+
+    if st.session_state.filtro_maquina not in maquinas_disponibles:
+        st.session_state.filtro_maquina = "Todas"
+
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+
+    if st.session_state.filtro_maquina != "Todas":
+        maq_sel_norm = str(st.session_state.filtro_maquina).strip().casefold()
+        if "Ubicacion" in df_asig.columns:
+            ubic_norm = (
+                df_asig["Ubicacion"].fillna("").astype(str)
+                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+            )
+            df_asig = df_asig[ubic_norm == maq_sel_norm]
+        elif "Equipo" in df_asig.columns:
+            equipo_norm = (
+                df_asig["Equipo"].fillna("").astype(str)
+                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+            )
+            df_asig = df_asig[equipo_norm == maq_sel_norm]
 
     col_izq, col_der = st.columns([1, 3])
 
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        for maq in obtener_maquinas_disponibles(df_asig_base):
+        for maq in maquinas_disponibles:
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
@@ -2020,7 +2023,7 @@ def pantalla_asignacion():
                         _cargar_ordenes_cache.clear()
                     except Exception:
                         pass
-                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
+                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                     st.rerun()
                 else:
                     st.warning("Selecciona actividades y un técnico primero")
@@ -2249,7 +2252,7 @@ def pantalla_sincronizar():
                 # Limpiar archivo de session_state
                 for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel", "sync_df_cache_key"]:
                     st.session_state.pop(k, None)
-                st.session_state.df_mantenimientos = cargar_excel_mantenimiento(forzar=True)
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
                 st.info("🔄 Datos actualizados. Puedes volver al inicio.")
             else:
                 st.error(mensaje)
