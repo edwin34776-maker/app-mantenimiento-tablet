@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -136,6 +135,10 @@ def _cargar_ordenes_cache():
                              "ID OT": "", "Procedimiento": ""}.items():
             if col not in df.columns:
                 df[col] = default
+        # FIX filtro maquina: normalizar valores para evitar duplicados por espacios
+        for col in ["Ubicacion", "Equipo", "Especialidad", "Estado"]:
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: str(x).strip() if pd.notna(x) else "")
         return df
     except Exception as e:
         st.error(f"Error cargando ordenes: {e}")
@@ -1677,16 +1680,30 @@ def pantalla_asignacion():
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+        maq_norm = str(st.session_state.filtro_maquina).strip()
+        df_asig = df_asig[df_asig["Ubicacion"].astype(str).str.strip() == maq_norm]
 
     col_izq, col_der = st.columns([1, 3])
 
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        for maq in obtener_maquinas_disponibles(df_asig_base):
+        maquinas = obtener_maquinas_disponibles(df_asig_base)
+        # FIX: resetear si la maquina seleccionada ya no existe (p. ej., tras resincronizar el Excel)
+        if st.session_state.filtro_maquina not in maquinas:
+            st.session_state.filtro_maquina = "Todas"
+        # Conteos por maquina sobre los datos ya filtrados por especialidad
+        if "Ubicacion" in df_asig_base.columns and not df_asig_base.empty:
+            conteos_maq = df_asig_base["Ubicacion"].astype(str).str.strip().value_counts()
+        else:
+            conteos_maq = pd.Series(dtype=int)
+        for maq in maquinas:
             activo = st.session_state.filtro_maquina == maq
-            if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
-                st.session_state.filtro_maquina = maq
+            n_maq = len(df_asig_base) if maq == "Todas" else int(conteos_maq.get(maq, 0))
+            if st.button(f"{maq} ({n_maq})", key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
+                if st.session_state.filtro_maquina != maq:
+                    st.session_state.filtro_maquina = maq
+                    # FIX: limpiar seleccion de actividades al cambiar de maquina
+                    st.session_state[gen_key("seleccion_asig")] = {}
                 st.rerun()
 
     with col_der:
@@ -1930,6 +1947,8 @@ def pantalla_asignacion():
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
         st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:10px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
+        n_sel = sum(1 for v in seleccion.values() if v)
+        st.markdown(f"<div style='font-size:11px; color:#0369a1; margin-bottom:8px;'>☑ {n_sel} actividad(es) seleccionada(s) en esta máquina</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([3, 2, 1])
         with c1:
             tec1_masivo = st.selectbox("Técnico", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
