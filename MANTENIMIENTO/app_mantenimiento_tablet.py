@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
