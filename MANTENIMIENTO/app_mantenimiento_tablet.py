@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1436,13 +1437,17 @@ def pantalla_mis_ordenes():
             ">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
                     <div>
-                        <div style="font-size:15px; font-weight:800;">🔧 {escapar(equipo)}</div>
-                        <div style="font-size:11px; opacity:.95; margin-top:3px;">
-                            {escapar(especialidad)}{(' · ' + escapar(ubicacion)) if ubicacion else ''}
+                        <div style="font-size:15px; font-weight:800;">
+                            🔧 {escapar(equipo)}
+                            <span style="background:#0F172A; color:#FFFFFF; padding:4px 9px; border-radius:7px; font-size:13px; font-weight:900; margin-left:8px; white-space:nowrap;">
+                                OT {escapar(ot_visible)}
+                            </span>
                         </div>
-                    </div>
-                    <div style="background:#0F172A; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; white-space:nowrap;">
-                        OT {escapar(ot_visible)}
+                        <div style="font-size:11px; opacity:.95; margin-top:5px;">
+                            📄 Orden de Trabajo: <strong>OT {escapar(ot_visible)}</strong>
+                            {(' · ' + escapar(especialidad)) if especialidad else ''}
+                            {(' · ' + escapar(ubicacion)) if ubicacion else ''}
+                        </div>
                     </div>
                 </div>
             </div>
