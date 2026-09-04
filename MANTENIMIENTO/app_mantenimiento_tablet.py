@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -832,6 +834,49 @@ def color_porcentaje(pct):
 
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
+
+    # 📅 FECHA ACTUAL
+    dias = {
+        "Monday": "Lunes",
+        "Tuesday": "Martes",
+        "Wednesday": "Miércoles",
+        "Thursday": "Jueves",
+        "Friday": "Viernes",
+        "Saturday": "Sábado",
+        "Sunday": "Domingo"
+    }
+
+    meses = {
+        "January": "enero",
+        "February": "febrero",
+        "March": "marzo",
+        "April": "abril",
+        "May": "mayo",
+        "June": "junio",
+        "July": "julio",
+        "August": "agosto",
+        "September": "septiembre",
+        "October": "octubre",
+        "November": "noviembre",
+        "December": "diciembre"
+    }
+
+    ahora = datetime.now()
+    dia_semana = dias[ahora.strftime("%A")]
+    mes = meses[ahora.strftime("%B")]
+    fecha_actual = f"{dia_semana} {ahora.day:02d} de {mes} de {ahora.year}"
+
+    st.markdown(f"""
+    <div style="
+        text-align:center;
+        font-size:16px;
+        font-weight:700;
+        color:#475569;
+        margin:6px 0 12px 0;
+    ">
+        📅 {fecha_actual}
+    </div>
+    """, unsafe_allow_html=True)
 
     # 🔄 Auto-refresh cada 5 segundos en el dashboard (solo si no está escribiendo contraseña de admin)
     if not st.session_state.get("mostrar_login_admin", False):
