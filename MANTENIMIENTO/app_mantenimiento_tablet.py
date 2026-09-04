@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -509,10 +511,13 @@ def obtener_especialidad_tecnico(nombre):
     return ""
 
 def abreviar_tecnico(nombre):
-    """Convierte 'RIVERA SANTOS LUIS ALVARO' → 'R. SANTOS' (solo para gráficas)"""
-    if not nombre or nombre in ("Sin asignar", "", "—"):
-        return "—"
-    partes = nombre.strip().split()
+    """Convierte nombres para la gráfica y mantiene visible 'SIN ASIGNAR'."""
+    if not nombre:
+        return "SIN ASIGNAR"
+    nombre = str(nombre).strip()
+    if nombre.casefold() in ("sin asignar", "", "—"):
+        return "SIN ASIGNAR"
+    partes = nombre.split()
     if len(partes) >= 2:
         return f"{partes[0][0]}. {partes[1]}"
     return nombre
@@ -2026,7 +2031,7 @@ def pantalla_asignacion():
                 callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
                 callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
 
-                nombre_corto = s["nombre"][:16]
+                nombre_corto = s["nombre"][:20]
                 callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 16, nombre_corto))
                 callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="15" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 34, c, s["pct"]))
 
