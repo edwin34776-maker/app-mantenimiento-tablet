@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1837,15 +1836,20 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
-    df_asig_base = aplicar_filtros_globales(df, maquina=None)
+    # IMPORTANTE: para el selector de MÁQUINA usamos la base completa.
+    # No usamos aplicar_filtros_globales aquí porque puede heredar filtros
+    # de otra pantalla (especialidad/nodo) y hacer desaparecer máquinas.
+    # En la base: Ubicacion = MÁQUINA y Equipo = EQUIPO.
+    df_asig_base = df.copy()
     df_asig = df_asig_base.copy()
 
     # 1) Primero se filtra por MÁQUINA (Ubicacion)
     maquina_sel = st.session_state.filtro_maquina
     if maquina_sel != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"].astype(str).str.strip() == maquina_sel]
+        df_asig = df_asig[df_asig["Ubicacion"].astype(str).str.strip() == str(maquina_sel).strip()]
 
     # 2) Luego se filtra por EQUIPO, dentro de la máquina seleccionada
+    # La lista de equipos sale del conjunto ya filtrado por máquina.
     equipos_disponibles = obtener_equipos_disponibles(df_asig)
     if st.session_state.filtro_equipo not in equipos_disponibles:
         st.session_state.filtro_equipo = "Todos"
@@ -1858,6 +1862,7 @@ def pantalla_asignacion():
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
         # Botón TODAS para que siempre se pueda quitar el filtro de máquina
+        # La lista de máquinas siempre sale de TODA la base, no del filtro actual.
         maquinas_disponibles = obtener_maquinas_disponibles(df_asig_base)
         for maq in maquinas_disponibles:
             activo = st.session_state.filtro_maquina == maq
