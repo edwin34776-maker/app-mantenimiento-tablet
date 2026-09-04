@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1131,7 +1129,10 @@ def _home_tecnico(df):
         mask_tec |= df["Tecnico_Asignado"] == tecnico_actual
     if "Tecnico_Asignado_2" in df.columns:
         mask_tec |= df["Tecnico_Asignado_2"] == tecnico_actual
-    df_mias = df[mask_tec].copy() if mask_tec.any() else df.copy()
+    # IMPORTANTE: el técnico SOLO debe ver actividades que realmente
+    # estén asignadas a su nombre. Si no tiene ninguna asignada,
+    # no se muestran todas las órdenes de la base.
+    df_mias = df[mask_tec].copy()
 
     total_asignadas = len(df_mias)
     conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
