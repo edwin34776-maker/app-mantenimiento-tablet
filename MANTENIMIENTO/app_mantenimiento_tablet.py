@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -835,7 +834,7 @@ def color_porcentaje(pct):
 def pantalla_login():
     header_tablet("App Tablet Mtto Preventivo")
 
-    # 📅 FECHA ACTUAL
+    # 📅 FECHA ACTUAL — debajo del encabezado y alineada a la izquierda
     dias = {
         "Monday": "Lunes",
         "Tuesday": "Martes",
@@ -868,11 +867,11 @@ def pantalla_login():
 
     st.markdown(f"""
     <div style="
-        text-align:center;
-        font-size:16px;
+        text-align:left;
+        font-size:15px;
         font-weight:700;
         color:#475569;
-        margin:6px 0 12px 0;
+        margin:8px 0 10px 15px;
     ">
         📅 {fecha_actual}
     </div>
