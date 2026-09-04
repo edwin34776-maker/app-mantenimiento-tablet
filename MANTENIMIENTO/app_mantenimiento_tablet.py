@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1887,8 +1886,8 @@ def pantalla_asignacion():
 
 
 
-        # ========== GRÁFICA: TORTA 3D POR EQUIPO + LEYENDA POR TÉCNICO ==========
-        def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Equipo"):
+        # ========== GRÁFICA: TORTA 3D POR TÉCNICO + LEYENDA POR MÁQUINA ==========
+        def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Máquina"):
             import math
             if not datos_equipos:
                 return ""
@@ -2087,32 +2086,34 @@ def pantalla_asignacion():
 
             if datos_torta:
                 svg_torta = _render_torta_3d_equipos(datos_torta)
-                # Leyenda inferior por equipo, como en la versión solicitada.
-                equipos_count = {}
-                if "Equipo" in df_asig.columns:
-                    for equipo in df_asig["Equipo"].fillna("").astype(str):
-                        equipo = equipo.strip()
-                        if equipo:
-                            equipos_count[equipo] = equipos_count.get(equipo, 0) + 1
+                # Leyenda inferior POR MÁQUINA.
+                # En esta aplicación la máquina corresponde a la columna "Ubicacion".
+                # No usar "Equipo" aquí, porque el usuario quiere ver las máquinas.
+                maquinas_count = {}
+                if "Ubicacion" in df_asig.columns:
+                    for maquina in df_asig["Ubicacion"].fillna("").astype(str):
+                        maquina = maquina.strip()
+                        if maquina:
+                            maquinas_count[maquina] = maquinas_count.get(maquina, 0) + 1
 
-                datos_leyenda_equipos = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
+                datos_leyenda_maquinas = sorted(maquinas_count.items(), key=lambda x: x[1], reverse=True)
                 leyenda_items = []
                 colores_leyenda = [
                     "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
                     "#2196F3", "#00BCD4", "#009688", "#8BC34A",
                     "#FF9800", "#FF5722", "#795548", "#607D8B",
                 ]
-                for i, (nombre_eq, cantidad_eq) in enumerate(datos_leyenda_equipos):
-                    c_eq = colores_leyenda[i % len(colores_leyenda)]
+                for i, (nombre_maq, cantidad_maq) in enumerate(datos_leyenda_maquinas):
+                    c_maq = colores_leyenda[i % len(colores_leyenda)]
                     leyenda_items.append(
                         '<div style="display:flex; align-items:center; gap:5px; padding:4px 9px; '
                         'background:#F8FAFC; border-radius:7px; border:1px solid #E2E8F0;">'
                         '<div style="width:10px; height:10px; border-radius:3px; background:%s; flex-shrink:0;"></div>'
                         '<span style="font-size:9px; color:#0F172A; font-weight:600;">%s</span>'
                         '<span style="font-size:8px; color:#64748B;">(%s)</span></div>' %
-                        (c_eq, escapar(nombre_eq)[:28], cantidad_eq)
+                        (c_maq, escapar(nombre_maq)[:28], cantidad_maq)
                     )
-                leyenda_equipos_html = (
+                leyenda_maquinas_html = (
                     '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px; '
                     'margin-top:10px; padding-top:10px; border-top:1px solid #E2E8F0;">'
                     + ''.join(leyenda_items) + '</div>' if leyenda_items else ''
@@ -2121,7 +2122,7 @@ def pantalla_asignacion():
                 st.markdown(
                     '<div style="background:white; border-radius:16px; padding:10px 12px 12px 12px; '
                     'box-shadow:0 4px 12px rgba(0,0,0,0.08); border:1px solid #E2E8F0;">'
-                    + svg_torta + leyenda_equipos_html +
+                    + svg_torta + leyenda_maquinas_html +
                     '</div>',
                     unsafe_allow_html=True
                 )
