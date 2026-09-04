@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1448,7 +1449,18 @@ def pantalla_mis_ordenes():
 
         for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
             primera_fila = df_equipo.iloc[0]
-            ot_visible = limpiar(primera_fila.get("ID OT"), "SIN ID")
+
+            # Mostrar UNA sola OT por equipo.
+            # Buscamos la primera OT no vacía del grupo para evitar que
+            # aparezca "SIN ID" cuando la primera actividad no tenga OT.
+            ot_visible = "SIN ID"
+            if "ID OT" in df_equipo.columns:
+                for ot_valor in df_equipo["ID OT"].tolist():
+                    ot_tmp = limpiar(ot_valor, "").strip()
+                    if ot_tmp:
+                        ot_visible = ot_tmp
+                        break
+
             ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
             especialidad = limpiar(primera_fila.get("Especialidad"), "")
 
