@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -868,7 +869,7 @@ def pantalla_login():
     st.markdown(f"""
     <div style="
         text-align:left;
-        font-size:15px;
+        font-size:18px;
         font-weight:700;
         color:#475569;
         margin:8px 0 10px 15px;
