@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1825,7 +1824,6 @@ def pantalla_asignacion():
     # Equipo seleccionado desde la leyenda de la gráfica.
     # Al cambiar de máquina se limpia automáticamente más abajo.
     st.session_state.setdefault("equipo_grafica_seleccionado", "")
-    st.session_state.setdefault("maquina_grafica_seleccionada", "")
 
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
@@ -1840,9 +1838,8 @@ def pantalla_asignacion():
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                # Al cambiar de máquina, limpiar las selecciones hechas desde la gráfica.
+                # Al cambiar de máquina, quitar el equipo seleccionado anterior.
                 st.session_state.equipo_grafica_seleccionado = ""
-                st.session_state.maquina_grafica_seleccionada = ""
                 st.rerun()
 
     with col_der:
@@ -2058,37 +2055,24 @@ def pantalla_asignacion():
             else:
                 datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
 
-            # === LEYENDA CLICKEABLE ===
-            # Cuando estamos en "Todas" mostramos MÁQUINAS (Ubicacion).
-            # Cuando se selecciona una máquina mostramos sus EQUIPOS (Equipo).
-            # Al pulsar cualquiera de estos cuadros se filtra la lista de
-            # actividades de abajo sin modificar la asignación de técnicos.
-            if st.session_state.filtro_maquina == "Todas":
-                maquinas_count = {}
-                for _, row in df_asig.iterrows():
-                    maq = limpiar(row.get("Ubicacion"), "Sin máquina")
-                    maquinas_count[maq] = maquinas_count.get(maq, 0) + 1
-                maquinas_sorted = sorted(maquinas_count.items(), key=lambda x: x[1], reverse=True)
-                datos_leyenda = [{"nombre": k, "valor": v} for k, v in maquinas_sorted]
-                tipo_leyenda = "maquina"
-            else:
-                equipos_count = {}
-                for _, row in df_asig.iterrows():
-                    eq = limpiar(row.get("Equipo"), "Sin equipo")
-                    equipos_count[eq] = equipos_count.get(eq, 0) + 1
-                equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
-                datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted]
-                tipo_leyenda = "equipo"
+            # === LEYENDA: Agrupar por EQUIPO ===
+            # IMPORTANTE: Ubicacion = MÁQUINA / área
+            #              Equipo = EQUIPO real asociado a la actividad
+            equipos_count = {}
+            for _, row in df_asig.iterrows():
+                eq = limpiar(row.get("Equipo"), "Sin equipo")
+                equipos_count[eq] = equipos_count.get(eq, 0) + 1
+            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
+            datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted[:10]]
 
             if datos_torta:
                 svg_torta = _render_torta_3d_equipos(datos_torta)
 
                 # ============================================================
-                # LEYENDA CLICKEABLE POR MÁQUINA / EQUIPO
-                # - "Todas" => los cuadros representan MÁQUINAS.
-                # - Máquina seleccionada => los cuadros representan EQUIPOS.
-                # Cada cuadro es un botón real de Streamlit y filtra las
-                # actividades que aparecen debajo.
+                # LEYENDA CLICKEABLE POR EQUIPO
+                # Cada cuadro de equipo es un botón real de Streamlit.
+                # Al pulsarlo, la lista de actividades de abajo se filtra
+                # únicamente a ese equipo.
                 # ============================================================
                 st.markdown(
                     '<div style="background:white; border-radius:16px; padding:16px; '
@@ -2098,71 +2082,49 @@ def pantalla_asignacion():
                     unsafe_allow_html=True
                 )
 
-                if tipo_leyenda == "maquina":
-                    seleccion_actual = st.session_state.get("maquina_grafica_seleccionada", "")
-                    titulo_leyenda = "📍 Máquinas — haz clic en una para ver sus actividades"
-                    texto_todos = "📋 Todas las máquinas"
-                    key_todos = "btn_todas_maquinas_grafica"
-                    key_item = "btn_maquina_grafica"
-                else:
-                    seleccion_actual = st.session_state.get("equipo_grafica_seleccionado", "")
-                    titulo_leyenda = "⚙️ Equipos — haz clic en uno para ver sus actividades"
-                    texto_todos = "📋 Todos los equipos"
-                    key_todos = "btn_todos_equipos_grafica"
-                    key_item = "btn_equipo_grafica"
-
+                equipo_sel_actual = st.session_state.get("equipo_grafica_seleccionado", "")
                 st.markdown(
                     '<div style="margin-top:8px; padding:10px 12px; background:#FFFFFF; '
                     'border:1px solid #E2E8F0; border-radius:10px;">'
-                    f'<div style="font-size:12px; font-weight:800; color:#0F172A; margin-bottom:8px;">{titulo_leyenda}</div>',
+                    '<div style="font-size:12px; font-weight:800; color:#0F172A; margin-bottom:8px;">'
+                    '⚙️ Equipos — haz clic en uno para ver sus actividades'
+                    '</div>',
                     unsafe_allow_html=True
                 )
 
+                # Botón para volver a mostrar todos los equipos.
                 if st.button(
-                    texto_todos,
-                    key=gen_key(key_todos),
-                    type="primary" if not seleccion_actual else "secondary",
+                    "📋 Todos los equipos",
+                    key=gen_key("btn_todos_equipos_grafica"),
+                    type="primary" if not equipo_sel_actual else "secondary",
                     use_container_width=False
                 ):
-                    st.session_state.maquina_grafica_seleccionada = ""
                     st.session_state.equipo_grafica_seleccionado = ""
                     st.rerun()
 
+                # Mostrar un botón por cada equipo encontrado en la máquina/filtro actual.
                 cols_eq = st.columns(3)
                 for i, d_eq in enumerate(datos_leyenda):
-                    nombre_item = limpiar(d_eq.get("nombre"), "Sin equipo")
-                    valor_item = d_eq.get("valor", 0)
-                    activo_item = seleccion_actual.strip().casefold() == nombre_item.strip().casefold()
+                    nombre_eq = limpiar(d_eq.get("nombre"), "Sin equipo")
+                    valor_eq = d_eq.get("valor", 0)
+                    activo_eq = equipo_sel_actual.strip().casefold() == nombre_eq.strip().casefold()
                     with cols_eq[i % 3]:
                         if st.button(
-                            f"{'📍' if tipo_leyenda == 'maquina' else '⚙️'} {nombre_item}  ({valor_item})",
-                            key=gen_key(key_item, nombre_item),
-                            type="primary" if activo_item else "secondary",
+                            f"⚙️ {nombre_eq}  ({valor_eq})",
+                            key=gen_key("btn_equipo_grafica", nombre_eq),
+                            type="primary" if activo_eq else "secondary",
                             use_container_width=True
                         ):
-                            if tipo_leyenda == "maquina":
-                                st.session_state.maquina_grafica_seleccionada = nombre_item
-                                st.session_state.equipo_grafica_seleccionado = ""
-                            else:
-                                st.session_state.equipo_grafica_seleccionado = nombre_item
+                            st.session_state.equipo_grafica_seleccionado = nombre_eq
                             st.rerun()
 
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
                 st.info("📭 Sin datos para la gráfica.")
 
-        # Si se seleccionó una MÁQUINA desde la leyenda cuando estamos en
-        # "Todas", filtrar la lista de actividades a esa máquina.
-        maquina_sel_grafica = limpiar(st.session_state.get("maquina_grafica_seleccionada", ""), "")
-        if maquina_sel_grafica and st.session_state.filtro_maquina == "Todas" and "Ubicacion" in df_asig.columns:
-            maq_norm = (
-                df_asig["Ubicacion"].fillna("").astype(str)
-                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
-            )
-            df_asig = df_asig[maq_norm == maquina_sel_grafica.strip().casefold()].copy()
-
-        # Si se seleccionó un EQUIPO desde la leyenda, filtrar la lista de
-        # actividades a ese equipo dentro de la máquina seleccionada.
+        # Si se seleccionó un equipo desde la leyenda, filtrar SOLO la lista
+        # de actividades de abajo. La gráfica se mantiene basada en la máquina
+        # completa para que el usuario pueda seguir viendo todos los equipos.
         equipo_sel_actual = limpiar(st.session_state.get("equipo_grafica_seleccionado", ""), "")
         if equipo_sel_actual and "Equipo" in df_asig.columns:
             eq_norm = (
