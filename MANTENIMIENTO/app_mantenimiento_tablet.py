@@ -2022,10 +2022,12 @@ def pantalla_asignacion():
             # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
             tecnicos_count = {}
             for _, row in df_asig.iterrows():
-                t1 = limpiar(row.get("Tecnico_Asignado"), "")
-                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
+                t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
+                t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
+
                 if t1:
                     tecnicos_count[t1] = tecnicos_count.get(t1, 0) + 1
+
                 if t2 and t2 != t1:
                     tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
 
