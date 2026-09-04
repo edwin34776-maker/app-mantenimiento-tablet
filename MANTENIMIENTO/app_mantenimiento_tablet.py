@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1866,344 +1867,243 @@ def pantalla_asignacion():
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
-    col_izq, col_der = st.columns([1, 3])
 
-    with col_izq:
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        for maq in obtener_maquinas_disponibles(df_asig_base):
-            activo = st.session_state.filtro_maquina == maq
-            if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
-                st.session_state.filtro_maquina = maq
-                # Al cambiar de máquina, limpiar las selecciones hechas desde la gráfica.
-                st.session_state.equipo_grafica_seleccionado = ""
-                st.session_state.maquina_grafica_seleccionada = ""
-                st.rerun()
+    # ============================================================
+    # GRÁFICA COMO EN LA VERSIÓN ORIGINAL:
+    # - Sin filtro lateral de máquinas.
+    # - Torta 3D por TÉCNICO ASIGNADO.
+    # - Leyenda inferior con las MÁQUINAS.
+    # - La leyenda es solamente informativa, NO filtra la lista.
+    # ============================================================
+    df_asig = aplicar_filtros_globales(df, maquina=None).copy()
 
-    with col_der:
-        st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
-        maq_sel = st.session_state.filtro_maquina
-        st.markdown(f"""
-        <div style="margin-bottom: 12px;">
-            <div style="font-size: 16px; font-weight: 700; color: #0F172A;">{maq_sel if maq_sel != "Todas" else "Todas las máquinas"}</div>
-            <div style="font-size: 13px; color: #64748B;">{len(df_asig)} actividades encontradas</div>
-        </div>""", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:14px; font-weight:700; color:#0F172A; "
+        "margin:18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>",
+        unsafe_allow_html=True
+    )
 
+# ========== GRÁFICA: TORTA 3D POR EQUIPO + LEYENDA POR TÉCNICO ==========
+def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Equipo"):
+    import math
+    if not datos_equipos:
+        return ""
+    total = sum(d["valor"] for d in datos_equipos)
+    if total == 0:
+        return ""
 
+    colores = [
+        "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
+        "#2196F3", "#00BCD4", "#009688", "#8BC34A",
+        "#FF9800", "#FF5722", "#795548", "#607D8B",
+    ]
+    colores_dark = [
+        "#AD1457", "#6A1B9A", "#4527A0", "#283593",
+        "#1565C0", "#00838F", "#00695C", "#558B2F",
+        "#E65100", "#BF360C", "#3E2723", "#37474F",
+    ]
 
+    cx, cy = 350, 230
+    rx, ry = 125, 68
+    extrusion = 26
+    explode = 12
 
+    def pol2cart(cx, cy, rx, ry, ang_deg):
+        rad = math.radians(ang_deg)
+        return cx + rx * math.cos(rad), cy + ry * math.sin(rad)
 
+    def en_mitad_inferior(ang):
+        a = ang % 360
+        if a < 0: a += 360
+        return 0 <= a <= 180
 
+    slices_data = []
+    start_angle = -90
+    for i, d in enumerate(datos_equipos):
+        pct = round(d["valor"] / total * 100, 1)
+        sweep = (d["valor"] / total) * 360
+        end_angle = start_angle + sweep
+        mid_angle = start_angle + sweep / 2
 
-        # ========== GRÁFICA: TORTA 3D POR EQUIPO + LEYENDA POR TÉCNICO ==========
-        def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Equipo"):
-            import math
-            if not datos_equipos:
-                return ""
-            total = sum(d["valor"] for d in datos_equipos)
-            if total == 0:
-                return ""
+        off_rad = math.radians(mid_angle)
+        off_x = explode * math.cos(off_rad)
+        off_y = explode * math.sin(off_rad)
 
-            colores = [
-                "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
-                "#2196F3", "#00BCD4", "#009688", "#8BC34A",
-                "#FF9800", "#FF5722", "#795548", "#607D8B",
-            ]
-            colores_dark = [
-                "#AD1457", "#6A1B9A", "#4527A0", "#283593",
-                "#1565C0", "#00838F", "#00695C", "#558B2F",
-                "#E65100", "#BF360C", "#3E2723", "#37474F",
-            ]
+        slices_data.append({
+            "i": i, "nombre": d["nombre"], "valor": d["valor"],
+            "pct": pct, "start": start_angle, "end": end_angle,
+            "mid": mid_angle, "sweep": sweep,
+            "off_x": off_x, "off_y": off_y,
+            "color": colores[i % len(colores)],
+            "color_dark": colores_dark[i % len(colores_dark)]
+        })
+        start_angle = end_angle
 
-            cx, cy = 350, 230
-            rx, ry = 125, 68
-            extrusion = 26
-            explode = 12
+    svg_parts = []
+    callouts = []
 
-            def pol2cart(cx, cy, rx, ry, ang_deg):
-                rad = math.radians(ang_deg)
-                return cx + rx * math.cos(rad), cy + ry * math.sin(rad)
+    for s in slices_data:
+        i = s["i"]
+        ox, oy = s["off_x"], s["off_y"]
+        c = s["color"]
+        cd = s["color_dark"]
+        sa, ea, ma = s["start"], s["end"], s["mid"]
+        sw = s["sweep"]
 
-            def en_mitad_inferior(ang):
-                a = ang % 360
-                if a < 0: a += 360
-                return 0 <= a <= 180
+        x1, y1 = pol2cart(cx + ox, cy + oy, rx, ry, sa)
+        x2, y2 = pol2cart(cx + ox, cy + oy, rx, ry, ea)
+        large_arc = 1 if sw > 180 else 0
 
-            slices_data = []
-            start_angle = -90
-            for i, d in enumerate(datos_equipos):
-                pct = round(d["valor"] / total * 100, 1)
-                sweep = (d["valor"] / total) * 360
-                end_angle = start_angle + sweep
-                mid_angle = start_angle + sweep / 2
+        if sw < 360:
+            path_inf = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
+                int(cx + ox), int(cy + oy + extrusion),
+                x1, y1 + extrusion, rx, ry, large_arc, x2, y2 + extrusion)
+            svg_parts.append('<path d="%s" fill="%s" opacity="0.30"/>' % (path_inf, cd))
 
-                off_rad = math.radians(mid_angle)
-                off_x = explode * math.cos(off_rad)
-                off_y = explode * math.sin(off_rad)
+        if en_mitad_inferior(sa):
+            svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.55"/>' % (
+                x1, y1, x1, y1 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
 
-                slices_data.append({
-                    "i": i, "nombre": d["nombre"], "valor": d["valor"],
-                    "pct": pct, "start": start_angle, "end": end_angle,
-                    "mid": mid_angle, "sweep": sweep,
-                    "off_x": off_x, "off_y": off_y,
-                    "color": colores[i % len(colores)],
-                    "color_dark": colores_dark[i % len(colores_dark)]
-                })
-                start_angle = end_angle
+        if en_mitad_inferior(ea):
+            svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.55"/>' % (
+                x2, y2, x2, y2 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
 
-            svg_parts = []
-            callouts = []
+        if sw < 360:
+            as_i = sa if sa > 0 else 0
+            as_e = ea if ea < 180 else 180
+            if sa < 0 and ea > 0: as_i = 0
+            if sa < 180 and ea > 180: as_e = 180
+            if as_i < as_e:
+                ix1, iy1 = pol2cart(cx + ox, cy + oy, rx, ry, as_i)
+                ix2, iy2 = pol2cart(cx + ox, cy + oy, rx, ry, as_e)
+                large_arc_inf = 1 if (as_e - as_i) > 180 else 0
+                svg_parts.append('<path d="M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f L %.1f %.1f A %d %d 0 %d 0 %.1f %.1f Z" fill="%s" opacity="0.40"/>' % (
+                    ix1, iy1, rx, ry, large_arc_inf, ix2, iy2, ix2, iy2 + extrusion, rx, ry, large_arc_inf, ix1, iy1 + extrusion, cd))
 
-            for s in slices_data:
-                i = s["i"]
-                ox, oy = s["off_x"], s["off_y"]
-                c = s["color"]
-                cd = s["color_dark"]
-                sa, ea, ma = s["start"], s["end"], s["mid"]
-                sw = s["sweep"]
+        if sw >= 360:
+            svg_parts.append('<ellipse cx="%d" cy="%d" rx="%d" ry="%d" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (
+                int(cx + ox), int(cy + oy), rx, ry, c))
+        else:
+            path_top = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
+                int(cx + ox), int(cy + oy), x1, y1, rx, ry, large_arc, x2, y2)
+            svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, c))
 
-                x1, y1 = pol2cart(cx + ox, cy + oy, rx, ry, sa)
-                x2, y2 = pol2cart(cx + ox, cy + oy, rx, ry, ea)
-                large_arc = 1 if sw > 180 else 0
+        # === CALLOUT MEJORADO ===
+        mx, my = pol2cart(cx + ox, cy + oy, rx + 10, ry + 6, ma)
 
-                if sw < 360:
-                    path_inf = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
-                        int(cx + ox), int(cy + oy + extrusion),
-                        x1, y1 + extrusion, rx, ry, large_arc, x2, y2 + extrusion)
-                    svg_parts.append('<path d="%s" fill="%s" opacity="0.30"/>' % (path_inf, cd))
+        box_w = 140
+        box_h = 44
+        line_len = 32
 
-                if en_mitad_inferior(sa):
-                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.55"/>' % (
-                        x1, y1, x1, y1 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
+        if ma >= -90 and ma <= 90:
+            box_x = mx + line_len
+            line_x2 = box_x - 5
+            if box_x + box_w > 690:
+                box_x = 690 - box_w
+                line_x2 = box_x - 5
+        else:
+            box_x = mx - line_len - box_w
+            line_x2 = box_x + box_w + 5
+            if box_x < 10:
+                box_x = 10
+                line_x2 = box_x + box_w + 5
 
-                if en_mitad_inferior(ea):
-                    svg_parts.append('<path d="M %.1f %.1f L %.1f %.1f L %d %d L %d %d Z" fill="%s" opacity="0.55"/>' % (
-                        x2, y2, x2, y2 + extrusion, int(cx + ox), int(cy + oy + extrusion), int(cx + ox), int(cy + oy), cd))
+        box_y = my - box_h / 2
+        if box_y < 10: box_y = 10
+        if box_y > 350: box_y = 350
 
-                if sw < 360:
-                    as_i = sa if sa > 0 else 0
-                    as_e = ea if ea < 180 else 180
-                    if sa < 0 and ea > 0: as_i = 0
-                    if sa < 180 and ea > 180: as_e = 180
-                    if as_i < as_e:
-                        ix1, iy1 = pol2cart(cx + ox, cy + oy, rx, ry, as_i)
-                        ix2, iy2 = pol2cart(cx + ox, cy + oy, rx, ry, as_e)
-                        large_arc_inf = 1 if (as_e - as_i) > 180 else 0
-                        svg_parts.append('<path d="M %.1f %.1f A %d %d 0 %d 1 %.1f %.1f L %.1f %.1f A %d %d 0 %d 0 %.1f %.1f Z" fill="%s" opacity="0.40"/>' % (
-                            ix1, iy1, rx, ry, large_arc_inf, ix2, iy2, ix2, iy2 + extrusion, rx, ry, large_arc_inf, ix1, iy1 + extrusion, cd))
+        mid_y = box_y + box_h / 2
 
-                if sw >= 360:
-                    svg_parts.append('<ellipse cx="%d" cy="%d" rx="%d" ry="%d" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (
-                        int(cx + ox), int(cy + oy), rx, ry, c))
-                else:
-                    path_top = 'M %d %d L %.1f %.1f A %d %d 0 %d 1 %.1f %.1f Z' % (
-                        int(cx + ox), int(cy + oy), x1, y1, rx, ry, large_arc, x2, y2)
-                    svg_parts.append('<path d="%s" fill="%s" stroke="#FFFFFF" stroke-width="2"/>' % (path_top, c))
+        callouts.append('<circle cx="%.1f" cy="%.1f" r="3.5" fill="%s"/>' % (mx, my, c))
+        callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (mx, my, line_x2, my, c))
+        callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
+        callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
 
-                # === CALLOUT MEJORADO ===
-                mx, my = pol2cart(cx + ox, cy + oy, rx + 10, ry + 6, ma)
+        nombre_corto = s["nombre"][:20]
+        callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 16, nombre_corto))
+        callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="15" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 34, c, s["pct"]))
 
-                box_w = 140
-                box_h = 44
-                line_len = 32
+    svg_content = '\n'.join(svg_parts + callouts)
+    svg = '<svg width="100%%" height="400" viewBox="0 0 700 400" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="400" fill="transparent"/>%s</svg>' % svg_content
+    return svg
 
-                if ma >= -90 and ma <= 90:
-                    box_x = mx + line_len
-                    line_x2 = box_x - 5
-                    if box_x + box_w > 690:
-                        box_x = 690 - box_w
-                        line_x2 = box_x - 5
-                else:
-                    box_x = mx - line_len - box_w
-                    line_x2 = box_x + box_w + 5
-                    if box_x < 10:
-                        box_x = 10
-                        line_x2 = box_x + box_w + 5
+def _render_leyenda_tecnicos(datos_tecnicos):
+    if not datos_tecnicos:
+        return ""
+    items = []
+    colores = [
+        "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
+        "#2196F3", "#00BCD4", "#009688", "#8BC34A",
+        "#FF9800", "#FF5722", "#795548", "#607D8B",
+    ]
+    for i, d in enumerate(datos_tecnicos):
+        c = colores[i % len(colores)]
+        items.append(
+            '<div style="display:flex; align-items:center; gap:6px; padding:5px 12px; background:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0;">'
+            '<div style="width:14px; height:14px; border-radius:4px; background:%s; flex-shrink:0;"></div>'
+            '<span style="font-size:12px; color:#0F172A; font-weight:600;">%s</span>'
+            '<span style="font-size:11px; color:#64748B;">(%s)</span></div>' % (c, d["nombre"], d["valor"])
+        )
+    return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
-                box_y = my - box_h / 2
-                if box_y < 10: box_y = 10
-                if box_y > 350: box_y = 350
+    if not df_asig.empty:
+        # Torta por técnico asignado
+        tecnicos_count = {}
+        for _, row in df_asig.iterrows():
+            t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
+            t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
 
-                mid_y = box_y + box_h / 2
+            if t1:
+                tecnicos_count[t1] = tecnicos_count.get(t1, 0) + 1
+            if t2 and t2 != t1:
+                tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
 
-                callouts.append('<circle cx="%.1f" cy="%.1f" r="3.5" fill="%s"/>' % (mx, my, c))
-                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (mx, my, line_x2, my, c))
-                callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
-                callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
+        sin_asignar = 0
+        for _, row in df_asig.iterrows():
+            t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
+            t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
+            if not t1 and not t2:
+                sin_asignar += 1
+        if sin_asignar:
+            tecnicos_count["Sin asignar"] = sin_asignar
 
-                nombre_corto = s["nombre"][:20]
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 16, nombre_corto))
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="15" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 34, c, s["pct"]))
+        tecnicos_sorted = sorted(tecnicos_count.items(), key=lambda x: x[1], reverse=True)
 
-            svg_content = '\n'.join(svg_parts + callouts)
-            svg = '<svg width="100%%" height="400" viewBox="0 0 700 400" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="400" fill="transparent"/>%s</svg>' % svg_content
-            return svg
+        if len(tecnicos_sorted) > 8:
+            top = tecnicos_sorted[:7]
+            otros_val = sum(v for _, v in tecnicos_sorted[7:])
+            datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in top]
+            if otros_val:
+                datos_torta.append({"nombre": "Otros", "valor": otros_val})
+        else:
+            datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
 
-        def _render_leyenda_tecnicos(datos_tecnicos):
-            if not datos_tecnicos:
-                return ""
-            items = []
-            colores = [
-                "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
-                "#2196F3", "#00BCD4", "#009688", "#8BC34A",
-                "#FF9800", "#FF5722", "#795548", "#607D8B",
-            ]
-            for i, d in enumerate(datos_tecnicos):
-                c = colores[i % len(colores)]
-                items.append(
-                    '<div style="display:flex; align-items:center; gap:6px; padding:5px 12px; background:#F8FAFC; border-radius:8px; border:1px solid #E2E8F0;">'
-                    '<div style="width:14px; height:14px; border-radius:4px; background:%s; flex-shrink:0;"></div>'
-                    '<span style="font-size:12px; color:#0F172A; font-weight:600;">%s</span>'
-                    '<span style="font-size:11px; color:#64748B;">(%s)</span></div>' % (c, d["nombre"], d["valor"])
-                )
-            return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
-
-        if not df_asig.empty:
-            st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
-
-            # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
-            tecnicos_count = {}
+        maquinas_count = {}
+        if "Ubicacion" in df_asig.columns:
             for _, row in df_asig.iterrows():
-                t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
-                t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
+                maq = limpiar(row.get("Ubicacion"), "Sin máquina")
+                maquinas_count[maq] = maquinas_count.get(maq, 0) + 1
 
-                if t1:
-                    tecnicos_count[t1] = tecnicos_count.get(t1, 0) + 1
+        maquinas_sorted = sorted(maquinas_count.items(), key=lambda x: x[1], reverse=True)
+        datos_leyenda = [{"nombre": k, "valor": v} for k, v in maquinas_sorted]
 
-                if t2 and t2 != t1:
-                    tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
-
-            # Agregar "Sin asignar" si hay actividades sin técnico
-            sin_asignar = 0
-            for _, row in df_asig.iterrows():
-                t1 = limpiar(row.get("Tecnico_Asignado"), "")
-                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
-                if not t1 and not t2:
-                    sin_asignar += 1
-            if sin_asignar > 0:
-                tecnicos_count["Sin asignar"] = sin_asignar
-
-            tecnicos_sorted = sorted(tecnicos_count.items(), key=lambda x: x[1], reverse=True)
-            if len(tecnicos_sorted) > 8:
-                top = tecnicos_sorted[:7]
-                otros_val = sum(v for _, v in tecnicos_sorted[7:])
-                datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in top]
-                if otros_val > 0:
-                    datos_torta.append({"nombre": "Otros", "valor": otros_val})
-            else:
-                datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
-
-            # === LEYENDA CLICKEABLE ===
-            # Cuando estamos en "Todas" mostramos MÁQUINAS (Ubicacion).
-            # Cuando se selecciona una máquina mostramos sus EQUIPOS (Equipo).
-            # Al pulsar cualquiera de estos cuadros se filtra la lista de
-            # actividades de abajo sin modificar la asignación de técnicos.
-            if st.session_state.filtro_maquina == "Todas":
-                maquinas_count = {}
-                for _, row in df_asig.iterrows():
-                    maq = limpiar(row.get("Ubicacion"), "Sin máquina")
-                    maquinas_count[maq] = maquinas_count.get(maq, 0) + 1
-                maquinas_sorted = sorted(maquinas_count.items(), key=lambda x: x[1], reverse=True)
-                datos_leyenda = [{"nombre": k, "valor": v} for k, v in maquinas_sorted]
-                tipo_leyenda = "maquina"
-            else:
-                equipos_count = {}
-                for _, row in df_asig.iterrows():
-                    eq = limpiar(row.get("Equipo"), "Sin equipo")
-                    equipos_count[eq] = equipos_count.get(eq, 0) + 1
-                equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
-                datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted]
-                tipo_leyenda = "equipo"
-
-            if datos_torta:
-                svg_torta = _render_torta_3d_equipos(datos_torta)
-
-                # ============================================================
-                # LEYENDA CLICKEABLE POR MÁQUINA / EQUIPO
-                # - "Todas" => los cuadros representan MÁQUINAS.
-                # - Máquina seleccionada => los cuadros representan EQUIPOS.
-                # Cada cuadro es un botón real de Streamlit y filtra las
-                # actividades que aparecen debajo.
-                # ============================================================
-                st.markdown(
-                    '<div style="background:white; border-radius:16px; padding:16px; '
-                    'box-shadow:0 4px 12px rgba(0,0,0,0.08); border:1px solid #E2E8F0;">'
-                    + svg_torta +
-                    '</div>',
-                    unsafe_allow_html=True
-                )
-
-                if tipo_leyenda == "maquina":
-                    seleccion_actual = st.session_state.get("maquina_grafica_seleccionada", "")
-                    titulo_leyenda = "📍 Máquinas — haz clic en una para ver sus actividades"
-                    texto_todos = "📋 Todas las máquinas"
-                    key_todos = "btn_todas_maquinas_grafica"
-                    key_item = "btn_maquina_grafica"
-                else:
-                    seleccion_actual = st.session_state.get("equipo_grafica_seleccionado", "")
-                    titulo_leyenda = "⚙️ Equipos — haz clic en uno para ver sus actividades"
-                    texto_todos = "📋 Todos los equipos"
-                    key_todos = "btn_todos_equipos_grafica"
-                    key_item = "btn_equipo_grafica"
-
-                st.markdown(
-                    '<div style="margin-top:8px; padding:10px 12px; background:#FFFFFF; '
-                    'border:1px solid #E2E8F0; border-radius:10px;">'
-                    f'<div style="font-size:12px; font-weight:800; color:#0F172A; margin-bottom:8px;">{titulo_leyenda}</div>',
-                    unsafe_allow_html=True
-                )
-
-                if st.button(
-                    texto_todos,
-                    key=gen_key(key_todos),
-                    type="primary" if not seleccion_actual else "secondary",
-                    use_container_width=False
-                ):
-                    st.session_state.maquina_grafica_seleccionada = ""
-                    st.session_state.equipo_grafica_seleccionado = ""
-                    st.rerun()
-
-                cols_eq = st.columns(3)
-                for i, d_eq in enumerate(datos_leyenda):
-                    nombre_item = limpiar(d_eq.get("nombre"), "Sin equipo")
-                    valor_item = d_eq.get("valor", 0)
-                    activo_item = seleccion_actual.strip().casefold() == nombre_item.strip().casefold()
-                    with cols_eq[i % 3]:
-                        if st.button(
-                            f"{'📍' if tipo_leyenda == 'maquina' else '⚙️'} {nombre_item}  ({valor_item})",
-                            key=gen_key(key_item, nombre_item),
-                            type="primary" if activo_item else "secondary",
-                            use_container_width=True
-                        ):
-                            if tipo_leyenda == "maquina":
-                                st.session_state.maquina_grafica_seleccionada = nombre_item
-                                st.session_state.equipo_grafica_seleccionado = ""
-                            else:
-                                st.session_state.equipo_grafica_seleccionado = nombre_item
-                            st.rerun()
-
-                st.markdown('</div>', unsafe_allow_html=True)
-            else:
-                st.info("📭 Sin datos para la gráfica.")
-
-        # Si se seleccionó una MÁQUINA desde la leyenda cuando estamos en
-        # "Todas", filtrar la lista de actividades a esa máquina.
-        maquina_sel_grafica = limpiar(st.session_state.get("maquina_grafica_seleccionada", ""), "")
-        if maquina_sel_grafica and st.session_state.filtro_maquina == "Todas" and "Ubicacion" in df_asig.columns:
-            maq_norm = (
-                df_asig["Ubicacion"].fillna("").astype(str)
-                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
+        if datos_torta:
+            svg_torta = _render_torta_3d_equipos(datos_torta)
+            html_grafica = (
+                '<div style="background:white; border-radius:10px; padding:10px; '
+                'box-shadow:0 2px 8px rgba(0,0,0,0.08); '
+                'border:1px solid #E2E8F0;">'
+                + svg_torta
+                + _render_leyenda_tecnicos(datos_leyenda)
+                + '</div>'
             )
-            df_asig = df_asig[maq_norm == maquina_sel_grafica.strip().casefold()].copy()
+            st.markdown(html_grafica, unsafe_allow_html=True)
+    else:
+        st.info("📭 Sin datos para la gráfica.")
 
-        # Si se seleccionó un EQUIPO desde la leyenda, filtrar la lista de
-        # actividades a ese equipo dentro de la máquina seleccionada.
-        equipo_sel_actual = limpiar(st.session_state.get("equipo_grafica_seleccionado", ""), "")
-        if equipo_sel_actual and "Equipo" in df_asig.columns:
-            eq_norm = (
-                df_asig["Equipo"].fillna("").astype(str)
-                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
-            )
-            df_asig = df_asig[eq_norm == equipo_sel_actual.strip().casefold()].copy()
+    # ============================================================
+    # LISTA DE ACTIVIDADES
+    # ============================================================
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         sel_key = gen_key("seleccion_asig")
