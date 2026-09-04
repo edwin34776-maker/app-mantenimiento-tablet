@@ -1,5 +1,7 @@
 
+
 import streamlit as st
+
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -2198,8 +2200,8 @@ def pantalla_asignacion():
             st.stop()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        if equipo_sel_actual:
-            st.success(f"⚙️ {equipo_sel_actual} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
+        if maq_sel and maq_sel != "Todas":
+            st.success(f"⚙️ {maq_sel} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
         else:
             st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
