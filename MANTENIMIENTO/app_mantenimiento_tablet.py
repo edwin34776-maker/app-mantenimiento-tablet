@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -910,9 +912,19 @@ def pantalla_login():
                     st.info(f"📭 Sin datos {esp_label}")
                     continue
 
-                pend = len(df_esp[df_esp["Estado"] == "Pendiente"]) if "Estado" in df_esp.columns else 0
-                ejec = len(df_esp[df_esp["Estado"] == "Ejecutado"]) if "Estado" in df_esp.columns else 0
-                verif = len(df_esp[df_esp["Estado"] == "Verificado"]) if "Estado" in df_esp.columns else 0
+                # Normalizar estados para que el dashboard refleje también
+                # registros que vienen vacíos/NULL desde Supabase.
+                # En la pantalla del técnico esos registros se consideran pendientes.
+                if "Estado" in df_esp.columns:
+                    estados = df_esp["Estado"].fillna("").astype(str).str.strip()
+                    pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
+                    ejec = int((estados == "Ejecutado").sum())
+                    verif = int((estados == "Verificado").sum())
+                else:
+                    pend = total_esp
+                    ejec = 0
+                    verif = 0
+
                 pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
 
                 st.markdown(f"""
