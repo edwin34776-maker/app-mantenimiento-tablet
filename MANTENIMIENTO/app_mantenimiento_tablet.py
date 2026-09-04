@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1437,16 +1436,15 @@ def pantalla_mis_ordenes():
             ">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
                     <div>
-                        <div style="font-size:17px; font-weight:900; line-height:1.3;">
+                        <div style="font-size:15px; font-weight:800;">
                             🔧 {escapar(equipo)}
                         </div>
-                        <div style="margin-top:7px;">
-                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:6px 14px; border-radius:8px; font-size:16px; font-weight:900; letter-spacing:.3px;">
+                        <div style="margin-top:6px; margin-bottom:5px;">
+                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
                                 📋 OT {escapar(ot_visible)}
                             </span>
                         </div>
-                        <div style="font-size:11px; opacity:.95; margin-top:6px;">
-                            👤 {escapar(tecnico_bloque)} · {total_act} actividades
+                        <div style="font-size:11px; opacity:.95;">
                             {(' · ' + escapar(especialidad)) if especialidad else ''}
                             {(' · ' + escapar(ubicacion)) if ubicacion else ''}
                         </div>
