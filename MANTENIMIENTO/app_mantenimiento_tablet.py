@@ -1,4 +1,3 @@
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -2015,7 +2014,7 @@ def pantalla_asignacion():
                 )
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
-        if not df_asig.empty and st.session_state.filtro_maquina == "Todas" and len(df_asig["Ubicacion"].dropna().unique()) > 1:
+        if not df_asig.empty:
             st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
 
             # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
@@ -2051,9 +2050,11 @@ def pantalla_asignacion():
                 datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
 
             # === LEYENDA: Agrupar por EQUIPO ===
+            # IMPORTANTE: Ubicacion = MÁQUINA / área
+            #              Equipo = EQUIPO real asociado a la actividad
             equipos_count = {}
             for _, row in df_asig.iterrows():
-                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
+                eq = limpiar(row.get("Equipo"), "Sin equipo")
                 equipos_count[eq] = equipos_count.get(eq, 0) + 1
             equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
             datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted[:10]]
