@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1211,6 +1209,17 @@ def _home_tecnico(df):
                 continue
 
             total_act = len(grupo_eq_df)
+
+            # OT visible: mostrar UNA sola OT representativa por equipo.
+            # Las actividades siguen conservando su OT individual internamente.
+            ot_visible = "SIN OT"
+            if "ID OT" in grupo_eq_df.columns:
+                for ot_val in grupo_eq_df["ID OT"].tolist():
+                    ot_tmp = limpiar(ot_val, "")
+                    if ot_tmp:
+                        ot_visible = ot_tmp
+                        break
+
             tecnico_bloque = grupo_eq_df["Tecnico_Asignado"].mode()
             tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
@@ -1234,6 +1243,11 @@ def _home_tecnico(df):
                 <div class="eq-bloque-header" style="padding: 10px 14px;">
                     <div style="flex:1; min-width:0;">
                         <div class="eq-bloque-titulo">🔧 {equipo_limpio}</div>
+                        <div style="margin-top:5px; margin-bottom:4px;">
+                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:4px 11px; border-radius:7px; font-size:12px; font-weight:900; letter-spacing:0.2px;">
+                                📋 OT {ot_visible}
+                            </span>
+                        </div>
                         <div class="eq-bloque-meta">
                             👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_bd} realizadas
                         </div>
