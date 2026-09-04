@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -592,20 +593,6 @@ def obtener_maquinas_disponibles(df):
     except Exception:
         return ["Todas"]
 
-def obtener_equipos_disponibles(df):
-    """Devuelve los equipos disponibles respetando la máquina seleccionada."""
-    if df.empty or "Equipo" not in df.columns:
-        return ["Todos"]
-    try:
-        equipos = [
-            str(e).strip()
-            for e in df["Equipo"].dropna().unique().tolist()
-            if str(e).strip()
-        ]
-        return ["Todos"] + sorted(equipos, key=str.upper)
-    except Exception:
-        return ["Todos"]
-
 def calcular_duracion(hora_inicio, hora_fin):
     try:
         if not hora_inicio or not hora_fin:
@@ -802,7 +789,7 @@ def buscar_en_df(df, busqueda, columnas):
 # ==================== SESSION STATE ====================
 for k, v in {
     "perfil": None, "pagina": "login", "orden_seleccionada": None,
-    "filtro_especialidad": "Todas", "filtro_maquina": "Todas", "filtro_equipo": "Todos",
+    "filtro_especialidad": "Todas", "filtro_maquina": "Todas",
     "filtro_esp_asig": "Todas", "filtro_maq_asig": "Todas", "filtro_estado_asig": "Todos",
     "busqueda": "", "mostrar_envio_correo": False,
     "filtro_maquina_nodo": "Todas", "filtro_subsistema_nodo": "Todos",
@@ -1836,47 +1823,19 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
-    # IMPORTANTE: para el selector de MÁQUINA usamos la base completa.
-    # No usamos aplicar_filtros_globales aquí porque puede heredar filtros
-    # de otra pantalla (especialidad/nodo) y hacer desaparecer máquinas.
-    # En la base: Ubicacion = MÁQUINA y Equipo = EQUIPO.
-    df_asig_base = df.copy()
+    df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
-
-    # 1) Primero se filtra por MÁQUINA (Ubicacion)
-    maquina_sel = st.session_state.filtro_maquina
-    if maquina_sel != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"].astype(str).str.strip() == str(maquina_sel).strip()]
-
-    # 2) Luego se filtra por EQUIPO, dentro de la máquina seleccionada
-    # La lista de equipos sale del conjunto ya filtrado por máquina.
-    equipos_disponibles = obtener_equipos_disponibles(df_asig)
-    if st.session_state.filtro_equipo not in equipos_disponibles:
-        st.session_state.filtro_equipo = "Todos"
-    equipo_sel = st.session_state.filtro_equipo
-    if equipo_sel != "Todos" and "Equipo" in df_asig.columns:
-        df_asig = df_asig[df_asig["Equipo"].astype(str).str.strip() == equipo_sel]
+    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
     col_izq, col_der = st.columns([1, 3])
 
     with col_izq:
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        # Botón TODAS para que siempre se pueda quitar el filtro de máquina
-        # La lista de máquinas siempre sale de TODA la base, no del filtro actual.
-        maquinas_disponibles = obtener_maquinas_disponibles(df_asig_base)
-        for maq in maquinas_disponibles:
+        for maq in obtener_maquinas_disponibles(df_asig_base):
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                st.session_state.filtro_equipo = "Todos"
-                st.rerun()
-
-        st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>⚙️ Equipo</div>", unsafe_allow_html=True)
-        for eq in equipos_disponibles:
-            activo = st.session_state.filtro_equipo == eq
-            if st.button(eq, key=gen_key("btn_eq", eq), type="primary" if activo else "secondary", use_container_width=True):
-                st.session_state.filtro_equipo = eq
                 st.rerun()
 
     with col_der:
