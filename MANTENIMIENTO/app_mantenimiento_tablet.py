@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1124,24 +1126,9 @@ def _chk_key(internal_id):
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
     opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
-
-    # FIX: una sola fuente de verdad para el selector del técnico.
-    # Antes se mezclaban `index=` y `st.session_state`, lo que podía
-    # hacer que el selector regresara al técnico anterior después de un clic.
-    key_tec = gen_key("sel_tecnico_home")
-    tecnico_guardado = st.session_state.get("tecnico_seleccionado", "Seleccionar tecnico...")
-
-    # Inicializar el widget solo la primera vez o si el técnico ya no existe
-    # en la lista actual. Después de eso, Streamlit controla directamente
-    # el valor del selectbox y el cambio se toma en el mismo rerun.
-    if key_tec not in st.session_state or st.session_state.get(key_tec) not in opciones:
-        st.session_state[key_tec] = tecnico_guardado if tecnico_guardado in opciones else "Seleccionar tecnico..."
-
-    tecnico_sel = st.selectbox(
-        "Selecciona tu nombre:",
-        opciones,
-        key=key_tec
-    )
+    idx_tec = next((i + 1 for i, t in enumerate(tecnicos_info)
+                    if t["nombre"] == st.session_state.tecnico_seleccionado), 0)
+    tecnico_sel = st.selectbox("Selecciona tu nombre:", opciones, index=idx_tec, key=gen_key("sel_tecnico_home"))
     st.session_state.tecnico_seleccionado = tecnico_sel
     if tecnico_sel == "Seleccionar tecnico...":
         return
@@ -1209,17 +1196,6 @@ def _home_tecnico(df):
                 continue
 
             total_act = len(grupo_eq_df)
-
-            # OT visible: mostrar UNA sola OT representativa por equipo.
-            # Las actividades siguen conservando su OT individual internamente.
-            ot_visible = "SIN OT"
-            if "ID OT" in grupo_eq_df.columns:
-                for ot_val in grupo_eq_df["ID OT"].tolist():
-                    ot_tmp = limpiar(ot_val, "")
-                    if ot_tmp:
-                        ot_visible = ot_tmp
-                        break
-
             tecnico_bloque = grupo_eq_df["Tecnico_Asignado"].mode()
             tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
@@ -1243,11 +1219,6 @@ def _home_tecnico(df):
                 <div class="eq-bloque-header" style="padding: 10px 14px;">
                     <div style="flex:1; min-width:0;">
                         <div class="eq-bloque-titulo">🔧 {equipo_limpio}</div>
-                        <div style="margin-top:5px; margin-bottom:4px;">
-                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:4px 11px; border-radius:7px; font-size:12px; font-weight:900; letter-spacing:0.2px;">
-                                📋 OT {ot_visible}
-                            </span>
-                        </div>
                         <div class="eq-bloque-meta">
                             👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_bd} realizadas
                         </div>
@@ -1852,11 +1823,6 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
-    # Equipo seleccionado desde la leyenda de la gráfica.
-    # Al cambiar de máquina se limpia automáticamente más abajo.
-    st.session_state.setdefault("equipo_grafica_seleccionado", "")
-    st.session_state.setdefault("maquina_grafica_seleccionada", "")
-
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
@@ -1870,9 +1836,6 @@ def pantalla_asignacion():
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                # Al cambiar de máquina, limpiar las selecciones hechas desde la gráfica.
-                st.session_state.equipo_grafica_seleccionado = ""
-                st.session_state.maquina_grafica_seleccionada = ""
                 st.rerun()
 
     with col_der:
@@ -2053,7 +2016,7 @@ def pantalla_asignacion():
                 )
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
-        if not df_asig.empty:
+        if not df_asig.empty and st.session_state.filtro_maquina == "Todas" and len(df_asig["Ubicacion"].dropna().unique()) > 1:
             st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
 
             # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
@@ -2088,118 +2051,20 @@ def pantalla_asignacion():
             else:
                 datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
 
-            # === LEYENDA CLICKEABLE ===
-            # Cuando estamos en "Todas" mostramos MÁQUINAS (Ubicacion).
-            # Cuando se selecciona una máquina mostramos sus EQUIPOS (Equipo).
-            # Al pulsar cualquiera de estos cuadros se filtra la lista de
-            # actividades de abajo sin modificar la asignación de técnicos.
-            if st.session_state.filtro_maquina == "Todas":
-                maquinas_count = {}
-                for _, row in df_asig.iterrows():
-                    maq = limpiar(row.get("Ubicacion"), "Sin máquina")
-                    maquinas_count[maq] = maquinas_count.get(maq, 0) + 1
-                maquinas_sorted = sorted(maquinas_count.items(), key=lambda x: x[1], reverse=True)
-                datos_leyenda = [{"nombre": k, "valor": v} for k, v in maquinas_sorted]
-                tipo_leyenda = "maquina"
-            else:
-                equipos_count = {}
-                for _, row in df_asig.iterrows():
-                    eq = limpiar(row.get("Equipo"), "Sin equipo")
-                    equipos_count[eq] = equipos_count.get(eq, 0) + 1
-                equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
-                datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted]
-                tipo_leyenda = "equipo"
+            # === LEYENDA: Agrupar por EQUIPO ===
+            equipos_count = {}
+            for _, row in df_asig.iterrows():
+                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
+                equipos_count[eq] = equipos_count.get(eq, 0) + 1
+            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
+            datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted[:10]]
 
             if datos_torta:
                 svg_torta = _render_torta_3d_equipos(datos_torta)
-
-                # ============================================================
-                # LEYENDA CLICKEABLE POR MÁQUINA / EQUIPO
-                # - "Todas" => los cuadros representan MÁQUINAS.
-                # - Máquina seleccionada => los cuadros representan EQUIPOS.
-                # Cada cuadro es un botón real de Streamlit y filtra las
-                # actividades que aparecen debajo.
-                # ============================================================
-                st.markdown(
-                    '<div style="background:white; border-radius:16px; padding:16px; '
-                    'box-shadow:0 4px 12px rgba(0,0,0,0.08); border:1px solid #E2E8F0;">'
-                    + svg_torta +
-                    '</div>',
-                    unsafe_allow_html=True
-                )
-
-                if tipo_leyenda == "maquina":
-                    seleccion_actual = st.session_state.get("maquina_grafica_seleccionada", "")
-                    titulo_leyenda = "📍 Máquinas — haz clic en una para ver sus actividades"
-                    texto_todos = "📋 Todas las máquinas"
-                    key_todos = "btn_todas_maquinas_grafica"
-                    key_item = "btn_maquina_grafica"
-                else:
-                    seleccion_actual = st.session_state.get("equipo_grafica_seleccionado", "")
-                    titulo_leyenda = "⚙️ Equipos — haz clic en uno para ver sus actividades"
-                    texto_todos = "📋 Todos los equipos"
-                    key_todos = "btn_todos_equipos_grafica"
-                    key_item = "btn_equipo_grafica"
-
-                st.markdown(
-                    '<div style="margin-top:8px; padding:10px 12px; background:#FFFFFF; '
-                    'border:1px solid #E2E8F0; border-radius:10px;">'
-                    f'<div style="font-size:12px; font-weight:800; color:#0F172A; margin-bottom:8px;">{titulo_leyenda}</div>',
-                    unsafe_allow_html=True
-                )
-
-                if st.button(
-                    texto_todos,
-                    key=gen_key(key_todos),
-                    type="primary" if not seleccion_actual else "secondary",
-                    use_container_width=False
-                ):
-                    st.session_state.maquina_grafica_seleccionada = ""
-                    st.session_state.equipo_grafica_seleccionado = ""
-                    st.rerun()
-
-                cols_eq = st.columns(3)
-                for i, d_eq in enumerate(datos_leyenda):
-                    nombre_item = limpiar(d_eq.get("nombre"), "Sin equipo")
-                    valor_item = d_eq.get("valor", 0)
-                    activo_item = seleccion_actual.strip().casefold() == nombre_item.strip().casefold()
-                    with cols_eq[i % 3]:
-                        if st.button(
-                            f"{'📍' if tipo_leyenda == 'maquina' else '⚙️'} {nombre_item}  ({valor_item})",
-                            key=gen_key(key_item, nombre_item),
-                            type="primary" if activo_item else "secondary",
-                            use_container_width=True
-                        ):
-                            if tipo_leyenda == "maquina":
-                                st.session_state.maquina_grafica_seleccionada = nombre_item
-                                st.session_state.equipo_grafica_seleccionado = ""
-                            else:
-                                st.session_state.equipo_grafica_seleccionado = nombre_item
-                            st.rerun()
-
-                st.markdown('</div>', unsafe_allow_html=True)
+                leyenda_html = _render_leyenda_tecnicos(datos_leyenda)
+                st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + leyenda_html + '</div>', unsafe_allow_html=True)
             else:
                 st.info("📭 Sin datos para la gráfica.")
-
-        # Si se seleccionó una MÁQUINA desde la leyenda cuando estamos en
-        # "Todas", filtrar la lista de actividades a esa máquina.
-        maquina_sel_grafica = limpiar(st.session_state.get("maquina_grafica_seleccionada", ""), "")
-        if maquina_sel_grafica and st.session_state.filtro_maquina == "Todas" and "Ubicacion" in df_asig.columns:
-            maq_norm = (
-                df_asig["Ubicacion"].fillna("").astype(str)
-                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
-            )
-            df_asig = df_asig[maq_norm == maquina_sel_grafica.strip().casefold()].copy()
-
-        # Si se seleccionó un EQUIPO desde la leyenda, filtrar la lista de
-        # actividades a ese equipo dentro de la máquina seleccionada.
-        equipo_sel_actual = limpiar(st.session_state.get("equipo_grafica_seleccionado", ""), "")
-        if equipo_sel_actual and "Equipo" in df_asig.columns:
-            eq_norm = (
-                df_asig["Equipo"].fillna("").astype(str)
-                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
-            )
-            df_asig = df_asig[eq_norm == equipo_sel_actual.strip().casefold()].copy()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         sel_key = gen_key("seleccion_asig")
@@ -2273,10 +2138,7 @@ def pantalla_asignacion():
             st.stop()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        if equipo_sel_actual:
-            st.success(f"⚙️ {equipo_sel_actual} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
-        else:
-            st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
+        st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
         seen_ids = set()
         for _, row in df_asig.iterrows():
