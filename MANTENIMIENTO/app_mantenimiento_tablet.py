@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1397,24 +1396,111 @@ def pantalla_mis_ordenes():
         {tarjeta_contador(ejecutadas, "Ejecutadas", "#28a745")}
     </div>""", unsafe_allow_html=True)
 
-    st.subheader(f"Mostrando {len(df_mias)} orden(es)")
+    # Mostrar la cantidad real de actividades filtradas.
+    st.subheader(f"Mostrando {len(df_mias)} actividad(es)")
     if df_mias.empty:
         st.info("No tienes ordenes con los filtros seleccionados.")
         return
 
-    for _, row in df_mias.iterrows():
-        internal_id = render_fila_orden(row, truncar_tecnico=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
-                st.session_state.orden_seleccionada = internal_id
-                st.session_state.pagina = "detalle_tecnico"
-                st.rerun()
-        with col2:
-            if estado_efectivo(row) == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
-                st.session_state.orden_seleccionada = internal_id
-                st.session_state.pagina = "ejecutar"
-                st.rerun()
+    # ================================================================
+    # TÉCNICO: UN SOLO OT VISIBLE POR EQUIPO
+    # Las actividades conservan su ID interno real para que los
+    # botones "Ver detalle" y "Ejecutar" sigan funcionando correctamente.
+    # ================================================================
+    if "Equipo" in df_mias.columns:
+        grupos_equipo = []
+        vistos_equipos = set()
+
+        for _, row in df_mias.iterrows():
+            equipo = limpiar(row.get("Equipo"), "Sin equipo")
+            clave_equipo = equipo.strip().casefold()
+            if clave_equipo not in vistos_equipos:
+                vistos_equipos.add(clave_equipo)
+                grupos_equipo.append((equipo, df_mias[df_mias["Equipo"].apply(lambda x: limpiar(x, "Sin equipo").strip().casefold()) == clave_equipo]))
+
+        for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
+            primera_fila = df_equipo.iloc[0]
+            ot_visible = limpiar(primera_fila.get("ID OT"), "SIN ID")
+            ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
+            especialidad = limpiar(primera_fila.get("Especialidad"), "")
+
+            # Una sola OT visible en el encabezado del equipo.
+            st.markdown(f"""
+            <div style="
+                background: linear-gradient(90deg, #10A9E8, #35B7EA);
+                color:white;
+                border-radius:12px 12px 0 0;
+                padding:12px 16px;
+                margin-top:12px;
+                box-shadow:0 2px 6px rgba(0,0,0,.15);
+            ">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div>
+                        <div style="font-size:15px; font-weight:800;">🔧 {escapar(equipo)}</div>
+                        <div style="font-size:11px; opacity:.95; margin-top:3px;">
+                            {escapar(especialidad)}{(' · ' + escapar(ubicacion)) if ubicacion else ''}
+                        </div>
+                    </div>
+                    <div style="background:#0F172A; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; white-space:nowrap;">
+                        OT {escapar(ot_visible)}
+                    </div>
+                </div>
+            </div>
+            <div style="height:4px; background:#0F172A; border-radius:0 0 8px 8px; margin-bottom:4px;"></div>
+            """, unsafe_allow_html=True)
+
+            # Todas las actividades del equipo siguen disponibles.
+            for _, row in df_equipo.iterrows():
+                internal_id = limpiar(row.get("ID"), "")
+                if not internal_id:
+                    continue
+
+                descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
+                estado = estado_efectivo(row)
+                estado_cls = obtener_estado_visual(estado)
+
+                col_info, col_acc = st.columns([5, 1.6], gap="small")
+                with col_info:
+                    st.markdown(f"""
+                    <div style="
+                        background:#FFFFFF;
+                        border:1px solid #E2E8F0;
+                        border-radius:7px;
+                        padding:8px 10px;
+                        margin-bottom:4px;
+                    ">
+                        <div style="font-size:12px; color:#0F172A; font-weight:600;">{escapar(descripcion)}</div>
+                        <div style="font-size:10px; color:#64748B; margin-top:3px;">
+                            {escapar(limpiar(row.get("Procedimiento"), ""))}
+                            · <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col_acc:
+                    if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
+                        st.session_state.orden_seleccionada = internal_id
+                        st.session_state.pagina = "detalle_tecnico"
+                        st.rerun()
+                    if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+                        st.session_state.orden_seleccionada = internal_id
+                        st.session_state.pagina = "ejecutar"
+                        st.rerun()
+    else:
+        # Respaldo si por alguna razón no existe la columna Equipo.
+        for _, row in df_mias.iterrows():
+            internal_id = render_fila_orden(row, truncar_tecnico=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
+                    st.session_state.orden_seleccionada = internal_id
+                    st.session_state.pagina = "detalle_tecnico"
+                    st.rerun()
+            with col2:
+                if estado_efectivo(row) == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+                    st.session_state.orden_seleccionada = internal_id
+                    st.session_state.pagina = "ejecutar"
+                    st.rerun()
+
 
 # ==================== PANTALLA: EJECUTAR ====================
 def pantalla_ejecutar():
