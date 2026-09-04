@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -1821,10 +1823,6 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
-    # Equipo seleccionado desde la leyenda de la gráfica.
-    # Al cambiar de máquina se limpia automáticamente más abajo.
-    st.session_state.setdefault("equipo_grafica_seleccionado", "")
-
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
@@ -1838,8 +1836,6 @@ def pantalla_asignacion():
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                # Al cambiar de máquina, quitar el equipo seleccionado anterior.
-                st.session_state.equipo_grafica_seleccionado = ""
                 st.rerun()
 
     with col_der:
@@ -2067,71 +2063,10 @@ def pantalla_asignacion():
 
             if datos_torta:
                 svg_torta = _render_torta_3d_equipos(datos_torta)
-
-                # ============================================================
-                # LEYENDA CLICKEABLE POR EQUIPO
-                # Cada cuadro de equipo es un botón real de Streamlit.
-                # Al pulsarlo, la lista de actividades de abajo se filtra
-                # únicamente a ese equipo.
-                # ============================================================
-                st.markdown(
-                    '<div style="background:white; border-radius:16px; padding:16px; '
-                    'box-shadow:0 4px 12px rgba(0,0,0,0.08); border:1px solid #E2E8F0;">'
-                    + svg_torta +
-                    '</div>',
-                    unsafe_allow_html=True
-                )
-
-                equipo_sel_actual = st.session_state.get("equipo_grafica_seleccionado", "")
-                st.markdown(
-                    '<div style="margin-top:8px; padding:10px 12px; background:#FFFFFF; '
-                    'border:1px solid #E2E8F0; border-radius:10px;">'
-                    '<div style="font-size:12px; font-weight:800; color:#0F172A; margin-bottom:8px;">'
-                    '⚙️ Equipos — haz clic en uno para ver sus actividades'
-                    '</div>',
-                    unsafe_allow_html=True
-                )
-
-                # Botón para volver a mostrar todos los equipos.
-                if st.button(
-                    "📋 Todos los equipos",
-                    key=gen_key("btn_todos_equipos_grafica"),
-                    type="primary" if not equipo_sel_actual else "secondary",
-                    use_container_width=False
-                ):
-                    st.session_state.equipo_grafica_seleccionado = ""
-                    st.rerun()
-
-                # Mostrar un botón por cada equipo encontrado en la máquina/filtro actual.
-                cols_eq = st.columns(3)
-                for i, d_eq in enumerate(datos_leyenda):
-                    nombre_eq = limpiar(d_eq.get("nombre"), "Sin equipo")
-                    valor_eq = d_eq.get("valor", 0)
-                    activo_eq = equipo_sel_actual.strip().casefold() == nombre_eq.strip().casefold()
-                    with cols_eq[i % 3]:
-                        if st.button(
-                            f"⚙️ {nombre_eq}  ({valor_eq})",
-                            key=gen_key("btn_equipo_grafica", nombre_eq),
-                            type="primary" if activo_eq else "secondary",
-                            use_container_width=True
-                        ):
-                            st.session_state.equipo_grafica_seleccionado = nombre_eq
-                            st.rerun()
-
-                st.markdown('</div>', unsafe_allow_html=True)
+                leyenda_html = _render_leyenda_tecnicos(datos_leyenda)
+                st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + leyenda_html + '</div>', unsafe_allow_html=True)
             else:
                 st.info("📭 Sin datos para la gráfica.")
-
-        # Si se seleccionó un equipo desde la leyenda, filtrar SOLO la lista
-        # de actividades de abajo. La gráfica se mantiene basada en la máquina
-        # completa para que el usuario pueda seguir viendo todos los equipos.
-        equipo_sel_actual = limpiar(st.session_state.get("equipo_grafica_seleccionado", ""), "")
-        if equipo_sel_actual and "Equipo" in df_asig.columns:
-            eq_norm = (
-                df_asig["Equipo"].fillna("").astype(str)
-                .str.replace(r"\s+", " ", regex=True).str.strip().str.casefold()
-            )
-            df_asig = df_asig[eq_norm == equipo_sel_actual.strip().casefold()].copy()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         sel_key = gen_key("seleccion_asig")
@@ -2205,10 +2140,7 @@ def pantalla_asignacion():
             st.stop()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        if equipo_sel_actual:
-            st.success(f"⚙️ {equipo_sel_actual} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
-        else:
-            st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
+        st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
         seen_ids = set()
         for _, row in df_asig.iterrows():
