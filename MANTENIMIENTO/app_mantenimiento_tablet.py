@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -27,7 +28,7 @@ if not SUPABASE_KEY:
     st.stop()
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-DESTINATARIOS_DEFAULT = ["mantobogota@gmail.com", "supermantobogota@gmail.com"]
+DESTINATARIOS_DEFAULT = ["mantobogota@gmail.com", "supermantobogota@gmail.com", "johann.avendano@darnel.com"]
 
 # Mapeo único entre nombres de la app y columnas de Supabase
 MAPEO_COLUMNAS = {
@@ -911,19 +912,9 @@ def pantalla_login():
                     st.info(f"📭 Sin datos {esp_label}")
                     continue
 
-                # Normalizar estados para que el dashboard refleje también
-                # registros que vienen vacíos/NULL desde Supabase.
-                # En la pantalla del técnico esos registros se consideran pendientes.
-                if "Estado" in df_esp.columns:
-                    estados = df_esp["Estado"].fillna("").astype(str).str.strip()
-                    pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
-                    ejec = int((estados == "Ejecutado").sum())
-                    verif = int((estados == "Verificado").sum())
-                else:
-                    pend = total_esp
-                    ejec = 0
-                    verif = 0
-
+                pend = len(df_esp[df_esp["Estado"] == "Pendiente"]) if "Estado" in df_esp.columns else 0
+                ejec = len(df_esp[df_esp["Estado"] == "Ejecutado"]) if "Estado" in df_esp.columns else 0
+                verif = len(df_esp[df_esp["Estado"] == "Verificado"]) if "Estado" in df_esp.columns else 0
                 pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
 
                 st.markdown(f"""
@@ -1125,24 +1116,9 @@ def _chk_key(internal_id):
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
     opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
-
-    # FIX: una sola fuente de verdad para el selector del técnico.
-    # Antes se mezclaban `index=` y `st.session_state`, lo que podía
-    # hacer que el selector regresara al técnico anterior después de un clic.
-    key_tec = gen_key("sel_tecnico_home")
-    tecnico_guardado = st.session_state.get("tecnico_seleccionado", "Seleccionar tecnico...")
-
-    # Inicializar el widget solo la primera vez o si el técnico ya no existe
-    # en la lista actual. Después de eso, Streamlit controla directamente
-    # el valor del selectbox y el cambio se toma en el mismo rerun.
-    if key_tec not in st.session_state or st.session_state.get(key_tec) not in opciones:
-        st.session_state[key_tec] = tecnico_guardado if tecnico_guardado in opciones else "Seleccionar tecnico..."
-
-    tecnico_sel = st.selectbox(
-        "Selecciona tu nombre:",
-        opciones,
-        key=key_tec
-    )
+    idx_tec = next((i + 1 for i, t in enumerate(tecnicos_info)
+                    if t["nombre"] == st.session_state.tecnico_seleccionado), 0)
+    tecnico_sel = st.selectbox("Selecciona tu nombre:", opciones, index=idx_tec, key=gen_key("sel_tecnico_home"))
     st.session_state.tecnico_seleccionado = tecnico_sel
     if tecnico_sel == "Seleccionar tecnico...":
         return
@@ -1155,10 +1131,7 @@ def _home_tecnico(df):
         mask_tec |= df["Tecnico_Asignado"] == tecnico_actual
     if "Tecnico_Asignado_2" in df.columns:
         mask_tec |= df["Tecnico_Asignado_2"] == tecnico_actual
-    # IMPORTANTE: el técnico SOLO debe ver actividades que realmente
-    # estén asignadas a su nombre. Si no tiene ninguna asignada,
-    # no se muestran todas las órdenes de la base.
-    df_mias = df[mask_tec].copy()
+    df_mias = df[mask_tec].copy() if mask_tec.any() else df.copy()
 
     total_asignadas = len(df_mias)
     conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
@@ -1212,17 +1185,6 @@ def _home_tecnico(df):
             total_act = len(grupo_eq_df)
             tecnico_bloque = grupo_eq_df["Tecnico_Asignado"].mode()
             tecnico_bloque = tecnico_bloque[0] if len(tecnico_bloque) > 0 else "Sin asignar"
-
-            # Mostrar UNA sola OT por equipo en la pantalla del técnico.
-            # Se toma la primera OT no vacía del grupo.
-            ot_visible = "SIN ID"
-            if "ID OT" in grupo_eq_df.columns:
-                for ot_valor in grupo_eq_df["ID OT"].tolist():
-                    ot_tmp = limpiar(ot_valor, "").strip()
-                    if ot_tmp:
-                        ot_visible = ot_tmp
-                        break
-
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
             # Contar realizadas basado en ESTADO de BD + checkboxes marcados en UI
@@ -1244,11 +1206,6 @@ def _home_tecnico(df):
                 <div class="eq-bloque-header" style="padding: 10px 14px;">
                     <div style="flex:1; min-width:0;">
                         <div class="eq-bloque-titulo">🔧 {equipo_limpio}</div>
-                        <div style="margin-top:6px; margin-bottom:6px;">
-                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
-                                📋 OT {escapar(ot_visible)}
-                            </span>
-                        </div>
                         <div class="eq-bloque-meta">
                             👤 {tecnico_bloque} | 📋 {total_act} actividades | ✅ {realizadas_bd} realizadas
                         </div>
@@ -1440,127 +1397,24 @@ def pantalla_mis_ordenes():
         {tarjeta_contador(ejecutadas, "Ejecutadas", "#28a745")}
     </div>""", unsafe_allow_html=True)
 
-    # Mostrar la cantidad real de actividades filtradas.
-    st.subheader(f"Mostrando {len(df_mias)} actividad(es)")
+    st.subheader(f"Mostrando {len(df_mias)} orden(es)")
     if df_mias.empty:
         st.info("No tienes ordenes con los filtros seleccionados.")
         return
 
-    # ================================================================
-    # TÉCNICO: UN SOLO OT VISIBLE POR EQUIPO
-    # Las actividades conservan su ID interno real para que los
-    # botones "Ver detalle" y "Ejecutar" sigan funcionando correctamente.
-    # ================================================================
-    if "Equipo" in df_mias.columns:
-        grupos_equipo = []
-        vistos_equipos = set()
-
-        for _, row in df_mias.iterrows():
-            equipo = limpiar(row.get("Equipo"), "Sin equipo")
-            clave_equipo = equipo.strip().casefold()
-            if clave_equipo not in vistos_equipos:
-                vistos_equipos.add(clave_equipo)
-                grupos_equipo.append((equipo, df_mias[df_mias["Equipo"].apply(lambda x: limpiar(x, "Sin equipo").strip().casefold()) == clave_equipo]))
-
-        for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
-            primera_fila = df_equipo.iloc[0]
-
-            # Mostrar UNA sola OT por equipo.
-            # Buscamos la primera OT no vacía del grupo para evitar que
-            # aparezca "SIN ID" cuando la primera actividad no tenga OT.
-            ot_visible = "SIN ID"
-            if "ID OT" in df_equipo.columns:
-                for ot_valor in df_equipo["ID OT"].tolist():
-                    ot_tmp = limpiar(ot_valor, "").strip()
-                    if ot_tmp:
-                        ot_visible = ot_tmp
-                        break
-
-            ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
-            especialidad = limpiar(primera_fila.get("Especialidad"), "")
-
-            # Una sola OT visible en el encabezado del equipo.
-            st.markdown(f"""
-            <div style="
-                background: linear-gradient(90deg, #10A9E8, #35B7EA);
-                color:white;
-                border-radius:12px 12px 0 0;
-                padding:12px 16px;
-                margin-top:12px;
-                box-shadow:0 2px 6px rgba(0,0,0,.15);
-            ">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                    <div>
-                        <div style="font-size:15px; font-weight:800;">
-                            🔧 {escapar(equipo)}
-                        </div>
-                        <div style="margin-top:6px; margin-bottom:5px;">
-                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
-                                📋 OT {escapar(ot_visible)}
-                            </span>
-                        </div>
-                        <div style="font-size:11px; opacity:.95;">
-                            {(' · ' + escapar(especialidad)) if especialidad else ''}
-                            {(' · ' + escapar(ubicacion)) if ubicacion else ''}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div style="height:4px; background:#0F172A; border-radius:0 0 8px 8px; margin-bottom:4px;"></div>
-            """, unsafe_allow_html=True)
-
-            # Todas las actividades del equipo siguen disponibles.
-            for _, row in df_equipo.iterrows():
-                internal_id = limpiar(row.get("ID"), "")
-                if not internal_id:
-                    continue
-
-                descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
-                estado = estado_efectivo(row)
-                estado_cls = obtener_estado_visual(estado)
-
-                col_info, col_acc = st.columns([5, 1.6], gap="small")
-                with col_info:
-                    st.markdown(f"""
-                    <div style="
-                        background:#FFFFFF;
-                        border:1px solid #E2E8F0;
-                        border-radius:7px;
-                        padding:8px 10px;
-                        margin-bottom:4px;
-                    ">
-                        <div style="font-size:12px; color:#0F172A; font-weight:600;">{escapar(descripcion)}</div>
-                        <div style="font-size:10px; color:#64748B; margin-top:3px;">
-                            {escapar(limpiar(row.get("Procedimiento"), ""))}
-                            · <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                with col_acc:
-                    if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
-                        st.session_state.orden_seleccionada = internal_id
-                        st.session_state.pagina = "detalle_tecnico"
-                        st.rerun()
-                    if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
-                        st.session_state.orden_seleccionada = internal_id
-                        st.session_state.pagina = "ejecutar"
-                        st.rerun()
-    else:
-        # Respaldo si por alguna razón no existe la columna Equipo.
-        for _, row in df_mias.iterrows():
-            internal_id = render_fila_orden(row, truncar_tecnico=True)
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
-                    st.session_state.orden_seleccionada = internal_id
-                    st.session_state.pagina = "detalle_tecnico"
-                    st.rerun()
-            with col2:
-                if estado_efectivo(row) == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
-                    st.session_state.orden_seleccionada = internal_id
-                    st.session_state.pagina = "ejecutar"
-                    st.rerun()
-
+    for _, row in df_mias.iterrows():
+        internal_id = render_fila_orden(row, truncar_tecnico=True)
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
+                st.session_state.orden_seleccionada = internal_id
+                st.session_state.pagina = "detalle_tecnico"
+                st.rerun()
+        with col2:
+            if estado_efectivo(row) == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+                st.session_state.orden_seleccionada = internal_id
+                st.session_state.pagina = "ejecutar"
+                st.rerun()
 
 # ==================== PANTALLA: EJECUTAR ====================
 def pantalla_ejecutar():
@@ -1864,11 +1718,6 @@ def pantalla_asignacion():
         st.toast(st.session_state.asig_rapida_msg, icon="💾")
         st.session_state.asig_rapida_msg = None
 
-    # Equipo seleccionado desde la leyenda de la gráfica.
-    # Al cambiar de máquina se limpia automáticamente más abajo.
-    st.session_state.setdefault("equipo_grafica_seleccionado", "")
-    st.session_state.setdefault("maquina_grafica_seleccionada", "")
-
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
     df_asig = df_asig_base.copy()
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
@@ -1882,9 +1731,6 @@ def pantalla_asignacion():
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
-                # Al cambiar de máquina, limpiar las selecciones hechas desde la gráfica.
-                st.session_state.equipo_grafica_seleccionado = ""
-                st.session_state.maquina_grafica_seleccionada = ""
                 st.rerun()
 
     with col_der:
@@ -1902,8 +1748,8 @@ def pantalla_asignacion():
 
 
 
-        # ========== GRÁFICA: TORTA 3D POR TÉCNICO + LEYENDA POR MÁQUINA ==========
-        def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Máquina"):
+        # ========== GRÁFICA: TORTA 3D POR EQUIPO + LEYENDA POR TÉCNICO ==========
+        def _render_torta_3d_equipos(datos_equipos, titulo="Distribución por Equipo"):
             import math
             if not datos_equipos:
                 return ""
@@ -1922,10 +1768,10 @@ def pantalla_asignacion():
                 "#E65100", "#BF360C", "#3E2723", "#37474F",
             ]
 
-            cx, cy = 350, 145
-            rx, ry = 90, 50
-            extrusion = 20
-            explode = 8
+            cx, cy = 350, 230
+            rx, ry = 125, 68
+            extrusion = 26
+            explode = 12
 
             def pol2cart(cx, cy, rx, ry, ang_deg):
                 rad = math.radians(ang_deg)
@@ -2010,15 +1856,15 @@ def pantalla_asignacion():
                 # === CALLOUT MEJORADO ===
                 mx, my = pol2cart(cx + ox, cy + oy, rx + 10, ry + 6, ma)
 
-                box_w = 105
-                box_h = 34
-                line_len = 24
+                box_w = 140
+                box_h = 44
+                line_len = 32
 
                 if ma >= -90 and ma <= 90:
                     box_x = mx + line_len
                     line_x2 = box_x - 5
-                    if box_x + box_w > 695:
-                        box_x = 695 - box_w
+                    if box_x + box_w > 690:
+                        box_x = 690 - box_w
                         line_x2 = box_x - 5
                 else:
                     box_x = mx - line_len - box_w
@@ -2029,7 +1875,7 @@ def pantalla_asignacion():
 
                 box_y = my - box_h / 2
                 if box_y < 10: box_y = 10
-                if box_y > 270: box_y = 270
+                if box_y > 350: box_y = 350
 
                 mid_y = box_y + box_h / 2
 
@@ -2038,12 +1884,12 @@ def pantalla_asignacion():
                 callouts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="%s" stroke-width="2"/>' % (line_x2, my, line_x2, mid_y, c))
                 callouts.append('<rect x="%.1f" y="%.1f" width="%d" height="%d" rx="8" fill="white" stroke="%s" stroke-width="2.5"/>' % (box_x, box_y, box_w, box_h, c))
 
-                nombre_corto = s["nombre"][:14]
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="7" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 12, nombre_corto))
-                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="12" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 27, c, s["pct"]))
+                nombre_corto = s["nombre"][:16]
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="9" fill="#64748B" font-family="system-ui,sans-serif" font-weight="600">%s</text>' % (box_x + box_w/2, box_y + 16, nombre_corto))
+                callouts.append('<text x="%.1f" y="%.1f" text-anchor="middle" font-size="15" fill="%s" font-family="system-ui,sans-serif" font-weight="800">%s%%</text>' % (box_x + box_w/2, box_y + 34, c, s["pct"]))
 
             svg_content = '\n'.join(svg_parts + callouts)
-            svg = '<svg width="100%%" height="300" viewBox="0 0 700 300" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="300" fill="transparent"/>%s</svg>' % svg_content
+            svg = '<svg width="100%%" height="400" viewBox="0 0 700 400" style="font-family: system-ui, sans-serif;"><rect x="0" y="0" width="700" height="400" fill="transparent"/>%s</svg>' % svg_content
             return svg
 
         def _render_leyenda_tecnicos(datos_tecnicos):
@@ -2065,18 +1911,16 @@ def pantalla_asignacion():
                 )
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
-        if not df_asig.empty:
+        if not df_asig.empty and st.session_state.filtro_maquina == "Todas" and len(df_asig["Ubicacion"].dropna().unique()) > 1:
             st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
 
             # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
             tecnicos_count = {}
             for _, row in df_asig.iterrows():
-                t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
-                t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
-
+                t1 = limpiar(row.get("Tecnico_Asignado"), "")
+                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
                 if t1:
                     tecnicos_count[t1] = tecnicos_count.get(t1, 0) + 1
-
                 if t2 and t2 != t1:
                     tecnicos_count[t2] = tecnicos_count.get(t2, 0) + 1
 
@@ -2100,48 +1944,18 @@ def pantalla_asignacion():
             else:
                 datos_torta = [{"nombre": abreviar_tecnico(k), "valor": v} for k, v in tecnicos_sorted]
 
+            # === LEYENDA: Agrupar por EQUIPO ===
+            equipos_count = {}
+            for _, row in df_asig.iterrows():
+                eq = limpiar(row.get("Ubicacion"), "Sin equipo")
+                equipos_count[eq] = equipos_count.get(eq, 0) + 1
+            equipos_sorted = sorted(equipos_count.items(), key=lambda x: x[1], reverse=True)
+            datos_leyenda = [{"nombre": k, "valor": v} for k, v in equipos_sorted[:10]]
+
             if datos_torta:
                 svg_torta = _render_torta_3d_equipos(datos_torta)
-                # Leyenda inferior POR MÁQUINA.
-                # En esta aplicación la máquina corresponde a la columna "Ubicacion".
-                # No usar "Equipo" aquí, porque el usuario quiere ver las máquinas.
-                maquinas_count = {}
-                if "Ubicacion" in df_asig.columns:
-                    for maquina in df_asig["Ubicacion"].fillna("").astype(str):
-                        maquina = maquina.strip()
-                        if maquina:
-                            maquinas_count[maquina] = maquinas_count.get(maquina, 0) + 1
-
-                datos_leyenda_maquinas = sorted(maquinas_count.items(), key=lambda x: x[1], reverse=True)
-                leyenda_items = []
-                colores_leyenda = [
-                    "#E91E63", "#9C27B0", "#673AB7", "#3F51B5",
-                    "#2196F3", "#00BCD4", "#009688", "#8BC34A",
-                    "#FF9800", "#FF5722", "#795548", "#607D8B",
-                ]
-                for i, (nombre_maq, cantidad_maq) in enumerate(datos_leyenda_maquinas):
-                    c_maq = colores_leyenda[i % len(colores_leyenda)]
-                    leyenda_items.append(
-                        '<div style="display:flex; align-items:center; gap:5px; padding:4px 9px; '
-                        'background:#F8FAFC; border-radius:7px; border:1px solid #E2E8F0;">'
-                        '<div style="width:10px; height:10px; border-radius:3px; background:%s; flex-shrink:0;"></div>'
-                        '<span style="font-size:9px; color:#0F172A; font-weight:600;">%s</span>'
-                        '<span style="font-size:8px; color:#64748B;">(%s)</span></div>' %
-                        (c_maq, escapar(nombre_maq)[:28], cantidad_maq)
-                    )
-                leyenda_maquinas_html = (
-                    '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:6px; '
-                    'margin-top:10px; padding-top:10px; border-top:1px solid #E2E8F0;">'
-                    + ''.join(leyenda_items) + '</div>' if leyenda_items else ''
-                )
-
-                st.markdown(
-                    '<div style="background:white; border-radius:16px; padding:10px 12px 12px 12px; '
-                    'box-shadow:0 4px 12px rgba(0,0,0,0.08); border:1px solid #E2E8F0;">'
-                    + svg_torta + leyenda_maquinas_html +
-                    '</div>',
-                    unsafe_allow_html=True
-                )
+                leyenda_html = _render_leyenda_tecnicos(datos_leyenda)
+                st.markdown('<div style="background: white; border-radius: 16px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid #E2E8F0;">' + svg_torta + leyenda_html + '</div>', unsafe_allow_html=True)
             else:
                 st.info("📭 Sin datos para la gráfica.")
 
@@ -2217,10 +2031,7 @@ def pantalla_asignacion():
             st.stop()
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
-        if maq_sel and maq_sel != "Todas":
-            st.success(f"⚙️ {maq_sel} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
-        else:
-            st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
+        st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
         seen_ids = set()
         for _, row in df_asig.iterrows():
