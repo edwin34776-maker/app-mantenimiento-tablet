@@ -1,6 +1,4 @@
-
 import streamlit as st
-
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -83,40 +81,45 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         return False, "Credenciales no configuradas"
 
     total = len(df)
-    pcts = {"Ejecutado": 0.0, "Pendiente": 0.0, "Verificado": 0.0}
-    if total:
-        for est in pcts:
-            pcts[est] = round(len(df[df["Estado"] == est]) / total * 100, 1)
+    if "Estado" in df.columns:
+        estados = df["Estado"].fillna("").astype(str).str.strip()
+        ejecutadas = int((estados == "Ejecutado").sum())
+        verificadas = int((estados == "Verificado").sum())
+        pendientes = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
+    else:
+        ejecutadas = 0
+        verificadas = 0
+        pendientes = total
+
+    pcts = {
+        "Ejecutado": round(ejecutadas / total * 100, 1) if total else 0.0,
+        "Pendiente": round(pendientes / total * 100, 1) if total else 0.0,
+        "Verificado": round(verificadas / total * 100, 1) if total else 0.0,
+    }
 
     output = io.BytesIO()
     try:
-        # El Excel enviado por correo se prepara con el mismo formato
-        # organizado que aprobamos: Resumen + Preventivas.
         from openpyxl import load_workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         from openpyxl.utils import get_column_letter
 
         df_excel = df.copy()
 
-        # Eliminar únicamente las dos columnas que no queremos enviar.
-        columnas_eliminar = [
-            c for c in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2"]
-            if c in df_excel.columns
-        ]
-        if columnas_eliminar:
-            df_excel = df_excel.drop(columns=columnas_eliminar)
+        # SOLO para el Excel del correo: quitar Id_unico y Técnico Asignado 2.
+        for col in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2"]:
+            if col in df_excel.columns:
+                df_excel = df_excel.drop(columns=[col])
 
-        # Dejar el nombre visible como "Técnico Asignado".
+        # Mostrar solamente Técnico Asignado.
         if "Tecnico_Asignado" in df_excel.columns:
             df_excel = df_excel.rename(columns={"Tecnico_Asignado": "Técnico Asignado"})
 
-        # Ordenar las columnas principales para que el reporte sea fácil de leer,
-        # manteniendo después cualquier otra columna existente.
+        # Orden del reporte, conservando cualquier columna adicional al final.
         orden_preferido = [
-            "ID OT", "Ubicacion", "Equipo", "Especialidad", "Actividades",
-            "Procedimiento", "Técnico Asignado", "Prioridad_Actividad",
-            "Estado", "Fecha_Ejecucion", "Hora_Inicio", "Hora_Fin",
-            "Comentarios", "Nodo", "Actividades_Hechas"
+            "ID OT", "Equipo", "Ubicacion", "Especialidad", "Actividades",
+            "Estado", "Prioridad_Actividad", "Comentarios", "Procedimiento",
+            "Actividades_Hechas", "Fecha_Ejecucion", "Hora_Inicio", "Hora_Fin",
+            "Nodo", "Técnico Asignado"
         ]
         orden_final = [c for c in orden_preferido if c in df_excel.columns]
         orden_final += [c for c in df_excel.columns if c not in orden_final]
@@ -125,34 +128,29 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
             df_excel.to_excel(writer, index=False, sheet_name="Preventivas")
 
-            # Hoja Resumen.
             resumen = pd.DataFrame({
                 "Indicador": [
                     "Total de actividades", "Pendientes", "Ejecutadas",
                     "Verificadas", "% avance"
                 ],
                 "Valor": [
-                    total,
-                    len(df[df["Estado"] != "Ejecutado"][df["Estado"] != "Verificado"]),
-                    len(df[df["Estado"] == "Ejecutado"]),
-                    len(df[df["Estado"] == "Verificado"]),
-                    round((len(df[df["Estado"] == "Ejecutado"]) + len(df[df["Estado"] == "Verificado"])) / total * 100, 1) if total else 0
+                    total, pendientes, ejecutadas, verificadas,
+                    round((ejecutadas + verificadas) / total * 100, 1) if total else 0
                 ]
             })
             resumen.to_excel(writer, index=False, sheet_name="Resumen", startrow=2)
 
-            # Actividades por Técnico Asignado.
-            if "Tecnico_Asignado" in df.columns:
+            if "Técnico Asignado" in df_excel.columns:
                 conteo_tec = (
-                    df["Tecnico_Asignado"].fillna("").astype(str).str.strip()
-                    .replace("", "Sin asignar").value_counts().rename_axis("Técnico Asignado")
+                    df_excel["Técnico Asignado"].fillna("").astype(str).str.strip()
+                    .replace("", "Sin asignar").value_counts()
+                    .rename_axis("Técnico Asignado")
                     .reset_index(name="Actividades")
                 )
             else:
                 conteo_tec = pd.DataFrame(columns=["Técnico Asignado", "Actividades"])
             conteo_tec.to_excel(writer, index=False, sheet_name="Resumen", startrow=9)
 
-        # Aplicar formato al libro generado.
         output.seek(0)
         wb = load_workbook(output)
         header_fill = PatternFill("solid", fgColor="1F4E78")
@@ -174,7 +172,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         widths = {
             "Actividades": 42, "Procedimiento": 48, "Comentarios": 42,
             "Equipo": 30, "Ubicacion": 26, "Especialidad": 22,
-            "Técnico Asignado": 26, "Estado": 18, "Prioridad_Actividad": 20,
+            "Técnico Asignado": 28, "Estado": 18, "Prioridad_Actividad": 20,
             "Fecha_Ejecucion": 18, "Hora_Inicio": 14, "Hora_Fin": 14,
             "ID OT": 16, "Nodo": 22, "Actividades_Hechas": 24
         }
@@ -184,19 +182,18 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
             else:
                 max_len = 0
                 for r in range(1, min(ws.max_row, 500) + 1):
-                    v = ws.cell(r, col).value
-                    if v is not None:
-                        max_len = max(max_len, len(str(v)))
+                    value = ws.cell(r, col).value
+                    if value is not None:
+                        max_len = max(max_len, len(str(value)))
                 ws.column_dimensions[get_column_letter(col)].width = min(max(max_len + 2, 12), 30)
 
         for row in ws.iter_rows(min_row=2):
             for cell in row:
                 cell.alignment = Alignment(vertical="top", wrap_text=True)
 
-        for name in ["Fecha_Ejecucion"]:
-            if name in hmap:
-                for r in range(2, ws.max_row + 1):
-                    ws.cell(r, hmap[name]).number_format = "dd/mm/yyyy"
+        if "Fecha_Ejecucion" in hmap:
+            for r in range(2, ws.max_row + 1):
+                ws.cell(r, hmap["Fecha_Ejecucion"]).number_format = "dd/mm/yyyy"
         for name in ["Hora_Inicio", "Hora_Fin"]:
             if name in hmap:
                 for r in range(2, ws.max_row + 1):
