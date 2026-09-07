@@ -1,5 +1,6 @@
 
 import streamlit as st
+
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -89,11 +90,143 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
 
     output = io.BytesIO()
     try:
+        # El Excel enviado por correo se prepara con el mismo formato
+        # organizado que aprobamos: Resumen + Preventivas.
+        from openpyxl import load_workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        df_excel = df.copy()
+
+        # Eliminar únicamente las dos columnas que no queremos enviar.
+        columnas_eliminar = [
+            c for c in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2"]
+            if c in df_excel.columns
+        ]
+        if columnas_eliminar:
+            df_excel = df_excel.drop(columns=columnas_eliminar)
+
+        # Dejar el nombre visible como "Técnico Asignado".
+        if "Tecnico_Asignado" in df_excel.columns:
+            df_excel = df_excel.rename(columns={"Tecnico_Asignado": "Técnico Asignado"})
+
+        # Ordenar las columnas principales para que el reporte sea fácil de leer,
+        # manteniendo después cualquier otra columna existente.
+        orden_preferido = [
+            "ID OT", "Ubicacion", "Equipo", "Especialidad", "Actividades",
+            "Procedimiento", "Técnico Asignado", "Prioridad_Actividad",
+            "Estado", "Fecha_Ejecucion", "Hora_Inicio", "Hora_Fin",
+            "Comentarios", "Nodo", "Actividades_Hechas"
+        ]
+        orden_final = [c for c in orden_preferido if c in df_excel.columns]
+        orden_final += [c for c in df_excel.columns if c not in orden_final]
+        df_excel = df_excel[orden_final]
+
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Preventivas")
+            df_excel.to_excel(writer, index=False, sheet_name="Preventivas")
+
+            # Hoja Resumen.
+            resumen = pd.DataFrame({
+                "Indicador": [
+                    "Total de actividades", "Pendientes", "Ejecutadas",
+                    "Verificadas", "% avance"
+                ],
+                "Valor": [
+                    total,
+                    len(df[df["Estado"] != "Ejecutado"][df["Estado"] != "Verificado"]),
+                    len(df[df["Estado"] == "Ejecutado"]),
+                    len(df[df["Estado"] == "Verificado"]),
+                    round((len(df[df["Estado"] == "Ejecutado"]) + len(df[df["Estado"] == "Verificado"])) / total * 100, 1) if total else 0
+                ]
+            })
+            resumen.to_excel(writer, index=False, sheet_name="Resumen", startrow=2)
+
+            # Actividades por Técnico Asignado.
+            if "Tecnico_Asignado" in df.columns:
+                conteo_tec = (
+                    df["Tecnico_Asignado"].fillna("").astype(str).str.strip()
+                    .replace("", "Sin asignar").value_counts().rename_axis("Técnico Asignado")
+                    .reset_index(name="Actividades")
+                )
+            else:
+                conteo_tec = pd.DataFrame(columns=["Técnico Asignado", "Actividades"])
+            conteo_tec.to_excel(writer, index=False, sheet_name="Resumen", startrow=9)
+
+        # Aplicar formato al libro generado.
+        output.seek(0)
+        wb = load_workbook(output)
+        header_fill = PatternFill("solid", fgColor="1F4E78")
+        header_font = Font(color="FFFFFF", bold=True)
+        thin = Side(style="thin", color="D9E2F3")
+        border = Border(bottom=thin)
+
+        ws = wb["Preventivas"]
+        for cell in ws[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = border
+        ws.row_dimensions[1].height = 34
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+
+        hmap = {str(c.value): c.column for c in ws[1] if c.value is not None}
+        widths = {
+            "Actividades": 42, "Procedimiento": 48, "Comentarios": 42,
+            "Equipo": 30, "Ubicacion": 26, "Especialidad": 22,
+            "Técnico Asignado": 26, "Estado": 18, "Prioridad_Actividad": 20,
+            "Fecha_Ejecucion": 18, "Hora_Inicio": 14, "Hora_Fin": 14,
+            "ID OT": 16, "Nodo": 22, "Actividades_Hechas": 24
+        }
+        for name, col in hmap.items():
+            if name in widths:
+                ws.column_dimensions[get_column_letter(col)].width = widths[name]
+            else:
+                max_len = 0
+                for r in range(1, min(ws.max_row, 500) + 1):
+                    v = ws.cell(r, col).value
+                    if v is not None:
+                        max_len = max(max_len, len(str(v)))
+                ws.column_dimensions[get_column_letter(col)].width = min(max(max_len + 2, 12), 30)
+
+        for row in ws.iter_rows(min_row=2):
+            for cell in row:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+        for name in ["Fecha_Ejecucion"]:
+            if name in hmap:
+                for r in range(2, ws.max_row + 1):
+                    ws.cell(r, hmap[name]).number_format = "dd/mm/yyyy"
+        for name in ["Hora_Inicio", "Hora_Fin"]:
+            if name in hmap:
+                for r in range(2, ws.max_row + 1):
+                    ws.cell(r, hmap[name]).number_format = "hh:mm"
+
+        rs = wb["Resumen"]
+        rs.merge_cells("A1:D1")
+        rs["A1"] = "REPORTE DE MANTENIMIENTO PREVENTIVO"
+        rs["A1"].font = Font(size=18, bold=True)
+        rs["A1"].alignment = Alignment(horizontal="left")
+        for row_num in [3, 10]:
+            for cell in rs[row_num]:
+                if cell.value is not None:
+                    cell.fill = header_fill
+                    cell.font = header_font
+                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        rs.column_dimensions["A"].width = 34
+        rs.column_dimensions["B"].width = 18
+        rs.freeze_panes = "A4"
+        for row in rs.iter_rows(min_row=3, max_row=rs.max_row, min_col=1, max_col=2):
+            for cell in row:
+                cell.border = border
+                cell.alignment = Alignment(vertical="center", wrap_text=True)
+        rs["B8"].number_format = '0.0"%"'
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
     except Exception as e:
         return False, f"Error creando Excel: {e}"
-    output.seek(0)
 
     cuerpo_html = f"""<html><body style="font-family: Arial, sans-serif; color: #333;">
         <p style="font-size: 16px; font-weight: bold;">Preventivo</p>
