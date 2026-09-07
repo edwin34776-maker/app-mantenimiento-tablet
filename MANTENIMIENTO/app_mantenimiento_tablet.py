@@ -1,5 +1,6 @@
 
 import streamlit as st
+
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -107,7 +108,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         df_excel = df.copy()
 
         # SOLO para el Excel del correo: eliminar los dos campos que el usuario no quiere.
-        for col in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2"]:
+        for col in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2", "Actividades_Hechas"]:
             if col in df_excel.columns:
                 df_excel = df_excel.drop(columns=[col])
 
@@ -2720,4 +2721,5 @@ if pagina_actual in PANTALLAS:
     PANTALLAS[pagina_actual]()
 else:
     st.session_state.pagina = "login"
-    st.rerun()
+    st.rerun().
+    
