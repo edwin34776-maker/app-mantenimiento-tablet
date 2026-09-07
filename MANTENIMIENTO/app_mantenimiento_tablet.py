@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -91,146 +92,264 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         verificadas = 0
         pendientes = total
 
-    pcts = {
-        "Ejecutado": round(ejecutadas / total * 100, 1) if total else 0.0,
-        "Pendiente": round(pendientes / total * 100, 1) if total else 0.0,
-        "Verificado": round(verificadas / total * 100, 1) if total else 0.0,
-    }
+    pct_ejecutadas = round(ejecutadas / total * 100, 1) if total else 0.0
+    pct_pendientes = round(pendientes / total * 100, 1) if total else 0.0
+    pct_verificadas = round(verificadas / total * 100, 1) if total else 0.0
+    pct_avance = round((ejecutadas + verificadas) / total * 100, 1) if total else 0.0
 
     output = io.BytesIO()
     try:
         from openpyxl import load_workbook
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
         from openpyxl.utils import get_column_letter
+        from openpyxl.worksheet.table import Table, TableStyleInfo
 
         df_excel = df.copy()
 
-        # SOLO para el Excel del correo: quitar Id_unico y Técnico Asignado 2.
+        # SOLO para el Excel del correo: eliminar los dos campos que el usuario no quiere.
         for col in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2"]:
             if col in df_excel.columns:
                 df_excel = df_excel.drop(columns=[col])
 
-        # Mostrar solamente Técnico Asignado.
-        if "Tecnico_Asignado" in df_excel.columns:
-            df_excel = df_excel.rename(columns={"Tecnico_Asignado": "Técnico Asignado"})
+        # Normalizar nombres para el reporte.
+        renombres = {
+            "Tecnico_Asignado": "Técnico Asignado",
+            "Actividades": "Actividad",
+            "Prioridad_Actividad": "Prioridad",
+            "Fecha_Ejecucion": "Fecha de Ejecución",
+            "Hora_Inicio": "Hora Inicio",
+            "Hora_Fin": "Hora Fin",
+            "Ubicacion": "Ubicación",
+        }
+        df_excel = df_excel.rename(columns={k: v for k, v in renombres.items() if k in df_excel.columns})
 
-        # Orden del reporte, conservando cualquier columna adicional al final.
+        # Máquina: usar el campo existente si la base lo trae.
+        maquina_col = next((c for c in ["Maquina", "Máquina", "maquina", "machine", "Machine"] if c in df_excel.columns), None)
+        if maquina_col and maquina_col != "Máquina":
+            df_excel = df_excel.rename(columns={maquina_col: "Máquina"})
+        elif not maquina_col:
+            # Si no existe un campo separado de máquina, no inventar datos.
+            df_excel["Máquina"] = ""
+
+        # Orden exacto del reporte mostrado en el diseño solicitado.
         orden_preferido = [
-            "ID OT", "Equipo", "Ubicacion", "Especialidad", "Actividades",
-            "Estado", "Prioridad_Actividad", "Comentarios", "Procedimiento",
-            "Actividades_Hechas", "Fecha_Ejecucion", "Hora_Inicio", "Hora_Fin",
-            "Nodo", "Técnico Asignado"
+            "N°", "ID OT", "Máquina", "Equipo", "Especialidad", "Actividad",
+            "Procedimiento", "Técnico Asignado", "Prioridad", "Estado",
+            "Fecha de Ejecución", "Hora Inicio", "Hora Fin", "Comentarios",
+            "Ubicación", "Nodo"
         ]
+
+        # N° consecutivo del reporte.
+        df_excel.insert(0, "N°", range(1, len(df_excel) + 1))
+
         orden_final = [c for c in orden_preferido if c in df_excel.columns]
         orden_final += [c for c in df_excel.columns if c not in orden_final]
         df_excel = df_excel[orden_final]
 
+        # Crear el libro con Resumen primero, como en el diseño solicitado.
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            pd.DataFrame().to_excel(writer, index=False, sheet_name="Resumen")
             df_excel.to_excel(writer, index=False, sheet_name="Preventivas")
-
-            resumen = pd.DataFrame({
-                "Indicador": [
-                    "Total de actividades", "Pendientes", "Ejecutadas",
-                    "Verificadas", "% avance"
-                ],
-                "Valor": [
-                    total, pendientes, ejecutadas, verificadas,
-                    round((ejecutadas + verificadas) / total * 100, 1) if total else 0
-                ]
-            })
-            resumen.to_excel(writer, index=False, sheet_name="Resumen", startrow=2)
-
-            if "Técnico Asignado" in df_excel.columns:
-                conteo_tec = (
-                    df_excel["Técnico Asignado"].fillna("").astype(str).str.strip()
-                    .replace("", "Sin asignar").value_counts()
-                    .rename_axis("Técnico Asignado")
-                    .reset_index(name="Actividades")
-                )
-            else:
-                conteo_tec = pd.DataFrame(columns=["Técnico Asignado", "Actividades"])
-            conteo_tec.to_excel(writer, index=False, sheet_name="Resumen", startrow=9)
 
         output.seek(0)
         wb = load_workbook(output)
-        header_fill = PatternFill("solid", fgColor="1F4E78")
-        header_font = Font(color="FFFFFF", bold=True)
-        thin = Side(style="thin", color="D9E2F3")
-        border = Border(bottom=thin)
-
+        ws_res = wb["Resumen"]
         ws = wb["Preventivas"]
+
+        # ---------------- RESUMEN ----------------
+        ws_res.sheet_view.showGridLines = False
+        ws_res.freeze_panes = "A7"
+        for col, width in {
+            "A": 4, "B": 18, "C": 18, "D": 18, "E": 18, "F": 4,
+            "G": 18, "H": 18, "I": 18, "J": 4, "K": 18, "L": 18,
+            "M": 18, "N": 18, "O": 18
+        }.items():
+            ws_res.column_dimensions[col].width = width
+
+        azul = "0B5A94"
+        azul_oscuro = "064B7A"
+        verde = "178A43"
+        amarillo = "F4B400"
+        azul_kpi = "1677D2"
+        gris = "F2F6FA"
+        blanco = "FFFFFF"
+        borde = Side(style="thin", color="D9E2F3")
+
+        # Título principal.
+        ws_res.merge_cells("B2:E4")
+        c = ws_res["B2"]
+        c.value = f"🔧  Reporte Preventivo\n{area_mecanica}"
+        c.fill = PatternFill("solid", fgColor=azul_oscuro)
+        c.font = Font(color=blanco, bold=True, size=18)
+        c.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+        # Tarjetas KPI.
+        tarjetas = [
+            ("G2:H4", "Total Actividades", total, azul),
+            ("I2:J4", "Ejecutadas", ejecutadas, verde),
+            ("K2:L4", "Pendientes", pendientes, amarillo),
+            ("M2:N4", "Verificadas", verificadas, azul_kpi),
+        ]
+        for rango, titulo, valor, fill_color in tarjetas:
+            ws_res.merge_cells(rango)
+            celda = ws_res[rango.split(":")[0]]
+            celda.value = f"{titulo}\n{valor}"
+            celda.fill = PatternFill("solid", fgColor=fill_color)
+            celda.font = Font(color=blanco if titulo != "Pendientes" else "000000", bold=True, size=14)
+            celda.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        # Filtros aplicados.
+        ws_res.merge_cells("B6:E6")
+        ws_res["B6"] = "🔎  Filtros Aplicados"
+        ws_res["B6"].fill = PatternFill("solid", fgColor=azul)
+        ws_res["B6"].font = Font(color=blanco, bold=True, size=12)
+        ws_res["B6"].alignment = Alignment(horizontal="left", vertical="center")
+
+        filtros = [
+            ("B7", "Área / Mecánica", "C7", area_mecanica),
+            ("B8", "Especialidad", "C8", "Todas"),
+            ("B9", "Estado", "C9", "Todos"),
+        ]
+        for lcell, label, vcell, value in filtros:
+            ws_res[lcell] = label
+            ws_res[lcell].font = Font(bold=True, color=azul_oscuro)
+            ws_res[vcell] = value
+            ws_res[vcell].fill = PatternFill("solid", fgColor=gris)
+            ws_res[vcell].border = Border(bottom=borde)
+
+        ws_res.merge_cells("G6:I6")
+        ws_res["G6"] = "📅  Fecha de generación"
+        ws_res["G6"].fill = PatternFill("solid", fgColor=azul)
+        ws_res["G6"].font = Font(color=blanco, bold=True, size=12)
+        ws_res["G6"].alignment = Alignment(horizontal="left", vertical="center")
+        ws_res.merge_cells("G7:I9")
+        ws_res["G7"] = pd.Timestamp.now().strftime("%d/%m/%Y %H:%M")
+        ws_res["G7"].font = Font(color=azul_oscuro, bold=True, size=14)
+        ws_res["G7"].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        ws_res.merge_cells("K6:N6")
+        ws_res["K6"] = "📈  Avance preventivo"
+        ws_res["K6"].fill = PatternFill("solid", fgColor=azul)
+        ws_res["K6"].font = Font(color=blanco, bold=True, size=12)
+        ws_res["K6"].alignment = Alignment(horizontal="left", vertical="center")
+        ws_res.merge_cells("K7:N9")
+        ws_res["K7"] = f"{pct_avance}%"
+        ws_res["K7"].font = Font(color=verde, bold=True, size=22)
+        ws_res["K7"].alignment = Alignment(horizontal="center", vertical="center")
+
+        # Tabla resumen.
+        ws_res["B12"] = "Indicador"
+        ws_res["C12"] = "Valor"
+        ws_res["B13"] = "Total de actividades"
+        ws_res["C13"] = total
+        ws_res["B14"] = "Ejecutadas"
+        ws_res["C14"] = ejecutadas
+        ws_res["B15"] = "Pendientes"
+        ws_res["C15"] = pendientes
+        ws_res["B16"] = "Verificadas"
+        ws_res["C16"] = verificadas
+        ws_res["B17"] = "% avance"
+        ws_res["C17"] = pct_avance
+        for cell in ws_res[12][1:3]:
+            cell.fill = PatternFill("solid", fgColor=azul)
+            cell.font = Font(color=blanco, bold=True)
+            cell.alignment = Alignment(horizontal="center")
+        for row in ws_res.iter_rows(min_row=13, max_row=17, min_col=2, max_col=3):
+            for cell in row:
+                cell.border = Border(bottom=borde)
+        ws_res["C17"].number_format = '0.0"%"'
+
+        # ---------------- PREVENTIVAS ----------------
+        ws.sheet_view.showGridLines = False
+        ws.freeze_panes = "A2"
+        ws.auto_filter.ref = ws.dimensions
+
+        header_fill = PatternFill("solid", fgColor=azul)
+        header_font = Font(color=blanco, bold=True, size=10)
         for cell in ws[1]:
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell.border = border
+            cell.border = Border(bottom=borde)
         ws.row_dimensions[1].height = 34
-        ws.freeze_panes = "A2"
-        ws.auto_filter.ref = ws.dimensions
 
-        hmap = {str(c.value): c.column for c in ws[1] if c.value is not None}
         widths = {
-            "Actividades": 42, "Procedimiento": 48, "Comentarios": 42,
-            "Equipo": 30, "Ubicacion": 26, "Especialidad": 22,
-            "Técnico Asignado": 28, "Estado": 18, "Prioridad_Actividad": 20,
-            "Fecha_Ejecucion": 18, "Hora_Inicio": 14, "Hora_Fin": 14,
-            "ID OT": 16, "Nodo": 22, "Actividades_Hechas": 24
+            "N°": 7, "ID OT": 13, "Máquina": 15, "Equipo": 25, "Especialidad": 18,
+            "Actividad": 34, "Procedimiento": 48, "Técnico Asignado": 25,
+            "Prioridad": 14, "Estado": 16, "Fecha de Ejecución": 18,
+            "Hora Inicio": 13, "Hora Fin": 13, "Comentarios": 42,
+            "Ubicación": 25, "Nodo": 18
         }
+        hmap = {str(c.value): c.column for c in ws[1] if c.value is not None}
         for name, col in hmap.items():
-            if name in widths:
-                ws.column_dimensions[get_column_letter(col)].width = widths[name]
-            else:
-                max_len = 0
-                for r in range(1, min(ws.max_row, 500) + 1):
-                    value = ws.cell(r, col).value
-                    if value is not None:
-                        max_len = max(max_len, len(str(value)))
-                ws.column_dimensions[get_column_letter(col)].width = min(max(max_len + 2, 12), 30)
+            ws.column_dimensions[get_column_letter(col)].width = widths.get(name, 20)
 
-        for row in ws.iter_rows(min_row=2):
-            for cell in row:
-                cell.alignment = Alignment(vertical="top", wrap_text=True)
+        # Formato de fechas, horas y texto.
+        for row in range(2, ws.max_row + 1):
+            for col in range(1, ws.max_column + 1):
+                ws.cell(row, col).alignment = Alignment(vertical="center", wrap_text=True)
+            ws.row_dimensions[row].height = 30
 
-        if "Fecha_Ejecucion" in hmap:
-            for r in range(2, ws.max_row + 1):
-                ws.cell(r, hmap["Fecha_Ejecucion"]).number_format = "dd/mm/yyyy"
-        for name in ["Hora_Inicio", "Hora_Fin"]:
-            if name in hmap:
-                for r in range(2, ws.max_row + 1):
-                    ws.cell(r, hmap[name]).number_format = "hh:mm"
+            if "Fecha de Ejecución" in hmap:
+                ws.cell(row, hmap["Fecha de Ejecución"]).number_format = "dd/mm/yyyy"
+            if "Hora Inicio" in hmap:
+                ws.cell(row, hmap["Hora Inicio"]).number_format = "hh:mm"
+            if "Hora Fin" in hmap:
+                ws.cell(row, hmap["Hora Fin"]).number_format = "hh:mm"
 
-        rs = wb["Resumen"]
-        rs.merge_cells("A1:D1")
-        rs["A1"] = "REPORTE DE MANTENIMIENTO PREVENTIVO"
-        rs["A1"].font = Font(size=18, bold=True)
-        rs["A1"].alignment = Alignment(horizontal="left")
-        for row_num in [3, 10]:
-            for cell in rs[row_num]:
-                if cell.value is not None:
-                    cell.fill = header_fill
-                    cell.font = header_font
-                    cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        rs.column_dimensions["A"].width = 34
-        rs.column_dimensions["B"].width = 18
-        rs.freeze_panes = "A4"
-        for row in rs.iter_rows(min_row=3, max_row=rs.max_row, min_col=1, max_col=2):
-            for cell in row:
-                cell.border = border
-                cell.alignment = Alignment(vertical="center", wrap_text=True)
-        rs["B8"].number_format = '0.0"%"'
+            # Prioridad y estado con apariencia de etiquetas.
+            if "Prioridad" in hmap:
+                cell = ws.cell(row, hmap["Prioridad"])
+                val = str(cell.value or "").strip().lower()
+                if val == "alta":
+                    cell.fill = PatternFill("solid", fgColor="F44336")
+                    cell.font = Font(color=blanco, bold=True)
+                elif val == "media":
+                    cell.fill = PatternFill("solid", fgColor="FFC107")
+                    cell.font = Font(color="000000", bold=True)
+                elif val == "baja":
+                    cell.fill = PatternFill("solid", fgColor="81C784")
+                    cell.font = Font(color="000000", bold=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
 
-        output = io.BytesIO()
+            if "Estado" in hmap:
+                cell = ws.cell(row, hmap["Estado"])
+                val = str(cell.value or "").strip().lower()
+                if val == "ejecutado":
+                    cell.fill = PatternFill("solid", fgColor="19A957")
+                    cell.font = Font(color=blanco, bold=True)
+                elif val == "pendiente":
+                    cell.fill = PatternFill("solid", fgColor="FFC107")
+                    cell.font = Font(color="000000", bold=True)
+                elif val == "verificado":
+                    cell.fill = PatternFill("solid", fgColor="168FEA")
+                    cell.font = Font(color=blanco, bold=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # Tabla Excel con filtros.
+        if ws.max_row >= 2 and ws.max_column >= 1:
+            ref = f"A1:{get_column_letter(ws.max_column)}{ws.max_row}"
+            tab = Table(displayName="TablaPreventivas", ref=ref)
+            style = TableStyleInfo(name="TableStyleMedium2", showFirstColumn=False,
+                                   showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+            tab.tableStyleInfo = style
+            ws.add_table(tab)
+
+        # Seleccionar Resumen al abrir el archivo.
+        wb.active = wb.sheetnames.index("Resumen")
+        output.seek(0)
         wb.save(output)
         output.seek(0)
+
     except Exception as e:
         return False, f"Error creando Excel: {e}"
 
     cuerpo_html = f"""<html><body style="font-family: Arial, sans-serif; color: #333;">
         <p style="font-size: 16px; font-weight: bold;">Preventivo</p>
         <p style="font-size: 14px;">{area_mecanica}</p>
-        <p style="font-size: 14px;">Ejecutadas {pcts['Ejecutado']}%</p>
-        <p style="font-size: 14px;">Pendientes {pcts['Pendiente']}%</p>
-        <p style="font-size: 14px;">Verificar {pcts['Verificado']}%</p>
+        <p style="font-size: 14px;">Ejecutadas {pct_ejecutadas}%</p>
+        <p style="font-size: 14px;">Pendientes {pct_pendientes}%</p>
+        <p style="font-size: 14px;">Verificar {pct_verificadas}%</p>
         <br><p style="font-size: 14px;">Comentario:</p></body></html>"""
 
     msg = MIMEMultipart()
