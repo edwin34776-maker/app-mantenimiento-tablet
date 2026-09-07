@@ -1,6 +1,5 @@
 
 import streamlit as st
-
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -30,8 +29,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 DESTINATARIOS_DEFAULT = [
     "mantobogota@gmail.com",
     "supermantobogota@gmail.com",
-    "johann.avendano@darnel.com",
-    "eduin.arias@darnel.com"
+    "johann.avendano@darnel.com"
 ]
 
 # Mapeo único entre nombres de la app y columnas de Supabase
