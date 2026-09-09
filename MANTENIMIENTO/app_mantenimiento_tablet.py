@@ -1,6 +1,5 @@
 
 import streamlit as st
-
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -2127,6 +2126,17 @@ def pantalla_asignacion():
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
 
+    # Guardar todas las actividades para la gráfica, pero en la lista de asignación
+    # mostrar únicamente las que todavía NO tienen técnico asignado.
+    df_grafica = df_asig.copy()
+    if not df_asig.empty:
+        t1_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip() if "Tecnico_Asignado" in df_asig.columns else ""
+        t2_vacios = df_asig["Tecnico_Asignado_2"].fillna("").astype(str).str.strip() if "Tecnico_Asignado_2" in df_asig.columns else ""
+        if "Tecnico_Asignado" in df_asig.columns and "Tecnico_Asignado_2" in df_asig.columns:
+            df_asig = df_asig[(t1_vacios == "") & (t2_vacios == "")]
+        elif "Tecnico_Asignado" in df_asig.columns:
+            df_asig = df_asig[t1_vacios == ""]
+
     col_izq, col_der = st.columns([1, 3])
 
     with col_izq:
@@ -2318,12 +2328,12 @@ def pantalla_asignacion():
                 )
             return '<div style="display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0;">%s</div>' % ''.join(items)
 
-        if not df_asig.empty:
+        if not df_grafica.empty:
             st.markdown("<div style='font-size:14px; font-weight:700; color:#0F172A; margin: 18px 0 10px 0;'>📊 Distribución de Actividades por Técnico Asignado</div>", unsafe_allow_html=True)
 
             # === TORTA: Agrupar por TÉCNICO ASIGNADO ===
             tecnicos_count = {}
-            for _, row in df_asig.iterrows():
+            for _, row in df_grafica.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
                 t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
 
@@ -2335,7 +2345,7 @@ def pantalla_asignacion():
 
             # Agregar "Sin asignar" si hay actividades sin técnico
             sin_asignar = 0
-            for _, row in df_asig.iterrows():
+            for _, row in df_grafica.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "")
                 t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
                 if not t1 and not t2:
@@ -2359,8 +2369,8 @@ def pantalla_asignacion():
                 # En esta aplicación la máquina corresponde a la columna "Ubicacion".
                 # No usar "Equipo" aquí, porque el usuario quiere ver las máquinas.
                 maquinas_count = {}
-                if "Ubicacion" in df_asig.columns:
-                    for maquina in df_asig["Ubicacion"].fillna("").astype(str):
+                if "Ubicacion" in df_grafica.columns:
+                    for maquina in df_grafica["Ubicacion"].fillna("").astype(str):
                         maquina = maquina.strip()
                         if maquina:
                             maquinas_count[maquina] = maquinas_count.get(maquina, 0) + 1
@@ -2721,5 +2731,5 @@ if pagina_actual in PANTALLAS:
     PANTALLAS[pagina_actual]()
 else:
     st.session_state.pagina = "login"
-    st.rerun().
+    st.rerun()
     
