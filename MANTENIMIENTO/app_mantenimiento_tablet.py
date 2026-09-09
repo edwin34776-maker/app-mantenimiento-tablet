@@ -1,5 +1,6 @@
 
 import streamlit as st
+
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -35,7 +36,7 @@ DESTINATARIOS_DEFAULT = [
 # Mapeo único entre nombres de la app y columnas de Supabase
 MAPEO_COLUMNAS = {
     "ID": "id", "ID OT": "id_ot", "Actividades": "actividades", "Procedimiento": "procedimiento",
-    "Tecnico_Asignado": "tecnico_asignado", "Prioridad_Actividad": "prioridad_actividad",
+    "Tecnico_Asignado": "tecnico_asignado", "Tecnico_Asignado_2": "tecnico_asignado_2", "Prioridad_Actividad": "prioridad_actividad",
     "Actividades_Hechas": "actividades_hechas", "Fecha_Ejecucion": "fecha_ejecucion",
     "Hora_Inicio": "hora_inicio", "Hora_Fin": "hora_fin", "Estado": "estado",
     "Comentarios": "comentarios", "Equipo": "equipo", "Ubicacion": "ubicacion",
@@ -107,7 +108,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         df_excel = df.copy()
 
         # SOLO para el Excel del correo: eliminar los dos campos que el usuario no quiere.
-        for col in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado", "Actividades_Hechas"]:
+        for col in ["Id_unico", "ID_unico", "Técnico Asignado 2", "Tecnico_Asignado_2", "Actividades_Hechas"]:
             if col in df_excel.columns:
                 df_excel = df_excel.drop(columns=[col])
 
@@ -393,10 +394,10 @@ def _cargar_ordenes_cache():
     if not registros:
         return pd.DataFrame()
     df = pd.DataFrame(registros)
-    df = df.drop(columns=["tecnico_asignado"], errors="ignore")
     inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
     df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
-    for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
+    for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+                         "Tecnico_Asignado_2": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
                          "Hora_Inicio": "", "Hora_Fin": "", "Prioridad_Actividad": "",
                          "ID OT": "", "Procedimiento": ""}.items():
         if col not in df.columns:
@@ -510,6 +511,7 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
             "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"],
             "tecnico_asignado": ["tecnico_asignado", "tecnico asignado", "tecnico", "tecnico 1", "tecnico1", "tecnico_asignado_1"],
+            "tecnico_asignado_2": ["tecnico_asignado_2", "tecnico asignado 2", "tecnico 2", "tecnico2", "tecnico2_asignado"]
         }
         columnas_renombrar = {}
         for supabase_col, posibles in mapeo_columnas.items():
@@ -848,6 +850,8 @@ def contar_ordenes_por_tecnico(df, tecnico):
     count = 0
     if "Tecnico_Asignado" in df.columns:
         count += len(df[df["Tecnico_Asignado"] == tecnico])
+    if "Tecnico_Asignado_2" in df.columns:
+        count += len(df[df["Tecnico_Asignado_2"] == tecnico])
     return count
 
 def obtener_tecnicos_con_carga(df, especialidad="Todas"):
@@ -1011,7 +1015,7 @@ def render_fila_orden(row, con_comentario=False, truncar_tecnico=False):
     descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
     estado = estado_efectivo(row)
     tecnico = limpiar(row.get("Tecnico_Asignado"), "")
-    tecnico2 = limpiar(row.get("Tecnico_Asignado"), "")
+    tecnico2 = limpiar(row.get("Tecnico_Asignado_2"), "")
     tecnicos_str = tecnico
     if tecnico2 and tecnico2 != tecnico:
         tecnicos_str = f"{tecnico} + {tecnico2}"
@@ -1052,6 +1056,7 @@ def panel_info_orden(row, incluir_tecnico=False):
     html += f'<div><strong>Estado:</strong> <span style="color:{est_color}; font-weight:700;">{estado}</span></div>'
     if incluir_tecnico:
         tec1 = limpiar(row.get("Tecnico_Asignado"), "")
+        tec2 = limpiar(row.get("Tecnico_Asignado_2"), "")
         tec_label = "Sin asignar"
         if tec1 and tec2 and tec1 != tec2:
             tec_label = f"{tec1} + {tec2}"
@@ -1526,6 +1531,8 @@ def _home_tecnico(df):
     mask_tec = pd.Series([False] * len(df), index=df.index)
     if "Tecnico_Asignado" in df.columns:
         mask_tec |= df["Tecnico_Asignado"] == tecnico_actual
+    if "Tecnico_Asignado_2" in df.columns:
+        mask_tec |= df["Tecnico_Asignado_2"] == tecnico_actual
     # IMPORTANTE: el técnico SOLO debe ver actividades que realmente
     # estén asignadas a su nombre. Si no tiene ninguna asignada,
     # no se muestran todas las órdenes de la base.
@@ -1792,6 +1799,8 @@ def pantalla_mis_ordenes():
     mask_tec = pd.Series([False] * len(df), index=df.index)
     if "Tecnico_Asignado" in df.columns:
         mask_tec |= df["Tecnico_Asignado"] == tecnico_sel
+    if "Tecnico_Asignado_2" in df.columns:
+        mask_tec |= df["Tecnico_Asignado_2"] == tecnico_sel
     df_mias = df[mask_tec].copy() if mask_tec.any() else pd.DataFrame()
     if filtro_estado != "Todos" and "Estado" in df_mias.columns:
         df_mias = df_mias[df_mias["Estado"] == filtro_estado]
@@ -1800,6 +1809,8 @@ def pantalla_mis_ordenes():
     mask_tec_all = pd.Series([False] * len(df), index=df.index)
     if "Tecnico_Asignado" in df.columns:
         mask_tec_all |= df["Tecnico_Asignado"] == tecnico_sel
+    if "Tecnico_Asignado_2" in df.columns:
+        mask_tec_all |= df["Tecnico_Asignado_2"] == tecnico_sel
     if mask_tec_all.any():
         df_todas = df[mask_tec_all]
         total_asignadas = len(df_todas)
@@ -1977,6 +1988,23 @@ def pantalla_ejecutar():
     if not hora_valida:
         st.warning("⚠️ La hora de fin es anterior a la hora de inicio. Por favor verifica.")
 
+    if st.button("MARCAR COMO EJECUTADO", use_container_width=True, type="primary", key=gen_key("btn_marcar_ejecutado"), disabled=not hora_valida):
+        datos = {"Estado": "Ejecutado", "Comentarios": nuevo_comentario,
+                 "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d"),
+                 "Hora_Inicio": hora_inicio.strftime("%H:%M"), "Hora_Fin": hora_fin.strftime("%H:%M")}
+        if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+            for col, val in datos.items():
+                df.at[idx, col] = val
+            st.markdown("""
+            <div style="background: #DCFCE7; color: #34d399; padding: 12px; border-radius: 8px; text-align: center; font-weight: 700; border: 1px solid #059669; margin: 12px 0;">
+                ✅ Orden marcada como EJECUTADA y guardada en Supabase
+            </div>""", unsafe_allow_html=True)
+            st.balloons()
+            st.session_state.pagina = "mis_ordenes"
+            st.session_state.orden_seleccionada = None
+            st.rerun()
+        else:
+            st.error("Error al guardar en Supabase. Intenta de nuevo.")
 
 # ==================== PANTALLA: DETALLE TÉCNICO ====================
 def pantalla_detalle_tecnico():
@@ -2056,7 +2084,14 @@ def pantalla_detalle():
     est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado_actual, "#64748b")
 
     tec1_det = limpiar(row.get("Tecnico_Asignado"), "")
-    tec_label = tec1_det if tec1_det else "Sin asignar"
+    tec2_det = limpiar(row.get("Tecnico_Asignado_2"), "")
+    tec_label = "Sin asignar"
+    if tec1_det and tec2_det and tec1_det != tec2_det:
+        tec_label = f"{tec1_det} + {tec2_det}"
+    elif tec1_det:
+        tec_label = tec1_det
+    elif tec2_det:
+        tec_label = tec2_det
 
     def _info_card(icono, label, valor, color_borde, color_texto="#0F172A", peso=600):
         st.markdown(f"""
@@ -2115,7 +2150,14 @@ def pantalla_verificar():
 
     for _, row in df_ejecutadas.iterrows():
         tec1_v = limpiar(row.get("Tecnico_Asignado"), "")
-        tec_label = tec1_v if tec1_v else "Sin asignar"
+        tec2_v = limpiar(row.get("Tecnico_Asignado_2"), "")
+        tec_label = "Sin asignar"
+        if tec1_v and tec2_v and tec1_v != tec2_v:
+            tec_label = f"{tec1_v} + {tec2_v}"
+        elif tec1_v:
+            tec_label = tec1_v
+        elif tec2_v:
+            tec_label = tec2_v
         internal_id = limpiar(row.get("ID"), "")
         id_ot = limpiar(row.get("ID OT"), "SIN ID")
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
@@ -2172,6 +2214,8 @@ def _datos_reasignacion(nuevo_tec, estado_bd):
 def _reflejar_en_session(idx, datos):
     if "Tecnico_Asignado" in datos:
         st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado"] = datos["Tecnico_Asignado"]
+    if "Tecnico_Asignado_2" in datos:
+        st.session_state.df_mantenimientos.loc[idx, "Tecnico_Asignado_2"] = datos["Tecnico_Asignado_2"]
     if "Estado" in datos:
         st.session_state.df_mantenimientos.loc[idx, "Estado"] = datos["Estado"]
 
@@ -2227,7 +2271,7 @@ def pantalla_asignacion():
     # Una actividad se considera asignada si tiene técnico en cualquiera de los dos campos.
     if not df_asig.empty:
         t1_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip() if "Tecnico_Asignado" in df_asig.columns else pd.Series("", index=df_asig.index)
-        t2_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip() if "Tecnico_Asignado" in df_asig.columns else pd.Series("", index=df_asig.index)
+        t2_vacios = df_asig["Tecnico_Asignado_2"].fillna("").astype(str).str.strip() if "Tecnico_Asignado_2" in df_asig.columns else pd.Series("", index=df_asig.index)
         tiene_tecnico = (t1_vacios != "") | (t2_vacios != "")
 
         if st.session_state.filtro_estado_asignacion == "Asignadas":
@@ -2448,7 +2492,7 @@ def pantalla_asignacion():
             tecnicos_count = {}
             for _, row in df_grafica.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "").strip()
-                t2 = limpiar(row.get("Tecnico_Asignado"), "").strip()
+                t2 = limpiar(row.get("Tecnico_Asignado_2"), "").strip()
 
                 if t1:
                     tecnicos_count[t1] = tecnicos_count.get(t1, 0) + 1
@@ -2460,7 +2504,7 @@ def pantalla_asignacion():
             sin_asignar = 0
             for _, row in df_grafica.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "")
-                t2 = limpiar(row.get("Tecnico_Asignado"), "")
+                t2 = limpiar(row.get("Tecnico_Asignado_2"), "")
                 if not t1 and not t2:
                     sin_asignar += 1
             if sin_asignar > 0:
@@ -2602,7 +2646,7 @@ def pantalla_asignacion():
         for _, row in df_asig.iterrows():
             estado = limpiar(row.get("Estado"), "Pendiente")
             tec_asig = limpiar(row.get("Tecnico_Asignado"), "")
-            tec_asig2 = limpiar(row.get("Tecnico_Asignado"), "")
+            tec_asig2 = limpiar(row.get("Tecnico_Asignado_2"), "")
             nodo = limpiar(row.get("Nodo"), "")
             nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
             estado_cls = {"Ejecutado": "eq-estado-ej", "Verificado": "eq-estado-vf"}.get(estado, "eq-estado-pd")
