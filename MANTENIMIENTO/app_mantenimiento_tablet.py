@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -392,7 +393,8 @@ def _cargar_ordenes_cache():
     if not registros:
         return pd.DataFrame()
     df = pd.DataFrame(registros)
-    df = df.drop(columns=["tecnico_asignado"], errors="ignore")
+    # Mantener el único técnico de cada actividad.
+    # No eliminar tecnico_asignado: es el campo principal de asignación.
     inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
     df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
     for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
@@ -1217,7 +1219,10 @@ def pantalla_login():
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
     st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
-    df = cargar_excel_mantenimiento()
+    # El dashboard usa la misma copia de datos de la sesión.
+    # Así el auto-refresh no cambia el total de actividades por una lectura
+    # diferente de Supabase entre refrescos.
+    df = recargar_datos()
     if not df.empty:
 
         col_e, col_m = st.columns(2)
