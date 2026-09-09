@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -2122,24 +2123,47 @@ def pantalla_asignacion():
     st.session_state.setdefault("maquina_grafica_seleccionada", "")
 
     df_asig_base = aplicar_filtros_globales(df, maquina=None)
+
+    # Selector rápido: ver actividades YA ASIGNADAS o las que FALTAN POR ASIGNAR.
+    # Por defecto se muestran las que faltan por asignar.
+    st.session_state.setdefault("filtro_estado_asignacion", "Sin asignar")
+
+    df_grafica = df_asig_base.copy()
     df_asig = df_asig_base.copy()
+
     if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+        df_grafica = df_grafica[df_grafica["Ubicacion"] == st.session_state.filtro_maquina]
 
-    # Guardar todas las actividades para la gráfica, pero en la lista de asignación
-    # mostrar únicamente las que todavía NO tienen técnico asignado.
-    df_grafica = df_asig.copy()
+    # Una actividad se considera asignada si tiene técnico en cualquiera de los dos campos.
     if not df_asig.empty:
-        t1_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip() if "Tecnico_Asignado" in df_asig.columns else ""
-        t2_vacios = df_asig["Tecnico_Asignado_2"].fillna("").astype(str).str.strip() if "Tecnico_Asignado_2" in df_asig.columns else ""
-        if "Tecnico_Asignado" in df_asig.columns and "Tecnico_Asignado_2" in df_asig.columns:
-            df_asig = df_asig[(t1_vacios == "") & (t2_vacios == "")]
-        elif "Tecnico_Asignado" in df_asig.columns:
-            df_asig = df_asig[t1_vacios == ""]
+        t1_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip() if "Tecnico_Asignado" in df_asig.columns else pd.Series("", index=df_asig.index)
+        t2_vacios = df_asig["Tecnico_Asignado_2"].fillna("").astype(str).str.strip() if "Tecnico_Asignado_2" in df_asig.columns else pd.Series("", index=df_asig.index)
+        tiene_tecnico = (t1_vacios != "") | (t2_vacios != "")
+
+        if st.session_state.filtro_estado_asignacion == "Asignadas":
+            df_asig = df_asig[tiene_tecnico]
+        else:
+            df_asig = df_asig[~tiene_tecnico]
 
     col_izq, col_der = st.columns([1, 3])
 
     with col_izq:
+        # Botones rápidos de estado de asignación, ubicados arriba del filtro de máquina.
+        st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;'>👥 ASIGNACIÓN</div>", unsafe_allow_html=True)
+        b_asig1, b_asig2 = st.columns(2, gap="small")
+        with b_asig1:
+            activo_asig = st.session_state.filtro_estado_asignacion == "Asignadas"
+            if st.button("Asignadas", key=gen_key("btn_asig_asignadas"), type="primary" if activo_asig else "secondary", use_container_width=True):
+                st.session_state.filtro_estado_asignacion = "Asignadas"
+                st.rerun()
+        with b_asig2:
+            activo_sin = st.session_state.filtro_estado_asignacion == "Sin asignar"
+            if st.button("Sin asignar", key=gen_key("btn_asig_sin_asignar"), type="primary" if activo_sin else "secondary", use_container_width=True):
+                st.session_state.filtro_estado_asignacion = "Sin asignar"
+                st.rerun()
+
+        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
         for maq in obtener_maquinas_disponibles(df_asig_base):
             activo = st.session_state.filtro_maquina == maq
