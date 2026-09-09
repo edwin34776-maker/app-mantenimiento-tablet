@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 # Auto-refresh para dashboard en tiempo real
@@ -2130,9 +2131,13 @@ def pantalla_asignacion():
         df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
         df_grafica = df_grafica[df_grafica["Ubicacion"] == st.session_state.filtro_maquina]
 
-    # Una actividad se considera asignada si tiene técnico en cualquiera de los dos campos.
+    # Una actividad se considera asignada si tiene un solo técnico en Tecnico_Asignado.
     if not df_asig.empty:
-        t1_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip() if "Tecnico_Asignado" in df_asig.columns else pd.Series("", index=df_asig.index)
+        if "Tecnico_Asignado" in df_asig.columns:
+            t1_vacios = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip()
+            tiene_tecnico = t1_vacios != ""
+        else:
+            tiene_tecnico = pd.Series(False, index=df_asig.index)
 
         if st.session_state.filtro_estado_asignacion == "Asignadas":
             df_asig = df_asig[tiene_tecnico]
