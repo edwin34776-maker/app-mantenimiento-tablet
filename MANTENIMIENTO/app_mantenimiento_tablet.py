@@ -1,5 +1,5 @@
-import streamlit as st
 
+import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -373,53 +373,126 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         return False, f"Error al enviar: {e}"
 
 # ==================== SUPABASE: CARGA Y ACTUALIZACIÓN ====================
-@st.cache_data(ttl=5, show_spinner=False)
+CACHE_ORDENES_TTL = 30
+SUPABASE_PAGE_SIZE = 1000
+
+@st.cache_data(ttl=CACHE_ORDENES_TTL, show_spinner=False)
 def _cargar_ordenes_cache():
-    try:
-        data = supabase.table("ordenes_trabajo").select("*").order("id", desc=False).execute().data
-        if not data:
-            return pd.DataFrame()
-        df = pd.DataFrame(data)
-        inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
-        df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
-        for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
-                             "Tecnico_Asignado_2": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
-                             "Hora_Inicio": "", "Hora_Fin": "", "Prioridad_Actividad": "",
-                             "ID OT": "", "Procedimiento": ""}.items():
-            if col not in df.columns:
-                df[col] = default
-        return df
-    except Exception as e:
-        st.error(f"Error cargando ordenes: {e}")
+    registros = []
+    offset = 0
+    while True:
+        lote = (supabase.table("ordenes_trabajo")
+                .select("*")
+                .order("id", desc=False)
+                .range(offset, offset + SUPABASE_PAGE_SIZE - 1)
+                .execute().data or [])
+        registros.extend(lote)
+        if len(lote) < SUPABASE_PAGE_SIZE:
+            break
+        offset += SUPABASE_PAGE_SIZE
+    if not registros:
         return pd.DataFrame()
+    df = pd.DataFrame(registros)
+    inv = {v: k for k, v in MAPEO_COLUMNAS.items()}
+    df = df.rename(columns={c: inv.get(c, c.capitalize()) for c in df.columns})
+    for col, default in {"Estado": "Pendiente", "Comentarios": "", "Tecnico_Asignado": "",
+                         "Tecnico_Asignado_2": "", "Actividades_Hechas": "", "Fecha_Ejecucion": "",
+                         "Hora_Inicio": "", "Hora_Fin": "", "Prioridad_Actividad": "",
+                         "ID OT": "", "Procedimiento": ""}.items():
+        if col not in df.columns:
+            df[col] = default
+    return df
 
 def cargar_ordenes_supabase():
-    return _cargar_ordenes_cache()
-def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
     try:
-        datos_a_enviar = {}
-        for key, value in datos_nuevos.items():
-            nuevo = _norm_valor(value)
-            if datos_originales is not None:
-                original = _norm_valor(datos_originales.get(key, datos_originales.get(mapear_campo_supabase(key), "")))
-                if nuevo == original:
-                    continue
-            datos_a_enviar[mapear_campo_supabase(key)] = nuevo
-        if datos_a_enviar:
-            supabase.table("ordenes_trabajo").update(datos_a_enviar).eq("id", id_interno).execute()
+        df = _cargar_ordenes_cache()
+        return df
+    except Exception:
+        # Si la red falla, conservar lo que ya está en la sesión.
+        if "df_mantenimientos" in st.session_state:
+            return st.session_state.df_mantenimientos.copy()
+        return pd.DataFrame()
+
+def _guardar_cambio_pendiente(id_interno, datos):
+    pendientes = st.session_state.setdefault("cambios_pendientes", {})
+    clave = str(id_interno)
+    actual = pendientes.get(clave, {})
+    actual.update({k: _norm_valor(v) for k, v in datos.items()})
+    pendientes[clave] = actual
+
+def _quitar_cambio_pendiente(id_interno, campos=None):
+    pendientes = st.session_state.get("cambios_pendientes", {})
+    clave = str(id_interno)
+    if clave not in pendientes:
+        return
+    if campos is None:
+        pendientes.pop(clave, None)
+        return
+    for campo in campos:
+        pendientes[clave].pop(campo, None)
+    if not pendientes[clave]:
+        pendientes.pop(clave, None)
+
+def _actualizar_local(id_interno, datos):
+    df = st.session_state.get("df_mantenimientos")
+    if df is None or df.empty:
+        return
+    idx, _ = get_row_by_internal_id(df, id_interno)
+    if idx is None:
+        return
+    for campo, valor in datos.items():
+        if campo not in df.columns:
+            df[campo] = None
+        df.at[idx, campo] = valor
+    st.session_state.df_mantenimientos = df
+
+def _reintentar_cambios_pendientes():
+    pendientes = st.session_state.get("cambios_pendientes", {})
+    if not pendientes:
+        return
+    for id_interno, datos in list(pendientes.items()):
+        try:
+            payload = {mapear_campo_supabase(k): _norm_valor(v) for k, v in datos.items()}
+            if payload:
+                supabase.table("ordenes_trabajo").update(payload).eq("id", id_interno).execute()
+            _quitar_cambio_pendiente(id_interno)
+        except Exception:
+            # Se conserva para el siguiente rerun. No interrumpir al técnico.
+            continue
+
+def actualizar_campos_supabase(id_interno, datos_nuevos, datos_originales=None):
+    datos_a_enviar = {}
+    for key, value in datos_nuevos.items():
+        nuevo = _norm_valor(value)
+        if datos_originales is not None:
+            original = _norm_valor(datos_originales.get(key, datos_originales.get(mapear_campo_supabase(key), "")))
+            if nuevo == original:
+                continue
+        datos_a_enviar[key] = nuevo
+
+    if not datos_a_enviar:
         return True
-    except Exception as e:
-        st.error(f"Error actualizando orden: {e}")
+
+    # Primero se conserva localmente para que una recarga no borre el cambio.
+    _actualizar_local(id_interno, datos_a_enviar)
+    try:
+        payload = {mapear_campo_supabase(k): v for k, v in datos_a_enviar.items()}
+        supabase.table("ordenes_trabajo").update(payload).eq("id", id_interno).execute()
+        _quitar_cambio_pendiente(id_interno, datos_a_enviar.keys())
+        return True
+    except Exception:
+        _guardar_cambio_pendiente(id_interno, datos_a_enviar)
         return False
 
 def actualizar_orden_supabase(id_interno, campo, valor):
+    valor = _norm_valor(valor)
+    _actualizar_local(id_interno, {campo: valor})
     try:
-        if isinstance(valor, str) and valor.strip() == "":
-            valor = None
         supabase.table("ordenes_trabajo").update({mapear_campo_supabase(campo): valor}).eq("id", id_interno).execute()
+        _quitar_cambio_pendiente(id_interno, [campo])
         return True
-    except Exception as e:
-        st.error(f"Error actualizando campo '{campo}': {e}")
+    except Exception:
+        _guardar_cambio_pendiente(id_interno, {campo: valor})
         return False
 
 # ==================== SINCRONIZACIÓN EXCEL ↔ SUPABASE ====================
@@ -798,7 +871,9 @@ def cargar_excel_mantenimiento():
 def recargar_datos(forzar=False):
     if forzar or "df_mantenimientos" not in st.session_state:
         df = cargar_ordenes_supabase()
-        st.session_state.df_mantenimientos = df
+        if not df.empty or "df_mantenimientos" not in st.session_state:
+            st.session_state.df_mantenimientos = df
+    _reintentar_cambios_pendientes()
     return st.session_state.df_mantenimientos
 def calcular_progreso(df):
     total = len(df)
@@ -1048,11 +1123,12 @@ for k, v in {
     "mostrar_todos_tecnicos": False, "asignacion_exitosa": None,
     "mostrar_opciones_ordenes": False, "actividad_expandida": None,
     "admin_autenticado": False, "mostrar_login_admin": False,
-    "asignaciones_temp": {}, "asig_rapida_msg": None
+    "asignaciones_temp": {}, "asig_rapida_msg": None, "cambios_pendientes": {}
 }.items():
     st.session_state.setdefault(k, v)
 if "df_mantenimientos" not in st.session_state:
     st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+_reintentar_cambios_pendientes()
 
 # ==================== LOGIN ADMIN (SECRETS) ====================
 def autenticar_admin(password):
@@ -1373,6 +1449,55 @@ def _chk_key(internal_id):
     """Genera la key única del checkbox para una actividad."""
     return gen_key("chk_eq", internal_id)
 
+def _auto_guardar_checkbox(internal_id):
+    """Guarda automáticamente el estado de una actividad al marcar/desmarcar."""
+    df = st.session_state.get("df_mantenimientos", pd.DataFrame())
+    idx, row = get_row_by_internal_id(df, internal_id)
+    if idx is None:
+        return
+    chk_key = _chk_key(internal_id)
+    marcado = bool(st.session_state.get(chk_key, False))
+    estado_actual = limpiar(row.get("Estado"), "Pendiente")
+    datos = {}
+
+    if marcado:
+        hora_fin = datetime.now().strftime("%H:%M")
+        hora_ini = (st.session_state.get(f"hora_ini_auto_{internal_id}", "")
+                    or limpiar(row.get("Hora_Inicio"), "") or hora_fin)
+        datos = {
+            "Estado": "Ejecutado",
+            "Hora_Inicio": hora_ini,
+            "Hora_Fin": hora_fin,
+            "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
+        }
+    else:
+        if estado_actual == "Ejecutado":
+            datos = {"Estado": "Pendiente", "Hora_Fin": None, "Fecha_Ejecucion": None}
+
+    if datos:
+        actualizar_campos_supabase(internal_id, datos, row.to_dict())
+        st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
+
+def _auto_guardar_comentario_bloque(comentario_key, ids_bloque):
+    """Guarda automáticamente el comentario general al salir del campo."""
+    comentario = st.session_state.get(comentario_key, "")
+    df = st.session_state.get("df_mantenimientos", pd.DataFrame())
+    ids_validos = [str(x) for x in ids_bloque if str(x).strip()]
+    if not ids_validos:
+        return
+    payload = {mapear_campo_supabase("Comentarios"): _norm_valor(comentario)}
+    try:
+        supabase.table("ordenes_trabajo").update(payload).in_("id", ids_validos).execute()
+        for internal_id in ids_validos:
+            _actualizar_local(internal_id, {"Comentarios": _norm_valor(comentario)})
+            _quitar_cambio_pendiente(internal_id, ["Comentarios"])
+        st.toast("Comentario guardado automáticamente", icon="💾")
+    except Exception:
+        for internal_id in ids_validos:
+            _actualizar_local(internal_id, {"Comentarios": _norm_valor(comentario)})
+            _guardar_cambio_pendiente(internal_id, {"Comentarios": _norm_valor(comentario)})
+        st.toast("Comentario conservado; se sincronizará cuando vuelva Internet", icon="📡")
+
 
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
@@ -1527,7 +1652,12 @@ def _home_tecnico(df):
 
                 cols_fila = st.columns([0.02, 1], gap="small")
                 with cols_fila[0]:
-                    chk_val = st.checkbox("", key=chk_key, label_visibility="collapsed")
+                    if chk_key not in st.session_state:
+                        st.session_state[chk_key] = ya_ejecutada
+                    chk_val = st.checkbox(
+                        "", key=chk_key, label_visibility="collapsed",
+                        on_change=_auto_guardar_checkbox, args=(internal_id,)
+                    )
                     if chk_val and not ya_ejecutada and not st.session_state.get(f"hora_ini_auto_{internal_id}"):
                         st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
 
@@ -1549,12 +1679,15 @@ def _bloque_acciones_ubicacion(ubi_key, grupo_ubi_df):
     """Comentario general + botones Desmarcar/Guardar de un bloque de ubicación."""
     comentario_key = f"com_ubi_{ubi_key}"
     st.session_state.setdefault(comentario_key, "")
-    st.text_input("💬 Comentario general del bloque:", value=st.session_state[comentario_key],
-                  key=comentario_key, placeholder="Escribe un comentario para todas las actividades de este bloque...")
-    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-
-    if st.button("💾 Guardar", use_container_width=True, type="primary", key=gen_key("btn_guardar_ubi", ubi_key)):
-        _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key)
+    ids_bloque = [limpiar(v, "") for v in grupo_ubi_df.get("ID", pd.Series(dtype=object)).tolist()] if "ID" in grupo_ubi_df.columns else []
+    st.text_input(
+        "💬 Comentario general del bloque:",
+        key=comentario_key,
+        placeholder="Escribe un comentario para todas las actividades de este bloque...",
+        on_change=_auto_guardar_comentario_bloque,
+        args=(comentario_key, ids_bloque)
+    )
+    st.caption("💾 Se guarda automáticamente al terminar de editar el comentario.")
 
 
 def _guardar_bloque_ubicacion(ubi_key, grupo_ubi_df, comentario_key):
