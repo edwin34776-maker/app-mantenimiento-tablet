@@ -1,5 +1,6 @@
 
 import streamlit as st
+
 # Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -1247,7 +1248,7 @@ def pantalla_login():
     # 🔄 Auto-refresh cada 5 segundos en el dashboard (solo si no está escribiendo contraseña de admin)
     if not st.session_state.get("mostrar_login_admin", False):
         if _HAS_AUTOREFRESH:
-            st_autorefresh(interval=5000, key="dashboard_auto_refresh")
+            st_autorefresh(interval=2000, key="dashboard_auto_refresh")
         else:
             # Fallback: recarga automática vía JavaScript cada 8 segundos
             st.markdown("""
