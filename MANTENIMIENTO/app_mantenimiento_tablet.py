@@ -1,10 +1,5 @@
+
 import streamlit as st
-# Auto-refresh para dashboard en tiempo real
-try:
-    from streamlit_autorefresh import st_autorefresh
-    _HAS_AUTOREFRESH = True
-except ImportError:
-    _HAS_AUTOREFRESH = False
 import pandas as pd
 from datetime import datetime
 from supabase import create_client
@@ -1243,91 +1238,83 @@ def pantalla_login():
     </div>
     """, unsafe_allow_html=True)
 
-    # 🔄 Auto-refresh cada 5 segundos en el dashboard (solo si no está escribiendo contraseña de admin)
-    if not st.session_state.get("mostrar_login_admin", False):
-        if _HAS_AUTOREFRESH:
-            st_autorefresh(interval=5000, key="dashboard_auto_refresh")
-        else:
-            # Fallback: recarga automática vía JavaScript cada 8 segundos
-            st.markdown("""
-            <script>
-                setTimeout(function(){
-                    window.location.reload();
-                }, 8000);
-            </script>
-            """, unsafe_allow_html=True)
-
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
-    st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
+    # El dashboard se actualiza de forma independiente para no recargar
+    # toda la aplicación ni sacar al usuario de la pantalla donde está.
+    @st.fragment(run_every="15s")
+    def dashboard_auto_actualizacion():
+        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
-    # El dashboard usa la misma copia de datos de la sesión.
-    # Así el auto-refresh no cambia el total de actividades por una lectura
-    # diferente de Supabase entre refrescos.
-    df = recargar_datos()
-    if not df.empty:
+        # El dashboard usa la misma copia de datos de la sesión.
+        # Así el auto-refresh no cambia el total de actividades por una lectura
+        # diferente de Supabase entre refrescos.
+        df = recargar_datos()
+        if not df.empty:
 
-        col_e, col_m = st.columns(2)
+            col_e, col_m = st.columns(2)
 
-        for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
-            with col:
-                if "Especialidad" in df.columns:
-                    df_esp = df[df["Especialidad"] == esp_code]
-                else:
-                    df_esp = df
+            for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
+                with col:
+                    if "Especialidad" in df.columns:
+                        df_esp = df[df["Especialidad"] == esp_code]
+                    else:
+                        df_esp = df
 
-                total_esp = len(df_esp)
-                if total_esp == 0:
-                    st.info(f"📭 Sin datos {esp_label}")
-                    continue
+                    total_esp = len(df_esp)
+                    if total_esp == 0:
+                        st.info(f"📭 Sin datos {esp_label}")
+                        continue
 
-                # Normalizar estados para que el dashboard refleje también
-                # registros que vienen vacíos/NULL desde Supabase.
-                # En la pantalla del técnico esos registros se consideran pendientes.
-                if "Estado" in df_esp.columns:
-                    estados = df_esp["Estado"].fillna("").astype(str).str.strip()
-                    pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
-                    ejec = int((estados == "Ejecutado").sum())
-                    verif = int((estados == "Verificado").sum())
-                else:
-                    pend = total_esp
-                    ejec = 0
-                    verif = 0
+                    # Normalizar estados para que el dashboard refleje también
+                    # registros que vienen vacíos/NULL desde Supabase.
+                    # En la pantalla del técnico esos registros se consideran pendientes.
+                    if "Estado" in df_esp.columns:
+                        estados = df_esp["Estado"].fillna("").astype(str).str.strip()
+                        pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
+                        ejec = int((estados == "Ejecutado").sum())
+                        verif = int((estados == "Verificado").sum())
+                    else:
+                        pend = total_esp
+                        ejec = 0
+                        verif = 0
 
-                pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
+                    pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
 
-                st.markdown(f"""
-                <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
-                        <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
-                    </div>
-                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
-                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
+                    st.markdown(f"""
+                    <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                            <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
+                            <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
                         </div>
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
+                        <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
+                            <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
                         </div>
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                            <div style="flex: 1; text-align: center;">
+                                <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
+                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
+                            </div>
+                            <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
+                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
+                            </div>
+                            <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                            <div style="flex: 1; text-align: center;">
+                                <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
+                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
+                            <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
                         </div>
                     </div>
-                    <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
-                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
-        # Torta general
+            # Torta general
 
+
+    dashboard_auto_actualizacion()
 
     st.markdown("""
     <div style="text-align: center; padding: 10px 0 20px 0;">
