@@ -1,5 +1,10 @@
-
 import streamlit as st
+# Auto-refresh para dashboard en tiempo real
+try:
+    from streamlit_autorefresh import st_autorefresh
+    _HAS_AUTOREFRESH = True
+except ImportError:
+    _HAS_AUTOREFRESH = False
 import pandas as pd
 from datetime import datetime
 from supabase import create_client
@@ -1239,131 +1244,256 @@ def pantalla_login():
     """, unsafe_allow_html=True)
 
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
-    # El dashboard se actualiza de forma independiente para no recargar
-    # toda la aplicación ni sacar al usuario de la pantalla donde está.
-    @st.fragment(run_every="15s")
-    def dashboard_auto_actualizacion():
-        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
+    # Se actualiza de forma independiente para no recargar toda la aplicación.
+    if hasattr(st, "fragment"):
+        @st.fragment(run_every="15s")
+        def _dashboard_auto_actualizable():
+            # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
+            st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
-        # El dashboard usa la misma copia de datos de la sesión.
-        # Así el auto-refresh no cambia el total de actividades por una lectura
-        # diferente de Supabase entre refrescos.
-        df = recargar_datos()
-        if not df.empty:
+            # El dashboard usa la misma copia de datos de la sesión.
+            # Así el auto-refresh no cambia el total de actividades por una lectura
+            # diferente de Supabase entre refrescos.
+            df = recargar_datos()
+            if not df.empty:
 
-            col_e, col_m = st.columns(2)
+                col_e, col_m = st.columns(2)
 
-            for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
-                with col:
-                    if "Especialidad" in df.columns:
-                        df_esp = df[df["Especialidad"] == esp_code]
-                    else:
-                        df_esp = df
+                for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
+                    with col:
+                        if "Especialidad" in df.columns:
+                            df_esp = df[df["Especialidad"] == esp_code]
+                        else:
+                            df_esp = df
 
-                    total_esp = len(df_esp)
-                    if total_esp == 0:
-                        st.info(f"📭 Sin datos {esp_label}")
-                        continue
+                        total_esp = len(df_esp)
+                        if total_esp == 0:
+                            st.info(f"📭 Sin datos {esp_label}")
+                            continue
 
-                    # Normalizar estados para que el dashboard refleje también
-                    # registros que vienen vacíos/NULL desde Supabase.
-                    # En la pantalla del técnico esos registros se consideran pendientes.
-                    if "Estado" in df_esp.columns:
-                        estados = df_esp["Estado"].fillna("").astype(str).str.strip()
-                        pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
-                        ejec = int((estados == "Ejecutado").sum())
-                        verif = int((estados == "Verificado").sum())
-                    else:
-                        pend = total_esp
-                        ejec = 0
-                        verif = 0
+                        # Normalizar estados para que el dashboard refleje también
+                        # registros que vienen vacíos/NULL desde Supabase.
+                        # En la pantalla del técnico esos registros se consideran pendientes.
+                        if "Estado" in df_esp.columns:
+                            estados = df_esp["Estado"].fillna("").astype(str).str.strip()
+                            pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
+                            ejec = int((estados == "Ejecutado").sum())
+                            verif = int((estados == "Verificado").sum())
+                        else:
+                            pend = total_esp
+                            ejec = 0
+                            verif = 0
 
-                    pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
+                        pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
 
-                    st.markdown(f"""
-                    <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                            <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
-                            <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
-                        </div>
-                        <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
-                            <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                            <div style="flex: 1; text-align: center;">
-                                <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
-                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
+                        st.markdown(f"""
+                        <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
+                                <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
                             </div>
-                            <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                            <div style="flex: 1; text-align: center;">
-                                <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
-                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
+                            <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
+                                <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
                             </div>
-                            <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                            <div style="flex: 1; text-align: center;">
-                                <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
-                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
+                                    <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
+                                </div>
+                                <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
+                                    <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
+                                </div>
+                                <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
+                                    <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
                             </div>
                         </div>
-                        <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
-                            <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
 
-            # Torta general
+                # Torta general
 
 
-    dashboard_auto_actualizacion()
+            st.markdown("""
+            <div style="text-align: center; padding: 10px 0 20px 0;">
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
+            </div>""", unsafe_allow_html=True)
 
-    st.markdown("""
-    <div style="text-align: center; padding: 10px 0 20px 0;">
-        <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
-    </div>""", unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">&#128100;</div>
-            <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
-            <div class="perfil-desc"><div>Asigna tecnicos</div><div>Verifica ejecuciones</div></div>
-        </div>""", unsafe_allow_html=True)
-        if not st.session_state.mostrar_login_admin:
-            if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
-                st.session_state.mostrar_login_admin = True
-                st.rerun()
-        else:
-            st.markdown("<div style='font-size:12px; color:#64748B; margin-bottom:4px;'>🔐 Contraseña de administrador</div>", unsafe_allow_html=True)
-            pwd_admin = st.text_input("", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_admin"), label_visibility="collapsed")
-            col_ing, col_vol = st.columns(2)
-            with col_ing:
-                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_admin")):
-                    ok, msg = autenticar_admin(pwd_admin)
-                    if ok:
-                        st.session_state.perfil = "admin"
-                        st.session_state.admin_autenticado = True
-                        st.session_state.pagina = "home"
-                        st.session_state.mostrar_login_admin = False
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("""
+                <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
+                    <div class="perfil-icon">&#128100;</div>
+                    <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
+                    <div class="perfil-desc"><div>Asigna tecnicos</div><div>Verifica ejecuciones</div></div>
+                </div>""", unsafe_allow_html=True)
+                if not st.session_state.mostrar_login_admin:
+                    if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
+                        st.session_state.mostrar_login_admin = True
                         st.rerun()
-                    else:
-                        st.error(f"❌ {msg}")
-            with col_vol:
-                if st.button("Cancelar", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_admin")):
-                    st.session_state.mostrar_login_admin = False
+                else:
+                    st.markdown("<div style='font-size:12px; color:#64748B; margin-bottom:4px;'>🔐 Contraseña de administrador</div>", unsafe_allow_html=True)
+                    pwd_admin = st.text_input("", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_admin"), label_visibility="collapsed")
+                    col_ing, col_vol = st.columns(2)
+                    with col_ing:
+                        if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_admin")):
+                            ok, msg = autenticar_admin(pwd_admin)
+                            if ok:
+                                st.session_state.perfil = "admin"
+                                st.session_state.admin_autenticado = True
+                                st.session_state.pagina = "home"
+                                st.session_state.mostrar_login_admin = False
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
+                    with col_vol:
+                        if st.button("Cancelar", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_admin")):
+                            st.session_state.mostrar_login_admin = False
+                            st.rerun()
+
+            with col2:
+                st.markdown("""
+                <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
+                    <div class="perfil-icon">&#128295;</div>
+                    <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
+                    <div class="perfil-desc"><div>Ve sus ordenes</div><div>Ejecuta actividades</div></div>
+                </div>""", unsafe_allow_html=True)
+                if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
+                    st.session_state.perfil = "tecnico"
+                    st.session_state.pagina = "home"
                     st.rerun()
 
-    with col2:
-        st.markdown("""
-        <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">&#128295;</div>
-            <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
-            <div class="perfil-desc"><div>Ve sus ordenes</div><div>Ejecuta actividades</div></div>
-        </div>""", unsafe_allow_html=True)
-        if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
-            st.session_state.perfil = "tecnico"
-            st.session_state.pagina = "home"
-            st.rerun()
+
+        _dashboard_auto_actualizable()
+    else:
+        # Compatibilidad: sin recarga automática global.
+            # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
+            st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
+
+            # El dashboard usa la misma copia de datos de la sesión.
+            # Así el auto-refresh no cambia el total de actividades por una lectura
+            # diferente de Supabase entre refrescos.
+            df = recargar_datos()
+            if not df.empty:
+
+                col_e, col_m = st.columns(2)
+
+                for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
+                    with col:
+                        if "Especialidad" in df.columns:
+                            df_esp = df[df["Especialidad"] == esp_code]
+                        else:
+                            df_esp = df
+
+                        total_esp = len(df_esp)
+                        if total_esp == 0:
+                            st.info(f"📭 Sin datos {esp_label}")
+                            continue
+
+                        # Normalizar estados para que el dashboard refleje también
+                        # registros que vienen vacíos/NULL desde Supabase.
+                        # En la pantalla del técnico esos registros se consideran pendientes.
+                        if "Estado" in df_esp.columns:
+                            estados = df_esp["Estado"].fillna("").astype(str).str.strip()
+                            pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
+                            ejec = int((estados == "Ejecutado").sum())
+                            verif = int((estados == "Verificado").sum())
+                        else:
+                            pend = total_esp
+                            ejec = 0
+                            verif = 0
+
+                        pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
+
+                        st.markdown(f"""
+                        <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                                <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
+                                <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
+                            </div>
+                            <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
+                                <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
+                                    <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
+                                </div>
+                                <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
+                                    <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
+                                </div>
+                                <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                                <div style="flex: 1; text-align: center;">
+                                    <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
+                                    <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                # Torta general
+
+
+            st.markdown("""
+            <div style="text-align: center; padding: 10px 0 20px 0;">
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
+            </div>""", unsafe_allow_html=True)
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("""
+                <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
+                    <div class="perfil-icon">&#128100;</div>
+                    <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
+                    <div class="perfil-desc"><div>Asigna tecnicos</div><div>Verifica ejecuciones</div></div>
+                </div>""", unsafe_allow_html=True)
+                if not st.session_state.mostrar_login_admin:
+                    if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
+                        st.session_state.mostrar_login_admin = True
+                        st.rerun()
+                else:
+                    st.markdown("<div style='font-size:12px; color:#64748B; margin-bottom:4px;'>🔐 Contraseña de administrador</div>", unsafe_allow_html=True)
+                    pwd_admin = st.text_input("", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_admin"), label_visibility="collapsed")
+                    col_ing, col_vol = st.columns(2)
+                    with col_ing:
+                        if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_admin")):
+                            ok, msg = autenticar_admin(pwd_admin)
+                            if ok:
+                                st.session_state.perfil = "admin"
+                                st.session_state.admin_autenticado = True
+                                st.session_state.pagina = "home"
+                                st.session_state.mostrar_login_admin = False
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg}")
+                    with col_vol:
+                        if st.button("Cancelar", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_admin")):
+                            st.session_state.mostrar_login_admin = False
+                            st.rerun()
+
+            with col2:
+                st.markdown("""
+                <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
+                    <div class="perfil-icon">&#128295;</div>
+                    <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
+                    <div class="perfil-desc"><div>Ve sus ordenes</div><div>Ejecuta actividades</div></div>
+                </div>""", unsafe_allow_html=True)
+                if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
+                    st.session_state.perfil = "tecnico"
+                    st.session_state.pagina = "home"
+                    st.rerun()
+
 
 # ==================== PANTALLA: HOME ====================
 def _home_envio_correo(df):
@@ -2606,6 +2736,22 @@ def pantalla_asignacion():
         st.session_state.setdefault(sel_key, {})
         seleccion = st.session_state[sel_key]
 
+        # Selección de todas las actividades visibles con un solo clic.
+        ids_visibles = []
+        _ids_vistos = set()
+        for _, _row in df_asig.iterrows():
+            _internal_id = limpiar(_row.get("ID"), "")
+            if _internal_id and _internal_id not in _ids_vistos:
+                _ids_vistos.add(_internal_id)
+                ids_visibles.append(_internal_id)
+
+        select_all_key = gen_key("seleccionar_todas")
+        def _aplicar_seleccion_todas():
+            marcar_todas = bool(st.session_state.get(select_all_key, False))
+            for _internal_id in ids_visibles:
+                seleccion[_internal_id] = marcar_todas
+                st.session_state[gen_key("chk_sel", _internal_id)] = marcar_todas
+
         esp_filtro = st.session_state.filtro_especialidad
         if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
             esps_unicas = df_asig["Especialidad"].dropna().unique()
@@ -2616,6 +2762,7 @@ def pantalla_asignacion():
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='background: linear-gradient(135deg, #F0F9FF, #E0F2FE); border: 1px solid #BAE6FD; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;'>", unsafe_allow_html=True)
         st.markdown("<div style='font-weight:700; color:#0369a1; font-size:13px; margin-bottom:10px;'>✅ Asignación masiva por selección</div>", unsafe_allow_html=True)
+        st.checkbox("☑️ Seleccionar todas las actividades", key=select_all_key, on_change=_aplicar_seleccion_todas)
         c1, c2, c3 = st.columns([3, 2, 1])
         with c1:
             tec1_masivo = st.selectbox("Técnico", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
