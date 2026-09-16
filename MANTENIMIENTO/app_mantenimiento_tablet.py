@@ -1,12 +1,5 @@
 
 import streamlit as st
-
-# Auto-refresh para dashboard en tiempo real
-try:
-    from streamlit_autorefresh import st_autorefresh
-    _HAS_AUTOREFRESH = True
-except ImportError:
-    _HAS_AUTOREFRESH = False
 import pandas as pd
 from datetime import datetime
 from supabase import create_client
@@ -1199,73 +1192,18 @@ def color_porcentaje(pct):
         b = int(11 + (94 - 11) * ((pct - 50) / 50))
     return f"#{r:02X}{g:02X}{b:02X}"
 
-def pantalla_login():
-    header_tablet("App Tablet Mtto Preventivo")
-
-    # 📅 FECHA ACTUAL — debajo del encabezado y alineada a la izquierda
-    dias = {
-        "Monday": "Lunes",
-        "Tuesday": "Martes",
-        "Wednesday": "Miércoles",
-        "Thursday": "Jueves",
-        "Friday": "Viernes",
-        "Saturday": "Sábado",
-        "Sunday": "Domingo"
-    }
-
-    meses = {
-        "January": "enero",
-        "February": "febrero",
-        "March": "marzo",
-        "April": "abril",
-        "May": "mayo",
-        "June": "junio",
-        "July": "julio",
-        "August": "agosto",
-        "September": "septiembre",
-        "October": "octubre",
-        "November": "noviembre",
-        "December": "diciembre"
-    }
-
-    ahora = datetime.now()
-    dia_semana = dias[ahora.strftime("%A")]
-    mes = meses[ahora.strftime("%B")]
-    fecha_actual = f"{dia_semana} {ahora.day:02d} de {mes} de {ahora.year}"
-
-    st.markdown(f"""
-    <div style="
-        text-align:left;
-        font-size:22px;
-        font-weight:700;
-        color:#475569;
-        margin:8px 0 10px 15px;
-    ">
-        📅 {fecha_actual}
-    </div>
-    """, unsafe_allow_html=True)
-
-    # 🔄 Auto-refresh cada 5 segundos en el dashboard (solo si no está escribiendo contraseña de admin)
-    if not st.session_state.get("mostrar_login_admin", False):
-        if _HAS_AUTOREFRESH:
-            st_autorefresh(interval=2000, key="dashboard_auto_refresh")
-        else:
-            # Fallback: recarga automática vía JavaScript cada 8 segundos
-            st.markdown("""
-            <script>
-                setTimeout(function(){
-                    window.location.reload();
-                }, 8000);
-            </script>
-            """, unsafe_allow_html=True)
-
+# ==================== DASHBOARD EN FRAGMENTO ====================
+# Solo se actualiza este bloque; no recarga toda la aplicación ni cambia la pantalla actual.
+@st.fragment(run_every="15s")
+def dashboard_monitoreo():
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
     st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
     # El dashboard usa la misma copia de datos de la sesión.
-    # Así el auto-refresh no cambia el total de actividades por una lectura
-    # diferente de Supabase entre refrescos.
-    df = recargar_datos()
+    # El fragmento actualiza solo este dashboard y conserva la sesión principal.
+    # Fuerza la consulta respetando el cache de 30 s para que el dashboard
+    # pueda recibir cambios nuevos sin recargar la aplicación completa.
+    df = recargar_datos(forzar=True)
     if not df.empty:
 
         col_e, col_m = st.columns(2)
@@ -1328,8 +1266,55 @@ def pantalla_login():
                 </div>
                 """, unsafe_allow_html=True)
 
-        # Torta general
 
+
+def pantalla_login():
+    header_tablet("App Tablet Mtto Preventivo")
+
+    # 📅 FECHA ACTUAL — debajo del encabezado y alineada a la izquierda
+    dias = {
+        "Monday": "Lunes",
+        "Tuesday": "Martes",
+        "Wednesday": "Miércoles",
+        "Thursday": "Jueves",
+        "Friday": "Viernes",
+        "Saturday": "Sábado",
+        "Sunday": "Domingo"
+    }
+
+    meses = {
+        "January": "enero",
+        "February": "febrero",
+        "March": "marzo",
+        "April": "abril",
+        "May": "mayo",
+        "June": "junio",
+        "July": "julio",
+        "August": "agosto",
+        "September": "septiembre",
+        "October": "octubre",
+        "November": "noviembre",
+        "December": "diciembre"
+    }
+
+    ahora = datetime.now()
+    dia_semana = dias[ahora.strftime("%A")]
+    mes = meses[ahora.strftime("%B")]
+    fecha_actual = f"{dia_semana} {ahora.day:02d} de {mes} de {ahora.year}"
+
+    st.markdown(f"""
+    <div style="
+        text-align:left;
+        font-size:22px;
+        font-weight:700;
+        color:#475569;
+        margin:8px 0 10px 15px;
+    ">
+        📅 {fecha_actual}
+    </div>
+    """, unsafe_allow_html=True)
+
+    dashboard_monitoreo()
 
     st.markdown("""
     <div style="text-align: center; padding: 10px 0 20px 0;">
@@ -1521,6 +1506,31 @@ def _auto_guardar_checkbox(internal_id):
         actualizar_campos_supabase(internal_id, datos, row.to_dict())
         st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
 
+def _marcar_no_aplica(internal_id, razon):
+    """Marca una actividad como No aplica y guarda el motivo en Comentarios."""
+    razon = limpiar(razon, "")
+    if not razon:
+        return False
+
+    df = st.session_state.get("df_mantenimientos", pd.DataFrame())
+    idx, row = get_row_by_internal_id(df, internal_id)
+    if idx is None:
+        return False
+
+    comentario_actual = limpiar(row.get("Comentarios"), "")
+    texto_no_aplica = f"No aplica: {razon}"
+    comentario_nuevo = f"{comentario_actual}\n{texto_no_aplica}".strip() if comentario_actual else texto_no_aplica
+
+    datos = {
+        "Estado": "No aplica",
+        "Comentarios": comentario_nuevo
+    }
+    actualizar_campos_supabase(internal_id, datos, row.to_dict())
+    st.session_state.pop(_chk_key(internal_id), None)
+    st.session_state.pop(f"razon_no_aplica_{internal_id}", None)
+    return True
+
+
 def _auto_guardar_comentario_bloque(comentario_key, ids_bloque):
     """Guarda automáticamente el comentario general al salir del campo."""
     comentario = st.session_state.get(comentario_key, "")
@@ -1703,12 +1713,39 @@ def _home_tecnico(df):
                         st.session_state[f"hora_ini_auto_{internal_id}"] = datetime.now().strftime("%H:%M")
 
                 with cols_fila[1]:
-                    clase_ej = "ejecutada" if (chk_val or ya_ejecutada) else ""
-                    st.markdown(f"""
-                    <div class="fila-compacta {clase_ej}">
-                        <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
-                        <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
-                    </div>""", unsafe_allow_html=True)
+                    # La actividad se muestra junto al botón NO APLICA.
+                    # Al confirmar, se guarda el estado y el motivo en Supabase.
+                    col_desc, col_no_aplica = st.columns([0.84, 0.16], gap="small")
+                    with col_desc:
+                        clase_ej = "ejecutada" if (chk_val or ya_ejecutada) else ""
+                        st.markdown(f"""
+                        <div class="fila-compacta {clase_ej}">
+                            <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
+                            <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
+                        </div>""", unsafe_allow_html=True)
+
+                    with col_no_aplica:
+                        # Solo aparece para actividades que todavía están pendientes.
+                        if not ya_ejecutada:
+                            with st.popover("🚫 No aplica", use_container_width=True):
+                                razon_key = f"razon_no_aplica_{internal_id}"
+                                razon = st.text_area(
+                                    "Razón:",
+                                    key=razon_key,
+                                    placeholder="Escribe por qué esta actividad no aplica...",
+                                    height=90
+                                )
+                                if st.button(
+                                    "Confirmar No aplica",
+                                    key=gen_key("btn_confirmar_no_aplica", internal_id),
+                                    use_container_width=True,
+                                    type="primary"
+                                ):
+                                    if _marcar_no_aplica(internal_id, razon):
+                                        st.toast("Actividad marcada como No aplica", icon="🚫")
+                                        st.rerun()
+                                    else:
+                                        st.warning("Escribe una razón antes de confirmar.")
 
             st.markdown("</div></div>", unsafe_allow_html=True)
 
