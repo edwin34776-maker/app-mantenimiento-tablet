@@ -2944,3 +2944,45 @@ else:
     st.session_state.pagina = "login"
     st.rerun()
     
+
+
+# ==================== ORGANIGRAMA ====================
+def mostrar_organigrama():
+    st.markdown("""
+    <style>
+    .org-container { text-align:center; margin:18px 0 28px 0; }
+    .org-box {
+        display:inline-block; padding:12px 24px; border:2px solid #334155;
+        border-radius:12px; background:#fff; color:#0f172a; font-weight:700;
+        min-width:210px; box-shadow:0 3px 10px rgba(0,0,0,.08);
+    }
+    .org-line { width:2px; height:24px; background:#64748b; margin:0 auto; }
+    .org-children {
+        display:flex; justify-content:center; gap:18px; flex-wrap:wrap;
+    }
+    .org-child { position:relative; }
+    .org-child:before {
+        content:""; position:absolute; top:-12px; left:50%;
+        width:2px; height:12px; background:#64748b;
+    }
+    .org-small { min-width:170px; font-size:13px; }
+    </style>
+    <div class="org-container">
+      <div class="org-box">JEFE / RESPONSABLE DE MANTENIMIENTO</div>
+      <div class="org-line"></div>
+      <div class="org-children">
+        <div class="org-child"><div class="org-box org-small">SUPERVISOR</div></div>
+        <div class="org-child"><div class="org-box org-small">ADMINISTRADOR</div></div>
+        <div class="org-child"><div class="org-box org-small">PLANIFICACIÓN</div></div>
+      </div>
+      <div class="org-line"></div>
+      <div class="org-box org-small">TÉCNICOS</div>
+      <div class="org-line"></div>
+      <div class="org-children">
+        <div class="org-child"><div class="org-box org-small">Técnico 1</div></div>
+        <div class="org-child"><div class="org-box org-small">Técnico 2</div></div>
+        <div class="org-child"><div class="org-box org-small">Técnico 3</div></div>
+        <div class="org-child"><div class="org-box org-small">Técnico 4</div></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
