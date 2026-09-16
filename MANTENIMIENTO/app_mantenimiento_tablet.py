@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -2619,24 +2620,6 @@ def pantalla_asignacion():
         st.session_state.setdefault(sel_key, {})
         seleccion = st.session_state[sel_key]
 
-        # Selección masiva: un solo clic marca/desmarca TODAS las actividades visibles.
-        ids_visibles = []
-        for _, _row_sel in df_asig.iterrows():
-            _id_sel = limpiar(_row_sel.get("ID"), "")
-            if _id_sel:
-                ids_visibles.append(_id_sel)
-
-        sel_todas_key = gen_key("seleccionar_todas_asig")
-
-        def _cambiar_seleccion_todas(ids, selection_key):
-            marcar_todas = bool(st.session_state.get(sel_todas_key, False))
-            seleccion_actual = st.session_state.get(selection_key, {})
-            for _internal_id in ids:
-                _chk = gen_key("chk_sel", _internal_id)
-                st.session_state[_chk] = marcar_todas
-                seleccion_actual[_internal_id] = marcar_todas
-            st.session_state[selection_key] = seleccion_actual
-
         esp_filtro = st.session_state.filtro_especialidad
         if esp_filtro == "Todas" and "Especialidad" in df_asig.columns:
             esps_unicas = df_asig["Especialidad"].dropna().unique()
@@ -2703,19 +2686,37 @@ def pantalla_asignacion():
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
-        st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+        # ============================================================
+        # SELECCIONAR TODAS LAS ACTIVIDADES CON UN SOLO CLIC
+        # ============================================================
+        ids_visibles = []
+        for _, row_sel in df_asig.iterrows():
+            internal_id_sel = limpiar(row_sel.get("ID"), "")
+            if internal_id_sel and internal_id_sel not in ids_visibles:
+                ids_visibles.append(internal_id_sel)
+
+        key_seleccionar_todas = gen_key("chk_seleccionar_todas")
+
+        def _seleccionar_todas_actividades():
+            marcar_todas = bool(st.session_state.get(key_seleccionar_todas, False))
+            sel_actual = st.session_state.setdefault(sel_key, {})
+            for internal_id_sel in ids_visibles:
+                sel_actual[internal_id_sel] = marcar_todas
+                st.session_state[gen_key("chk_sel", internal_id_sel)] = marcar_todas
+
+        st.checkbox(
+            "☑ Seleccionar todas las actividades",
+            key=key_seleccionar_todas,
+            on_change=_seleccionar_todas_actividades,
+            help="Marca o desmarca todas las actividades visibles de una sola vez."
+        )
+
+        st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
+
         if maq_sel and maq_sel != "Todas":
             st.success(f"⚙️ {maq_sel} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
         else:
             st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
-
-        # Un solo clic para seleccionar todas las actividades visibles.
-        st.checkbox(
-            "☑️ Seleccionar todas las actividades",
-            key=sel_todas_key,
-            on_change=_cambiar_seleccion_todas,
-            args=(ids_visibles, sel_key),
-        )
 
         seen_ids = set()
         for _, row in df_asig.iterrows():
