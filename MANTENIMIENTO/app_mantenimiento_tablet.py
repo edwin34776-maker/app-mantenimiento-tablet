@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1243,86 +1244,91 @@ def pantalla_login():
     </div>
     """, unsafe_allow_html=True)
 
-    @st.fragment(run_every="15s")
-    def _dashboard_monitoreo_15s():
-        # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
-        # Se actualiza únicamente este bloque cada 15 segundos.
-        # No recarga ni reinicia el resto de la aplicación.
-        st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
+    # 🔄 Auto-refresh cada 5 segundos en el dashboard (solo si no está escribiendo contraseña de admin)
+    if not st.session_state.get("mostrar_login_admin", False):
+        if _HAS_AUTOREFRESH:
+            st_autorefresh(interval=5000, key="dashboard_auto_refresh")
+        else:
+            # Fallback: recarga automática vía JavaScript cada 8 segundos
+            st.markdown("""
+            <script>
+                setTimeout(function(){
+                    window.location.reload();
+                }, 8000);
+            </script>
+            """, unsafe_allow_html=True)
 
-        # El dashboard consulta datos nuevos cada 15 segundos.
-        # No cambia la pantalla ni reinicia la sesión del usuario.
-        try:
-            _cargar_ordenes_cache.clear()
-            df = _cargar_ordenes_cache()
-        except Exception:
-            df = st.session_state.get("df_mantenimientos", pd.DataFrame()).copy()
-        if not df.empty:
+    # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
+    st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
 
-            col_e, col_m = st.columns(2)
+    # El dashboard usa la misma copia de datos de la sesión.
+    # Así el auto-refresh no cambia el total de actividades por una lectura
+    # diferente de Supabase entre refrescos.
+    df = recargar_datos()
+    if not df.empty:
 
-            for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
-                with col:
-                    if "Especialidad" in df.columns:
-                        df_esp = df[df["Especialidad"] == esp_code]
-                    else:
-                        df_esp = df
+        col_e, col_m = st.columns(2)
 
-                    total_esp = len(df_esp)
-                    if total_esp == 0:
-                        st.info(f"📭 Sin datos {esp_label}")
-                        continue
+        for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
+            with col:
+                if "Especialidad" in df.columns:
+                    df_esp = df[df["Especialidad"] == esp_code]
+                else:
+                    df_esp = df
 
-                    # Normalizar estados para que el dashboard refleje también
-                    # registros que vienen vacíos/NULL desde Supabase.
-                    # En la pantalla del técnico esos registros se consideran pendientes.
-                    if "Estado" in df_esp.columns:
-                        estados = df_esp["Estado"].fillna("").astype(str).str.strip()
-                        pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
-                        ejec = int((estados == "Ejecutado").sum())
-                        verif = int((estados == "Verificado").sum())
-                    else:
-                        pend = total_esp
-                        ejec = 0
-                        verif = 0
+                total_esp = len(df_esp)
+                if total_esp == 0:
+                    st.info(f"📭 Sin datos {esp_label}")
+                    continue
 
-                    pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
+                # Normalizar estados para que el dashboard refleje también
+                # registros que vienen vacíos/NULL desde Supabase.
+                # En la pantalla del técnico esos registros se consideran pendientes.
+                if "Estado" in df_esp.columns:
+                    estados = df_esp["Estado"].fillna("").astype(str).str.strip()
+                    pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
+                    ejec = int((estados == "Ejecutado").sum())
+                    verif = int((estados == "Verificado").sum())
+                else:
+                    pend = total_esp
+                    ejec = 0
+                    verif = 0
 
-                    st.markdown(f"""
-                    <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                            <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
-                            <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
+                pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
+
+                st.markdown(f"""
+                <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
+                        <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
+                    </div>
+                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
+                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
+                        <div style="flex: 1; text-align: center;">
+                            <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
+                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
                         </div>
-                        <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
-                            <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
+                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                        <div style="flex: 1; text-align: center;">
+                            <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
+                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
                         </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                            <div style="flex: 1; text-align: center;">
-                                <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
-                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
-                            </div>
-                            <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                            <div style="flex: 1; text-align: center;">
-                                <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
-                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
-                            </div>
-                            <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                            <div style="flex: 1; text-align: center;">
-                                <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
-                                <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
-                            </div>
-                        </div>
-                        <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
-                            <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
+                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
+                        <div style="flex: 1; text-align: center;">
+                            <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
+                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
+                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-            # Torta general
+        # Torta general
 
-
-    _dashboard_monitoreo_15s()
 
     st.markdown("""
     <div style="text-align: center; padding: 10px 0 20px 0;">
@@ -2640,21 +2646,28 @@ def pantalla_asignacion():
         else:
             st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
-        # Checkbox maestro: al marcarlo se seleccionan TODAS las actividades visibles.
-        ids_visibles = [limpiar(row.get("ID"), "") for _, row in df_asig.iterrows() if limpiar(row.get("ID"), "")]
-        chk_todas_key = gen_key("chk_seleccionar_todas", maq_sel, st.session_state.filtro_estado_asignacion, len(ids_visibles))
+        # Selección masiva visible: marca/desmarca todas las actividades mostradas.
+        ids_visibles = []
+        for _, _row_sel in df_asig.iterrows():
+            _id_sel = limpiar(_row_sel.get("ID"), "")
+            if _id_sel and _id_sel not in ids_visibles:
+                ids_visibles.append(_id_sel)
 
-        def _seleccionar_todas_actividades():
-            marcar = bool(st.session_state.get(chk_todas_key, False))
-            for _id in ids_visibles:
-                seleccion[_id] = marcar
-                # Sincroniza también el estado de cada checkbox individual.
-                st.session_state[gen_key("chk_sel", _id)] = marcar
+        select_all_key = gen_key("chk_seleccionar_todas")
+        st.session_state.setdefault(select_all_key, False)
+
+        def _cambiar_seleccion_todas(_sel_key, _ids):
+            _seleccion_actual = st.session_state.get(_sel_key, {})
+            _marcar = bool(st.session_state.get(select_all_key, False))
+            for _id in _ids:
+                _seleccion_actual[_id] = _marcar
+            st.session_state[_sel_key] = _seleccion_actual
 
         st.checkbox(
             "☑ Seleccionar todas las actividades",
-            key=chk_todas_key,
-            on_change=_seleccionar_todas_actividades,
+            key=select_all_key,
+            on_change=_cambiar_seleccion_todas,
+            args=(sel_key, ids_visibles),
         )
 
         seen_ids = set()
