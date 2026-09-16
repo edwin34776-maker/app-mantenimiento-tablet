@@ -1,6 +1,5 @@
-
 import streamlit as st
-# Auto-refresh para dashboard en tiempo real
+
 try:
     from streamlit_autorefresh import st_autorefresh
     _HAS_AUTOREFRESH = True
@@ -1520,31 +1519,6 @@ def _auto_guardar_checkbox(internal_id):
         actualizar_campos_supabase(internal_id, datos, row.to_dict())
         st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
 
-def _auto_guardar_no_aplica(internal_id, razon_key):
-    """Guarda automáticamente una actividad como No aplica al escribir la razón."""
-    razon = limpiar(st.session_state.get(razon_key, ""), "").strip()
-    if not razon:
-        return
-
-    df = st.session_state.get("df_mantenimientos", pd.DataFrame())
-    idx, row = get_row_by_internal_id(df, internal_id)
-    if idx is None:
-        return
-
-    datos = {
-        "Estado": "No aplica",
-        "Comentarios": razon,
-    }
-    guardado = actualizar_campos_supabase(internal_id, datos, row.to_dict())
-    if guardado:
-        st.toast("No aplica guardado automáticamente", icon="💾")
-    else:
-        st.toast("No aplica guardado localmente; se sincronizará cuando vuelva Internet", icon="📡")
-
-    st.session_state.pop("no_aplica_activa", None)
-    st.session_state.pop(razon_key, None)
-
-
 def _auto_guardar_comentario_bloque(comentario_key, ids_bloque):
     """Guarda automáticamente el comentario general al salir del campo."""
     comentario = st.session_state.get(comentario_key, "")
@@ -1715,7 +1689,9 @@ def _home_tecnico(df):
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = ya_ejecutada
 
-                cols_fila = st.columns([0.02, 1, 0.28], gap="small")
+                # La actividad pendiente muestra checkbox + descripción + botón "No aplica".
+                # El botón permite registrar el motivo y cambia el estado a "No aplica".
+                cols_fila = st.columns([0.02, 0.72, 0.26], gap="small")
                 with cols_fila[0]:
                     if chk_key not in st.session_state:
                         st.session_state[chk_key] = ya_ejecutada
@@ -1729,31 +1705,58 @@ def _home_tecnico(df):
                 with cols_fila[1]:
                     clase_ej = "ejecutada" if (chk_val or ya_ejecutada) else ""
                     st.markdown(f"""
-                    <div class="fila-compacta {clase_ej}">
+                    <div class="fila-compacta {clase_ej}" style="min-height:38px; display:flex; align-items:center;">
                         <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
-                        <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
+                        <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:6px;">{estado}</span>
                     </div>""", unsafe_allow_html=True)
 
                 with cols_fila[2]:
-                    if not ya_ejecutada:
-                        no_aplica_activa = st.session_state.get("no_aplica_activa") == internal_id
-                        if not no_aplica_activa:
-                            if st.button("🚫 No aplica", key=gen_key("btn_no_aplica", internal_id), use_container_width=True):
-                                st.session_state["no_aplica_activa"] = internal_id
-                                st.rerun()
+                    no_aplica_key = gen_key(f"no_aplica_{internal_id}")
+                    if st.button("🚫 No aplica", key=no_aplica_key, use_container_width=True, type="secondary"):
+                        st.session_state["no_aplica_id"] = internal_id
+                        st.rerun()
 
-                # Al elegir "No aplica", solo se pide la razón. No existe botón de confirmar:
-                # al terminar de escribir la razón se guarda automáticamente.
-                if st.session_state.get("no_aplica_activa") == internal_id:
-                    razon_key = gen_key("razon_no_aplica", internal_id)
-                    st.text_input(
+                # Formulario de motivo para la actividad seleccionada.
+                if st.session_state.get("no_aplica_id") == internal_id:
+                    motivo_key = gen_key(f"motivo_no_aplica_{internal_id}")
+                    motivo = st.text_input(
                         "Razón por la que no aplica:",
-                        key=razon_key,
-                        placeholder="Escribe la razón...",
-                        on_change=_auto_guardar_no_aplica,
-                        args=(internal_id, razon_key)
+                        key=motivo_key,
+                        placeholder="Escribe la razón..."
                     )
-                    st.caption("💾 Se guarda automáticamente al terminar de escribir la razón.")
+                    col_na1, col_na2 = st.columns(2)
+                    with col_na1:
+                        if st.button("✅ Confirmar No aplica", key=gen_key(f"confirmar_no_aplica_{internal_id}"),
+                                      use_container_width=True, type="primary"):
+                            motivo_limpio = str(motivo or "").strip()
+                            if not motivo_limpio:
+                                st.warning("Escribe la razón antes de confirmar.")
+                            else:
+                                comentario_actual = limpiar(row.get("Comentarios"), "")
+                                comentario_no_aplica = (
+                                    f"{comentario_actual}\nNo aplica: {motivo_limpio}"
+                                    if comentario_actual else f"No aplica: {motivo_limpio}"
+                                )
+                                datos_na = {
+                                    "Estado": "No aplica",
+                                    "Comentarios": comentario_no_aplica
+                                }
+                                if actualizar_campos_supabase(internal_id, datos_na, row.to_dict()):
+                                    st.session_state.pop("no_aplica_id", None)
+                                    st.session_state.pop(motivo_key, None)
+                                    try:
+                                        _cargar_ordenes_cache.clear()
+                                    except Exception:
+                                        pass
+                                    st.rerun()
+                                else:
+                                    st.warning("No hay conexión. El cambio quedó guardado localmente y se sincronizará automáticamente.")
+                    with col_na2:
+                        if st.button("Cancelar", key=gen_key(f"cancelar_no_aplica_{internal_id}"),
+                                      use_container_width=True, type="secondary"):
+                            st.session_state.pop("no_aplica_id", None)
+                            st.session_state.pop(motivo_key, None)
+                            st.rerun()
 
             st.markdown("</div></div>", unsafe_allow_html=True)
 
@@ -1762,7 +1765,7 @@ def _home_tecnico(df):
 
 
 def _bloque_acciones_ubicacion(ubi_key, grupo_ubi_df):
-    """Comentario general + botones Desmarcar/Guardar de un bloque de ubicación."""
+    """Comentario general del bloque de ubicación."""
     comentario_key = f"com_ubi_{ubi_key}"
     st.session_state.setdefault(comentario_key, "")
     ids_bloque = [limpiar(v, "") for v in grupo_ubi_df.get("ID", pd.Series(dtype=object)).tolist()] if "ID" in grupo_ubi_df.columns else []
@@ -2686,35 +2689,33 @@ def pantalla_asignacion():
             st.info("📭 No hay ordenes con los filtros seleccionados.")
             st.stop()
 
-        # ============================================================
-        # SELECCIONAR TODAS LAS ACTIVIDADES CON UN SOLO CLIC
-        # ============================================================
+        st.markdown("<div style='height:8px;'></div>")
+
+        # Checkbox maestro: al marcarlo selecciona todas las actividades visibles.
         ids_visibles = []
-        for _, row_sel in df_asig.iterrows():
-            internal_id_sel = limpiar(row_sel.get("ID"), "")
-            if internal_id_sel and internal_id_sel not in ids_visibles:
-                ids_visibles.append(internal_id_sel)
+        for _, _row in df_asig.iterrows():
+            _iid = limpiar(_row.get("ID"), "")
+            if _iid and _iid not in ids_visibles:
+                ids_visibles.append(_iid)
 
-        key_seleccionar_todas = gen_key("chk_seleccionar_todas")
+        master_key = gen_key("seleccionar_todas_asig")
 
-        def _seleccionar_todas_actividades():
-            marcar_todas = bool(st.session_state.get(key_seleccionar_todas, False))
-            sel_actual = st.session_state.setdefault(sel_key, {})
-            for internal_id_sel in ids_visibles:
-                sel_actual[internal_id_sel] = marcar_todas
+        def _marcar_todas_asig():
+            _marcar = bool(st.session_state.get(master_key, False))
+            for _iid in ids_visibles:
+                _row_key = gen_key("chk_sel", _iid)
+                st.session_state[_row_key] = _marcar
+                seleccion[_iid] = _marcar
 
-        # Casilla maestra dentro de la misma franja verde: al marcarla
-        # selecciona todas las actividades visibles con un solo clic.
-        col_todas, col_texto = st.columns([0.07, 1], gap="small")
-        with col_todas:
+        col_master, col_aviso = st.columns([0.04, 1], gap="small")
+        with col_master:
             st.checkbox(
-                "Seleccionar todas",
-                key=key_seleccionar_todas,
-                on_change=_seleccionar_todas_actividades,
+                "",
+                key=master_key,
                 label_visibility="collapsed",
-                help="Marca o desmarca todas las actividades visibles de una sola vez."
+                on_change=_marcar_todas_asig
             )
-        with col_texto:
+        with col_aviso:
             if maq_sel and maq_sel != "Todas":
                 st.success(f"⚙️ {maq_sel} — {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
             else:
