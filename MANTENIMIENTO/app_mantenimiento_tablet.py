@@ -1520,38 +1520,6 @@ def _auto_guardar_checkbox(internal_id):
         actualizar_campos_supabase(internal_id, datos, row.to_dict())
         st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
 
-def _auto_guardar_no_aplica(internal_id, razon_key):
-    """Guarda automáticamente una actividad como No aplica al completar la razón."""
-    razon = limpiar(st.session_state.get(razon_key, ""), "").strip()
-    if not razon:
-        return
-
-    df = st.session_state.get("df_mantenimientos", pd.DataFrame())
-    idx, row = get_row_by_internal_id(df, internal_id)
-    if idx is None:
-        return
-
-    datos = {
-        "Estado": "No aplica",
-        "Comentarios": razon,
-        "Fecha_Ejecucion": datetime.now().strftime("%Y-%m-%d")
-    }
-
-    guardado = actualizar_campos_supabase(internal_id, datos, row.to_dict())
-    if guardado:
-        try:
-            _cargar_ordenes_cache.clear()
-        except Exception:
-            pass
-        st.session_state.pop(f"no_aplica_activo_{internal_id}", None)
-        st.session_state.pop(razon_key, None)
-        st.toast("No aplica guardado automáticamente", icon="💾")
-    else:
-        st.session_state.pop(f"no_aplica_activo_{internal_id}", None)
-        st.session_state.pop(razon_key, None)
-        st.toast("No aplica guardado localmente; se sincronizará cuando vuelva Internet", icon="📡")
-
-
 def _auto_guardar_comentario_bloque(comentario_key, ids_bloque):
     """Guarda automáticamente el comentario general al salir del campo."""
     comentario = st.session_state.get(comentario_key, "")
@@ -1722,7 +1690,7 @@ def _home_tecnico(df):
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = ya_ejecutada
 
-                cols_fila = st.columns([0.02, 1, 0.24], gap="small")
+                cols_fila = st.columns([0.02, 1], gap="small")
                 with cols_fila[0]:
                     if chk_key not in st.session_state:
                         st.session_state[chk_key] = ya_ejecutada
@@ -1740,24 +1708,6 @@ def _home_tecnico(df):
                         <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
                         <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
                     </div>""", unsafe_allow_html=True)
-
-                with cols_fila[2]:
-                    no_aplica_key = f"no_aplica_activo_{internal_id}"
-                    if not st.session_state.get(no_aplica_key, False):
-                        if st.button("🚫 No aplica", key=gen_key("btn_no_aplica", internal_id), use_container_width=True):
-                            st.session_state[no_aplica_key] = True
-                            st.rerun()
-                    else:
-                        razon_key = f"razon_no_aplica_{internal_id}"
-                        st.text_input(
-                            "Razón",
-                            key=razon_key,
-                            placeholder="Escribe por qué no aplica...",
-                            label_visibility="collapsed",
-                            on_change=_auto_guardar_no_aplica,
-                            args=(internal_id, razon_key)
-                        )
-                        st.caption("💾 Se guarda automáticamente al terminar de escribir.")
 
             st.markdown("</div></div>", unsafe_allow_html=True)
 
@@ -2696,6 +2646,30 @@ def pantalla_asignacion():
         else:
             st.success(f"✅ {len(df_asig)} actividades. Marca las que quieras y asigna arriba.")
 
+        # Selección masiva visible: marca/desmarca todas las actividades mostradas.
+        ids_visibles = []
+        for _, _row_sel in df_asig.iterrows():
+            _id_sel = limpiar(_row_sel.get("ID"), "")
+            if _id_sel and _id_sel not in ids_visibles:
+                ids_visibles.append(_id_sel)
+
+        select_all_key = gen_key("chk_seleccionar_todas")
+        st.session_state.setdefault(select_all_key, False)
+
+        def _cambiar_seleccion_todas(_sel_key, _ids):
+            _seleccion_actual = st.session_state.get(_sel_key, {})
+            _marcar = bool(st.session_state.get(select_all_key, False))
+            for _id in _ids:
+                _seleccion_actual[_id] = _marcar
+            st.session_state[_sel_key] = _seleccion_actual
+
+        st.checkbox(
+            "☑ Seleccionar todas las actividades",
+            key=select_all_key,
+            on_change=_cambiar_seleccion_todas,
+            args=(sel_key, ids_visibles),
+        )
+
         seen_ids = set()
         for _, row in df_asig.iterrows():
             estado = limpiar(row.get("Estado"), "Pendiente")
@@ -2944,45 +2918,3 @@ else:
     st.session_state.pagina = "login"
     st.rerun()
     
-
-
-# ==================== ORGANIGRAMA ====================
-def mostrar_organigrama():
-    st.markdown("""
-    <style>
-    .org-container { text-align:center; margin:18px 0 28px 0; }
-    .org-box {
-        display:inline-block; padding:12px 24px; border:2px solid #334155;
-        border-radius:12px; background:#fff; color:#0f172a; font-weight:700;
-        min-width:210px; box-shadow:0 3px 10px rgba(0,0,0,.08);
-    }
-    .org-line { width:2px; height:24px; background:#64748b; margin:0 auto; }
-    .org-children {
-        display:flex; justify-content:center; gap:18px; flex-wrap:wrap;
-    }
-    .org-child { position:relative; }
-    .org-child:before {
-        content:""; position:absolute; top:-12px; left:50%;
-        width:2px; height:12px; background:#64748b;
-    }
-    .org-small { min-width:170px; font-size:13px; }
-    </style>
-    <div class="org-container">
-      <div class="org-box">JEFE / RESPONSABLE DE MANTENIMIENTO</div>
-      <div class="org-line"></div>
-      <div class="org-children">
-        <div class="org-child"><div class="org-box org-small">SUPERVISOR</div></div>
-        <div class="org-child"><div class="org-box org-small">ADMINISTRADOR</div></div>
-        <div class="org-child"><div class="org-box org-small">PLANIFICACIÓN</div></div>
-      </div>
-      <div class="org-line"></div>
-      <div class="org-box org-small">TÉCNICOS</div>
-      <div class="org-line"></div>
-      <div class="org-children">
-        <div class="org-child"><div class="org-box org-small">Técnico 1</div></div>
-        <div class="org-child"><div class="org-box org-small">Técnico 2</div></div>
-        <div class="org-child"><div class="org-box org-small">Técnico 3</div></div>
-        <div class="org-child"><div class="org-box org-small">Técnico 4</div></div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
