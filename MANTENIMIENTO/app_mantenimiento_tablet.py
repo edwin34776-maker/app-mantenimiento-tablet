@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -2697,15 +2696,27 @@ def pantalla_asignacion():
 
         key_seleccionar_todas = gen_key("chk_seleccionar_todas")
 
+        # Elimina las claves de los checkboxes individuales para que, al
+        # cambiar el maestro, Streamlit tome nuevamente el valor de
+        # `seleccion` y marque/desmarque todas las actividades visibles.
         def _seleccionar_todas_actividades():
             marcar_todas = bool(st.session_state.get(key_seleccionar_todas, False))
             sel_actual = st.session_state.setdefault(sel_key, {})
             for internal_id_sel in ids_visibles:
                 sel_actual[internal_id_sel] = marcar_todas
-                st.session_state[gen_key("chk_sel", internal_id_sel)] = marcar_todas
+                chk_individual_key = gen_key("chk_sel", internal_id_sel)
+                st.session_state.pop(chk_individual_key, None)
 
+        # Contenedor visible y separado para que el checkbox maestro no se
+        # confunda con las casillas de cada actividad.
+        st.markdown(
+            "<div style='background:#E0F2FE; border:2px solid #38BDF8; border-radius:8px; padding:8px 12px; margin:4px 0 8px 0;'>"
+            "<span style='font-weight:800; color:#0369A1; font-size:13px;'>SELECCIÓN MASIVA</span>"
+            "</div>",
+            unsafe_allow_html=True
+        )
         st.checkbox(
-            "☑ Seleccionar todas las actividades",
+            "Seleccionar todas las actividades",
             key=key_seleccionar_todas,
             on_change=_seleccionar_todas_actividades,
             help="Marca o desmarca todas las actividades visibles de una sola vez."
@@ -2744,7 +2755,13 @@ def pantalla_asignacion():
             col_chk, col_info = st.columns([0.04, 1], gap="small")
             with col_chk:
                 if internal_id:
-                    is_sel = st.checkbox("Sel", value=chk_val, key=gen_key("chk_sel", internal_id), label_visibility="collapsed")
+                    chk_individual_key = gen_key("chk_sel", internal_id)
+                    is_sel = st.checkbox(
+                        "Sel",
+                        value=bool(seleccion.get(internal_id, False)),
+                        key=chk_individual_key,
+                        label_visibility="collapsed"
+                    )
                     seleccion[internal_id] = is_sel
             with col_info:
                 st.markdown(f"""
