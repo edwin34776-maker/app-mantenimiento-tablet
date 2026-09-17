@@ -1095,13 +1095,7 @@ def panel_info_orden(row, incluir_tecnico=False):
     html += f'<div><strong>Estado:</strong> <span style="color:{est_color}; font-weight:700;">{estado}</span></div>'
     if incluir_tecnico:
         tec1 = limpiar(row.get("Tecnico_Asignado"), "")
-        tec_label = "Sin asignar"
-        if tec1 and tec2 and tec1 != tec2:
-            tec_label = f"{tec1} + {tec2}"
-        elif tec1:
-            tec_label = tec1
-        elif tec2:
-            tec_label = tec2
+        tec_label = tec1 if tec1 else "Sin asignar"
         html += f'<div><strong>Técnico Asignado:</strong> {tec_label}</div>'
     html += """</div></div>"""
     st.markdown(html, unsafe_allow_html=True)
@@ -1394,9 +1388,16 @@ def _home_envio_correo(df):
         with col1:
             dest = st.multiselect("Destinatarios", DESTINATARIOS_DEFAULT, default=DESTINATARIOS_DEFAULT, key="mail_dest")
         with col2:
-            area = st.text_input("Área / Mecánica", value="INY4 MEC", key="mail_area")
+            # ÁREA/MÁQUINA tomada directamente de la base de datos (columna Ubicacion)
+            maquinas_db = sorted({m.strip() for m in df["Ubicacion"].dropna().astype(str) if m.strip()}) if ("Ubicacion" in df.columns and not df.empty) else []
+            opciones_area = (["Todas"] + maquinas_db) if maquinas_db else ["Todas"]
+            area = st.selectbox("Área / Máquina (desde la base de datos)", opciones_area, key="mail_area")
         if st.button("📤 ENVIAR AHORA", use_container_width=True, type="primary", key="btn_send_mail"):
-            ok, msg = enviar_correo_preventivo(df, dest, f"Reporte Preventivo {area}", area)
+            df_reporte = df if area == "Todas" else df[df["Ubicacion"] == area]
+            if df_reporte.empty:
+                st.warning(f"No hay actividades registradas para '{area}'.")
+                st.stop()
+            ok, msg = enviar_correo_preventivo(df_reporte, dest, f"Reporte Preventivo {area}", area)
             if ok:
                 st.success(msg)
                 st.session_state.mostrar_envio_correo = False
@@ -1541,6 +1542,32 @@ def _auto_guardar_comentario_bloque(comentario_key, ids_bloque):
         st.toast("Comentario conservado; se sincronizará cuando vuelva Internet", icon="📡")
 
 
+def _reasignar_actividad(internal_id, key_widget):
+    """Pasa una actividad pendiente a un compañero de la misma especialidad."""
+    nuevo_tec = st.session_state.get(key_widget, "")
+    if not nuevo_tec:
+        return
+    df = st.session_state.get("df_mantenimientos", pd.DataFrame())
+    idx, row = get_row_by_internal_id(df, internal_id)
+    if idx is None:
+        return
+    if nuevo_tec == limpiar(row.get("Tecnico_Asignado"), ""):
+        return  # no cambió nada
+    estado_bd = limpiar(row.get("Estado"), "Pendiente")
+    datos = {"Tecnico_Asignado": nuevo_tec}
+    if estado_bd in ["Ejecutado", "Verificado"]:
+        # Limpia el registro de horas/fecha: queda limpia para el compañero
+        datos.update({"Estado": "Pendiente", "Hora_Inicio": None,
+                      "Hora_Fin": None, "Fecha_Ejecucion": None})
+    if actualizar_campos_supabase(internal_id, datos, row.to_dict()):
+        # Limpiar estados locales del widget para el técnico anterior
+        st.session_state.pop(_chk_key(internal_id), None)
+        st.session_state.pop(f"hora_ini_auto_{internal_id}", None)
+        st.session_state.pop(key_widget, None)
+        st.toast(f"⇄ Actividad reasignada a {nuevo_tec}", icon="✅")
+        st.rerun()
+
+
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
     opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
@@ -1594,6 +1621,7 @@ def _home_tecnico(df):
     </div>""", unsafe_allow_html=True)
 
     st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
+    st.caption("⇄ En la columna derecha puedes pasar la actividad a un compañero de tu especialidad si no la vas a terminar.")
 
     df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])]
     if df_pendientes.empty and not df_mias.empty:
@@ -1690,7 +1718,7 @@ def _home_tecnico(df):
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = ya_ejecutada
 
-                cols_fila = st.columns([0.02, 1], gap="small")
+                cols_fila = st.columns([0.04, 1, 0.55], gap="small")
                 with cols_fila[0]:
                     if chk_key not in st.session_state:
                         st.session_state[chk_key] = ya_ejecutada
@@ -1708,6 +1736,24 @@ def _home_tecnico(df):
                         <span class="fila-desc" style="flex:1; font-size:13px; line-height:1.4;">{desc}</span>
                         <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
                     </div>""", unsafe_allow_html=True)
+
+                with cols_fila[2]:
+                    if not ya_ejecutada:
+                        # Solo compañeros de su misma especialidad
+                        companeros = ([tecnico_actual]
+                                      + [t for t in obtener_tecnicos_por_especialidad(esp_sel)
+                                         if t != tecnico_actual])
+                        reasig_key = gen_key("reasig", internal_id)
+                        if reasig_key not in st.session_state:
+                            st.session_state[reasig_key] = tecnico_actual
+                        st.selectbox(
+                            "⇄ Pasar a:",
+                            options=companeros,
+                            key=reasig_key,
+                            label_visibility="collapsed",
+                            on_change=_reasignar_actividad,
+                            args=(internal_id, reasig_key)
+                        )
 
             st.markdown("</div></div>", unsafe_allow_html=True)
 
