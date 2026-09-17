@@ -1,1 +1,31 @@
+name: 📧 Reporte Preventivo Diario 6:45AM
 
+on:
+  schedule:
+    # 6:45 AM Colombia (UTC-5) = 11:45 UTC
+    - cron: "45 11 * * *"
+  workflow_dispatch:   # permite ejecutarlo manual desde GitHub cuando quieras probar
+
+jobs:
+  enviar-reporte:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: pip install supabase pandas openpyxl
+
+      - name: Enviar reporte diario
+        run: python enviar_reporte_diario.py
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          DESTINATARIOS: ${{ secrets.DESTINATARIOS }}
+          AREA_MECANICA: ${{ secrets.AREA_MECANICA }}
+          # REPORTE_DIA: "ayer"   # descomenta y pon "hoy" si quieres el mismo día
