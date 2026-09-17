@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1827,7 +1828,7 @@ def _home_tecnico(df):
                 if chk_key not in st.session_state:
                     st.session_state[chk_key] = ya_ejecutada
 
-                cols_fila = st.columns([0.04, 1, 0.55], gap="small")
+                cols_fila = st.columns([0.04, 1], gap="small")
                 with cols_fila[0]:
                     if chk_key not in st.session_state:
                         st.session_state[chk_key] = ya_ejecutada
@@ -1846,14 +1847,6 @@ def _home_tecnico(df):
                         <span class="estado-badge {'eq-estado-ej' if estado == 'Ejecutado' else 'eq-estado-pd'}" style="flex-shrink:0; margin-left:2px;">{estado}</span>
                     </div>""", unsafe_allow_html=True)
 
-                with cols_fila[2]:
-                    # La reasignación ahora se hace arriba, en el bloque
-                    # "ACTIVIDADES POR FINALIZAR", para que sea más rápida.
-                    if not ya_ejecutada:
-                        st.markdown(
-                            "<div style='font-size:11px; color:#64748B; text-align:center; padding-top:6px;'>Pendiente</div>",
-                            unsafe_allow_html=True
-                        )
 
             st.markdown("</div></div>", unsafe_allow_html=True)
 
