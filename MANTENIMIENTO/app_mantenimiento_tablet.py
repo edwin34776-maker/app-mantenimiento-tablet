@@ -1631,9 +1631,9 @@ def _home_tecnico(df):
     </div>""", unsafe_allow_html=True)
 
     st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
-    st.caption("⇄ En la columna derecha puedes pasar la actividad a un compañero de tu especialidad si no la vas a terminar.")
+    st.caption("Las actividades que no alcances a terminar se pueden pasar fácilmente a otro técnico de tu misma especialidad.")
 
-    df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])]
+    df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
     if df_pendientes.empty and not df_mias.empty:
         st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
         st.balloons()
@@ -1641,6 +1641,105 @@ def _home_tecnico(df):
     if df_mias.empty:
         st.info("No tienes ordenes con los filtros seleccionados.")
         return
+
+    # ================================================================
+    # ACTIVIDADES POR FINALIZAR — REASIGNACIÓN FÁCIL
+    # Un solo clic selecciona todas las pendientes y, al lado, se
+    # puede elegir el compañero que recibirá esas actividades.
+    # ================================================================
+    st.markdown("""
+    <div style="margin-top:10px; margin-bottom:8px; padding:10px 14px; background:#FFFFFF; border:1px solid #CBD5E1; border-radius:10px;">
+        <div style="font-size:14px; font-weight:800; color:#0F172A;">🛠️ ACTIVIDADES POR FINALIZAR</div>
+        <div style="font-size:11px; color:#64748B; margin-top:3px;">Selecciona las pendientes y pásalas a un compañero de tu misma especialidad.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    pendientes_ids = []
+    for _, fila_p in df_pendientes.iterrows():
+        iid_p = limpiar(fila_p.get("ID"), "")
+        if iid_p and iid_p not in pendientes_ids:
+            pendientes_ids.append(iid_p)
+
+    reasig_sel_key = gen_key("reasig_pendientes_sel")
+    reasig_todas_key = gen_key("reasig_pendientes_todas")
+    reasig_tec_key = gen_key("reasig_pendientes_tec")
+
+    st.session_state.setdefault(reasig_sel_key, [])
+    st.session_state.setdefault(reasig_todas_key, False)
+
+    def _seleccionar_todas_reasignacion():
+        if st.session_state.get(reasig_todas_key, False):
+            st.session_state[reasig_sel_key] = list(pendientes_ids)
+        else:
+            st.session_state[reasig_sel_key] = []
+
+    companeros_reasig = ["Seleccionar compañero..."] + [
+        t for t in obtener_tecnicos_por_especialidad(esp_sel) if t != tecnico_actual
+    ]
+
+    def _ejecutar_reasignacion_masiva():
+        ids_sel = [str(x) for x in st.session_state.get(reasig_sel_key, []) if str(x) in set(pendientes_ids)]
+        destino = st.session_state.get(reasig_tec_key, "Seleccionar compañero...")
+        if not ids_sel:
+            st.warning("Selecciona al menos una actividad por finalizar.")
+            return
+        if destino == "Seleccionar compañero..." or not destino:
+            st.warning("Selecciona el técnico que recibirá las actividades.")
+            return
+
+        guardados = 0
+        encolados = 0
+        df_actual = st.session_state.get("df_mantenimientos", pd.DataFrame())
+        for internal_id in ids_sel:
+            idx_r, row_r = get_row_by_internal_id(df_actual, internal_id)
+            if idx_r is None:
+                continue
+            if limpiar(row_r.get("Tecnico_Asignado"), "") == destino:
+                continue
+            datos = {"Tecnico_Asignado": destino}
+            estado_r = limpiar(row_r.get("Estado"), "Pendiente")
+            # Solo trabajamos con pendientes; no se toca una actividad ejecutada/verificada.
+            if estado_r in ["Ejecutado", "Verificado"]:
+                continue
+            if actualizar_campos_supabase(internal_id, datos, row_r.to_dict()):
+                guardados += 1
+            else:
+                encolados += 1
+
+        st.session_state[reasig_sel_key] = []
+        st.session_state[reasig_todas_key] = False
+        st.session_state[reasig_tec_key] = "Seleccionar compañero..."
+
+        if guardados or encolados:
+            if guardados:
+                st.toast(f"✅ {guardados} actividad(es) pasadas a {destino}", icon="🔄")
+            if encolados:
+                st.toast(f"📡 {encolados} actividad(es) quedaron pendientes de sincronización", icon="📡")
+            st.rerun()
+
+    c_sel, c_tec, c_btn = st.columns([2.2, 2.2, 1])
+    with c_sel:
+        st.checkbox(
+            "☑ Seleccionar todas las pendientes",
+            key=reasig_todas_key,
+            on_change=_seleccionar_todas_reasignacion
+        )
+        st.caption(f"{len(st.session_state.get(reasig_sel_key, []))} seleccionada(s) de {len(pendientes_ids)} por finalizar")
+    with c_tec:
+        st.selectbox(
+            "Cambiar técnico",
+            companeros_reasig,
+            key=reasig_tec_key
+        )
+    with c_btn:
+        st.markdown("<div style='height:28px;'></div>", unsafe_allow_html=True)
+        st.button(
+            "⇄ PASAR",
+            use_container_width=True,
+            type="primary",
+            key=gen_key("btn_reasig_masiva"),
+            on_click=_ejecutar_reasignacion_masiva
+        )
 
     # === ESTRUCTURA: Ubicación → Equipo → Actividades ===
     for ubicacion_raw, grupo_ubi_df in df_pendientes.groupby(["Ubicacion"]):
@@ -1748,21 +1847,12 @@ def _home_tecnico(df):
                     </div>""", unsafe_allow_html=True)
 
                 with cols_fila[2]:
+                    # La reasignación ahora se hace arriba, en el bloque
+                    # "ACTIVIDADES POR FINALIZAR", para que sea más rápida.
                     if not ya_ejecutada:
-                        # Solo compañeros de su misma especialidad
-                        companeros = ([tecnico_actual]
-                                      + [t for t in obtener_tecnicos_por_especialidad(esp_sel)
-                                         if t != tecnico_actual])
-                        reasig_key = gen_key("reasig", internal_id)
-                        if reasig_key not in st.session_state:
-                            st.session_state[reasig_key] = tecnico_actual
-                        st.selectbox(
-                            "⇄ Pasar a:",
-                            options=companeros,
-                            key=reasig_key,
-                            label_visibility="collapsed",
-                            on_change=_reasignar_actividad,
-                            args=(internal_id, reasig_key)
+                        st.markdown(
+                            "<div style='font-size:11px; color:#64748B; text-align:center; padding-top:6px;'>Pendiente</div>",
+                            unsafe_allow_html=True
                         )
 
             st.markdown("</div></div>", unsafe_allow_html=True)
