@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -128,8 +127,13 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         if maquina_col and maquina_col != "Máquina":
             df_excel = df_excel.rename(columns={maquina_col: "Máquina"})
         elif not maquina_col:
-            # Si no existe un campo separado de máquina, no inventar datos.
-            df_excel["Máquina"] = ""
+            # Si no existe un campo separado de máquina, se deriva del Nodo.
+            if "Nodo" in df_excel.columns:
+                df_excel["Máquina"] = df_excel["Nodo"].apply(
+                    lambda n: str(n).split("-")[0].strip() if pd.notna(n) and str(n).strip() else ""
+                )
+            else:
+                df_excel["Máquina"] = ""
 
         # Orden exacto del reporte mostrado en el diseño solicitado.
         orden_preferido = [
@@ -1388,12 +1392,18 @@ def _home_envio_correo(df):
         with col1:
             dest = st.multiselect("Destinatarios", DESTINATARIOS_DEFAULT, default=DESTINATARIOS_DEFAULT, key="mail_dest")
         with col2:
-            # ÁREA/MÁQUINA tomada directamente de la base de datos (columna Ubicacion)
-            maquinas_db = sorted({m.strip() for m in df["Ubicacion"].dropna().astype(str) if m.strip()}) if ("Ubicacion" in df.columns and not df.empty) else []
+            # ÁREA/MÁQUINA tomada del NODO (parte antes del primer guion)
+            if "Nodo" in df.columns and not df.empty:
+                maquinas_db = sorted({extraer_maquina_nodo(m).strip() for m in df["Nodo"].dropna() if str(m).strip()})
+            else:
+                maquinas_db = []
             opciones_area = (["Todas"] + maquinas_db) if maquinas_db else ["Todas"]
-            area = st.selectbox("Área / Máquina (desde la base de datos)", opciones_area, key="mail_area")
+            area = st.selectbox("Área / Máquina (desde el Nodo)", opciones_area, key="mail_area")
         if st.button("📤 ENVIAR AHORA", use_container_width=True, type="primary", key="btn_send_mail"):
-            df_reporte = df if area == "Todas" else df[df["Ubicacion"] == area]
+            if area == "Todas":
+                df_reporte = df
+            else:
+                df_reporte = df[df["Nodo"].apply(extraer_maquina_nodo) == area]
             if df_reporte.empty:
                 st.warning(f"No hay actividades registradas para '{area}'.")
                 st.stop()
