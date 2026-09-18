@@ -29,7 +29,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 DESTINATARIOS_DEFAULT = [
     "mantobogota@gmail.com",
     "johann.avendano@darnel.com",
-    "jhonn.ramires@darnel.com"
+    "jhonn.ramirez@darnel.com"
 ]
 
 # Mapeo único entre nombres de la app y columnas de Supabase
