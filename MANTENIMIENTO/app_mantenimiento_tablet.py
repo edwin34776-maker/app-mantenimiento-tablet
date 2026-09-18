@@ -28,7 +28,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 DESTINATARIOS_DEFAULT = [
     "mantobogota@gmail.com",
-    "supermantobogota@gmail.com",
+    "jhonn.ramires@darnel.com",
     "johann.avendano@darnel.com"
 ]
 
