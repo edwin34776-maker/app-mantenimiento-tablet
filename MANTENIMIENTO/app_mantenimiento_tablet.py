@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -575,17 +576,18 @@ def actualizar_orden_supabase(id_interno, campo, valor):
         return False
 
 # ==================== SINCRONIZACIÓN EXCEL ↔ SUPABASE ====================
+def normalizar_nombre_columna(c):
+    """Normaliza nombres de columnas para compararlos sin tildes ni separadores distintos."""
+    s = str(c).strip().lower()
+    s = (s.replace("á", "a").replace("é", "e").replace("í", "i")
+           .replace("ó", "o").replace("ú", "u").replace("ü", "u").replace("ñ", "n"))
+    s = re.sub(r"[\s\-]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s
+
 def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
     try:
         df = df_excel.copy()
-        def normalizar_nombre_columna(c):
-            s = str(c).strip().lower()
-            s = (s.replace("á", "a").replace("é", "e").replace("í", "i")
-                   .replace("ó", "o").replace("ú", "u").replace("ü", "u").replace("ñ", "n"))
-            s = re.sub(r"[\s\-]+", "_", s)
-            s = re.sub(r"_+", "_", s).strip("_")
-            return s
-
         cols_originales = {normalizar_nombre_columna(c): c for c in df.columns}
         mapeo_columnas = {
             "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot", "id"],
