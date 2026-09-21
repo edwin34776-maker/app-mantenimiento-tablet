@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -579,7 +578,15 @@ def actualizar_orden_supabase(id_interno, campo, valor):
 def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
     try:
         df = df_excel.copy()
-        cols_originales = {c.strip().lower(): c for c in df.columns}
+        def normalizar_nombre_columna(c):
+            s = str(c).strip().lower()
+            s = (s.replace("á", "a").replace("é", "e").replace("í", "i")
+                   .replace("ó", "o").replace("ú", "u").replace("ü", "u").replace("ñ", "n"))
+            s = re.sub(r"[\s\-]+", "_", s)
+            s = re.sub(r"_+", "_", s).strip("_")
+            return s
+
+        cols_originales = {normalizar_nombre_columna(c): c for c in df.columns}
         mapeo_columnas = {
             "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot", "id"],
             "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina", "un"],
@@ -588,14 +595,15 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             "actividades": ["actividades", "actividad", "descr", "descripcion", "descripción", "tarea", "trabajo", "falla", "problema"],
             "procedimiento": ["procedimiento", "proc", "proceso", "tipo procedimiento"],
             "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
-            "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad actividad", "nivel", "color", "urgencia"],
-            "tecnico_asignado": ["tecnico_asignado", "tecnico asignado", "tecnico", "tecnico 1", "tecnico1", "tecnico_asignado_1"],
+            "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad_actividad", "nivel", "color", "urgencia"],
+            "tecnico_asignado": ["tecnico_asignado", "tecnico_asignado", "tecnico", "tecnico_1", "tecnico1", "tecnico_asignado_1"],
         }
         columnas_renombrar = {}
         for supabase_col, posibles in mapeo_columnas.items():
             for posible in posibles:
-                if posible in cols_originales:
-                    columnas_renombrar[cols_originales[posible]] = supabase_col
+                posible_norm = normalizar_nombre_columna(posible)
+                if posible_norm in cols_originales:
+                    columnas_renombrar[cols_originales[posible_norm]] = supabase_col
                     break
         df = df.rename(columns=columnas_renombrar)
         detectadas = list(columnas_renombrar.values())
@@ -625,6 +633,11 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             if df[col].dtype == object:
                 df[col] = df[col].apply(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
 
+        # Normalizar el OT ANTES de generar id_unico para que 425059 y 425059.0
+        # representen exactamente el mismo registro lógico.
+        if "id_ot" in df.columns:
+            df["id_ot"] = df["id_ot"].apply(lambda x: normalizar_id_ot(x, None))
+
         def generar_id_unico(row):
             raw = "|".join(str(row.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"])
             return hashlib.md5(raw.encode()).hexdigest()[:20]
@@ -643,11 +656,6 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 numero = contador_ids[id_base]
                 ids_unicos.append(id_base if numero == 1 else f"{id_base}_{numero}")
             df["id_unico"] = ids_unicos
-
-        # Normalizar ID OT sin agregar ceros artificiales.
-        # Si Excel lo entrega como 430921.0, se guarda como 430921.
-        if "id_ot" in df.columns:
-            df["id_ot"] = df["id_ot"].apply(lambda x: normalizar_id_ot(x, None))
 
         registros = df.to_dict(orient="records")
         total = len(registros)
@@ -2956,7 +2964,8 @@ def pantalla_sincronizar():
         mejor_skip, mejor_puntaje = 0, -999
         for s in range(max_skip + 1):
             try:
-                df_test = pd.read_excel(io.BytesIO(buf.getvalue()), engine="openpyxl", skiprows=s, nrows=3)
+                engine_test = "xlrd" if nombre_archivo.endswith(".xls") else "openpyxl"
+                df_test = pd.read_excel(io.BytesIO(buf.getvalue()), engine=engine_test, skiprows=s, nrows=3)
                 cols_lower = [str(c).strip().lower() for c in df_test.columns]
                 puntaje = sum(1 for h in posibles if any(h in c for c in cols_lower))
                 puntaje -= sum(1 for c in cols_lower if "unnamed" in c) * 3
@@ -3021,7 +3030,7 @@ def pantalla_sincronizar():
         st.error("❌ No se detectaron columnas esperadas. Revisa el archivo.")
         return
 
-    cols_norm = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_excel.columns]
+    cols_norm = [normalizar_nombre_columna(c) for c in df_excel.columns]
     esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
     faltantes = [c for c in esperadas if c not in cols_norm]
     if faltantes:
@@ -3034,6 +3043,8 @@ def pantalla_sincronizar():
     st.caption("La app crea estos IDs automáticamente para cada fila.")
     df_preview = df_excel.head(5).copy()
     df_preview.columns = cols_norm
+    if "id_ot" in df_preview.columns:
+        df_preview["id_ot"] = df_preview["id_ot"].apply(lambda x: normalizar_id_ot(x, ""))
     if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
         df_preview["id_unico_generado"] = df_preview.apply(
             lambda r: hashlib.md5("|".join(str(r.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"]).encode()).hexdigest()[:20], axis=1)
