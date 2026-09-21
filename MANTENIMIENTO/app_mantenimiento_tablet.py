@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -55,6 +54,25 @@ def limpiar(valor, default=""):
         pass
     s = str(valor).strip()
     return default if s.lower() in ("nan", "none", "nat", "null") else s
+
+def normalizar_id_ot(valor, default=""):
+    """Muestra el OT sin .0 ni ceros agregados delante."""
+    if valor is None:
+        return default
+    try:
+        if pd.isna(valor):
+            return default
+    except Exception:
+        pass
+    try:
+        if isinstance(valor, float) and valor.is_integer():
+            return str(int(valor))
+        s = str(valor).strip()
+        if s.endswith(".0") and s[:-2].isdigit():
+            return s[:-2]
+        return s
+    except Exception:
+        return str(valor).strip()
 
 def _norm_valor(v):
     """Normaliza NaN / string vacío a None para comparar y enviar a Supabase."""
@@ -615,19 +633,7 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
         # Normalizar ID OT sin agregar ceros artificiales.
         # Si Excel lo entrega como 430921.0, se guarda como 430921.
         if "id_ot" in df.columns:
-            def normalizar_id_ot(x):
-                if pd.isna(x):
-                    return None
-                try:
-                    if isinstance(x, float) and x.is_integer():
-                        return str(int(x))
-                    sx = str(x).strip()
-                    if sx.endswith(".0") and sx[:-2].isdigit():
-                        return sx[:-2]
-                    return sx
-                except Exception:
-                    return str(x).strip()
-            df["id_ot"] = df["id_ot"].apply(normalizar_id_ot)
+            df["id_ot"] = df["id_ot"].apply(lambda x: normalizar_id_ot(x, None))
 
         registros = df.to_dict(orient="records")
         total = len(registros)
@@ -1078,7 +1084,7 @@ def botones_nav(pagina_volver, prefix):
 
 def render_fila_orden(row, con_comentario=False, truncar_tecnico=False):
     """Fila de tabla OT usada en 'Ordenes' y 'Mis Ordenes'. Devuelve el internal_id."""
-    id_ot = limpiar(row.get("ID OT"), "SIN ID")
+    id_ot = normalizar_id_ot(row.get("ID OT"), "SIN ID")
     internal_id = limpiar(row.get("ID"), "")
     tipo = limpiar(row.get("Especialidad"), "SIN ESP")
     descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
