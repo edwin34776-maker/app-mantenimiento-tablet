@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -2063,7 +2062,9 @@ def pantalla_mis_ordenes():
             ot_visible = "SIN ID"
             if "ID OT" in df_equipo.columns:
                 for ot_valor in df_equipo["ID OT"].tolist():
-                    ot_tmp = limpiar(ot_valor, "").strip()
+                    # En la vista del técnico, mostrar el OT limpio: 425059.0 -> 425059
+                    # y sin agregar ceros delante del número.
+                    ot_tmp = normalizar_id_ot(ot_valor, "").strip()
                     if ot_tmp:
                         ot_visible = ot_tmp
                         break
