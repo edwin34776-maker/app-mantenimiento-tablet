@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1333,8 +1334,23 @@ def pantalla_login():
     </div>
     """, unsafe_allow_html=True)
 
+    # El dashboard usa la misma copia de datos de la sesión.
+    # Así el auto-refresh no cambia el total de actividades por una lectura
+    # diferente de Supabase entre refrescos.
+    df = recargar_datos()
+
     # ========== AVISO DE NODO DEL DÍA ==========
-    st.markdown("""
+    # Toma directamente el valor de la columna "Nodo" y muestra SOLO
+    # la parte anterior al primer guion. Ejemplo: RIGTF01-E02RD04 -> RIGTF01.
+    nodo_hoy = "SIN NODO"
+    if not df.empty and "Nodo" in df.columns:
+        nodos_validos = df["Nodo"].dropna().astype(str).str.strip()
+        nodos_validos = nodos_validos[nodos_validos != ""]
+        if not nodos_validos.empty:
+            nodo_completo = nodos_validos.iloc[0]
+            nodo_hoy = nodo_completo.split("-", 1)[0].strip() or "SIN NODO"
+
+    st.markdown(f"""
     <div style="
         text-align:left;
         font-size:20px;
@@ -1342,17 +1358,12 @@ def pantalla_login():
         color:#0F172A;
         margin:0 0 12px 15px;
     ">
-        📌 HOY TOCA: NODO 1
+        📌 HOY TOCA: {nodo_hoy}
     </div>
     """, unsafe_allow_html=True)
 
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
     st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
-
-    # El dashboard usa la misma copia de datos de la sesión.
-    # Así el auto-refresh no cambia el total de actividades por una lectura
-    # diferente de Supabase entre refrescos.
-    df = recargar_datos()
     if not df.empty:
 
         col_e, col_m = st.columns(2)
@@ -2820,24 +2831,39 @@ def pantalla_asignacion():
         with c2:
             if st.button("Asignar", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
                 guardados = 0
-                tec1_masivo_valor = "" if tec1_masivo in ("NO APLICA DEFINIR ACTIVIDAD", "") else tec1_masivo
+                es_no_aplica = tec1_masivo == "NO APLICA DEFINIR ACTIVIDAD"
+                tec1_masivo_valor = "" if es_no_aplica or tec1_masivo == "" else tec1_masivo
                 for _, row in df_asig.iterrows():
                     internal_id = limpiar(row.get("ID"), "")
                     if not internal_id or not seleccion.get(internal_id, False):
                         continue
                     estado_bd = limpiar(row.get("Estado"), "Pendiente")
                     tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
-                    # Si ya tiene ese técnico, saltar
-                    if tec1_masivo_valor == tec_actual:
-                        continue
-                    # Preparar datos: cambiar técnico y resetear estado si es necesario
-                    datos = {"Tecnico_Asignado": tec1_masivo_valor}
-                    if estado_bd in ["Ejecutado", "Verificado"]:
-                        datos["Estado"] = "Pendiente"
-                        datos["Hora_Inicio"] = None
-                        datos["Hora_Fin"] = None
-                        datos["Fecha_Ejecucion"] = None
-                        datos["Comentarios"] = None
+
+                    # "NO APLICA DEFINIR ACTIVIDAD" marca las actividades seleccionadas
+                    # como NO APLICA para que dejen de aparecer como pendientes.
+                    if es_no_aplica:
+                        if estado_bd == "No aplica":
+                            continue
+                        datos = {
+                            "Tecnico_Asignado": "",
+                            "Estado": "No aplica",
+                            "Hora_Inicio": None,
+                            "Hora_Fin": None,
+                            "Fecha_Ejecucion": None,
+                        }
+                    else:
+                        # Si ya tiene ese técnico, saltar
+                        if tec1_masivo_valor == tec_actual:
+                            continue
+                        # Preparar datos: cambiar técnico y resetear estado si es necesario
+                        datos = {"Tecnico_Asignado": tec1_masivo_valor}
+                        if estado_bd in ["Ejecutado", "Verificado"]:
+                            datos["Estado"] = "Pendiente"
+                            datos["Hora_Inicio"] = None
+                            datos["Hora_Fin"] = None
+                            datos["Fecha_Ejecucion"] = None
+                            datos["Comentarios"] = None
                     # Enviar directamente a Supabase sin comparación interna
                     try:
                         datos_enviar = {mapear_campo_supabase(k): v for k, v in datos.items()}
