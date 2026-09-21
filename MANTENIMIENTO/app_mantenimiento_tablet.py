@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -596,7 +595,21 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
         def generar_id_unico(row):
             raw = "|".join(str(row.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"])
             return hashlib.md5(raw.encode()).hexdigest()[:20]
+
+        # Generar el ID base como antes, pero evitar colisiones cuando el Excel
+        # contiene dos o más filas con exactamente los mismos datos.
+        # La primera fila conserva el ID original; las repetidas reciben un
+        # sufijo estable (_2, _3, ...). No cambia ningún otro campo del Excel.
         df["id_unico"] = df.apply(generar_id_unico, axis=1)
+        repetidos = df["id_unico"].duplicated(keep=False)
+        if repetidos.any():
+            contador_ids = {}
+            ids_unicos = []
+            for id_base in df["id_unico"].tolist():
+                contador_ids[id_base] = contador_ids.get(id_base, 0) + 1
+                numero = contador_ids[id_base]
+                ids_unicos.append(id_base if numero == 1 else f"{id_base}_{numero}")
+            df["id_unico"] = ids_unicos
 
         # NO convertir id_ot a numérico para preservar ceros a la izquierda
         if "id_ot" in df.columns:
