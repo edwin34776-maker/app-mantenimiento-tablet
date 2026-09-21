@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -2166,7 +2167,7 @@ def pantalla_ejecutar():
             st.rerun()
         return
 
-    header_tablet(f"Ejecutar OT {limpiar(row.get('ID OT'), 'SIN ID')}")
+    header_tablet(f"Ejecutar OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}")
     botones_nav("mis_ordenes", "ejec")
     panel_info_orden(row)
 
@@ -2207,7 +2208,7 @@ def pantalla_detalle_tecnico():
             st.rerun()
         return
 
-    header_tablet(f"Detalle OT {limpiar(row.get('ID OT'), 'SIN ID')}")
+    header_tablet(f"Detalle OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}")
     botones_nav("mis_ordenes", "dettec")
 
     prioridad = limpiar(row.get("Prioridad_Actividad"), "")
@@ -2245,7 +2246,7 @@ def pantalla_detalle():
             st.rerun()
         return
 
-    header_tablet(f"Detalle OT {limpiar(row.get('ID OT'), 'SIN ID')}")
+    header_tablet(f"Detalle OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}")
     botones_nav("ordenes", "det")
 
     prioridad = limpiar(row.get("Prioridad_Actividad"), "")
@@ -2333,7 +2334,7 @@ def pantalla_verificar():
         tec1_v = limpiar(row.get("Tecnico_Asignado"), "")
         tec_label = tec1_v if tec1_v else "Sin asignar"
         internal_id = limpiar(row.get("ID"), "")
-        id_ot = limpiar(row.get("ID OT"), "SIN ID")
+        id_ot = normalizar_id_ot(row.get("ID OT"), "SIN ID")
         descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
         desc_corta = descripcion[:40] + "..." if len(descripcion) > 40 else descripcion
         nodo = limpiar(row.get("Nodo"), "")
@@ -2407,7 +2408,7 @@ def auto_guardar_fila(internal_id, key_widget, campo="Tecnico_Asignado"):
             datos_filtrados[k] = datos[k]
     if actualizar_campos_supabase(internal_id, datos_filtrados, row.to_dict()):
         _reflejar_en_session(idx, datos_filtrados)
-        msg = f"✅ Guardado: OT {limpiar(row.get('ID OT'), 'SIN ID')}"
+        msg = f"✅ Guardado: OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}"
         st.session_state.asig_rapida_msg = msg
         st.toast(msg, icon="💾")
 
@@ -2788,7 +2789,7 @@ def pantalla_asignacion():
                                 st.session_state.df_mantenimientos.at[idx_local, k] = v
                         guardados += 1
                     except Exception as e:
-                        st.error(f"Error en OT {limpiar(row.get('ID OT'), 'SIN ID')}: {e}")
+                        st.error(f"Error en OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}: {e}")
                 if guardados > 0:
                     st.success(f"✅ {guardados} actividades actualizadas")
                     st.session_state[sel_key] = {}
@@ -2872,7 +2873,7 @@ def pantalla_asignacion():
                 st.markdown(f"""
                 <div class="asig-rapida-fila {'asignada' if tec_asig or tec_asig2 else ''}" style="margin-bottom:2px;">
                     <div>
-                        <div class="asig-ot"><strong>OT {escapar(limpiar(row.get("ID OT"), "SIN ID"))}</strong> {nodo_badge}</div>
+                        <div class="asig-ot"><strong>OT {escapar(normalizar_id_ot(row.get("ID OT"), "SIN ID"))}</strong> {nodo_badge}</div>
                         <div style="font-size:11px;color:#64748B;">{escapar(limpiar(row.get("Procedimiento"), ""))}</div>
                         <div style="font-size:12px;color:#0F172A;margin-top:2px;">{escapar(limpiar(row.get("Actividades"), "Sin descripción"))}</div>
                     </div>
