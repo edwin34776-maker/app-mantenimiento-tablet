@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -16,6 +17,8 @@ from email import encoders
 import io
 import hashlib
 import html
+import numbers
+import re
 
 # ==================== CONFIGURACIÓN ====================
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "https://cpazmoebqbsrahviifvp.supabase.co")
@@ -56,7 +59,7 @@ def limpiar(valor, default=""):
     return default if s.lower() in ("nan", "none", "nat", "null") else s
 
 def normalizar_id_ot(valor, default=""):
-    """Muestra el OT sin .0 ni ceros agregados delante."""
+    """Muestra el OT como entero, sin ".0" ni ceros agregados delante."""
     if valor is None:
         return default
     try:
@@ -65,14 +68,19 @@ def normalizar_id_ot(valor, default=""):
     except Exception:
         pass
     try:
-        if isinstance(valor, float) and valor.is_integer():
-            return str(int(valor))
+        # Tipos numericos de Python, NumPy y Pandas.
+        if isinstance(valor, numbers.Real):
+            numero = float(valor)
+            if numero.is_integer():
+                return str(int(numero))
+
         s = str(valor).strip()
-        if s.endswith(".0") and s[:-2].isdigit():
-            return s[:-2]
+        # Quita .0, .00, etc. solo cuando el valor representa un entero.
+        if re.fullmatch(r"[+-]?\d+\.0+", s):
+            return str(int(float(s)))
         return s
     except Exception:
-        return str(valor).strip()
+        return default
 
 def _norm_valor(v):
     """Normaliza NaN / string vacío a None para comparar y enviar a Supabase."""
