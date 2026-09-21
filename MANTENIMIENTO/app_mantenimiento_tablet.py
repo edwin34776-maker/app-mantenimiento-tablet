@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -611,11 +612,22 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 ids_unicos.append(id_base if numero == 1 else f"{id_base}_{numero}")
             df["id_unico"] = ids_unicos
 
-        # NO convertir id_ot a numérico para preservar ceros a la izquierda
+        # Normalizar ID OT sin agregar ceros artificiales.
+        # Si Excel lo entrega como 430921.0, se guarda como 430921.
         if "id_ot" in df.columns:
-            df["id_ot"] = df["id_ot"].apply(
-                lambda x: str(int(x)).zfill(len(str(x))) if pd.notna(x) and str(x).replace(".", "", 1).isdigit()
-                else (str(x) if pd.notna(x) else None))
+            def normalizar_id_ot(x):
+                if pd.isna(x):
+                    return None
+                try:
+                    if isinstance(x, float) and x.is_integer():
+                        return str(int(x))
+                    sx = str(x).strip()
+                    if sx.endswith(".0") and sx[:-2].isdigit():
+                        return sx[:-2]
+                    return sx
+                except Exception:
+                    return str(x).strip()
+            df["id_ot"] = df["id_ot"].apply(normalizar_id_ot)
 
         registros = df.to_dict(orient="records")
         total = len(registros)
