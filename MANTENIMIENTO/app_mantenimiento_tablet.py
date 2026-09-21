@@ -1,5 +1,4 @@
 
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -476,6 +475,12 @@ def _cargar_ordenes_cache():
                          "ID OT": "", "Procedimiento": ""}.items():
         if col not in df.columns:
             df[col] = default
+
+    # Normalizar el OT inmediatamente después de cargarlo desde Supabase.
+    # Esto evita que cualquier pantalla vuelva a recibir valores como 421168.0.
+    if "ID OT" in df.columns:
+        df["ID OT"] = df["ID OT"].apply(lambda x: normalizar_id_ot(x, ""))
+
     return df
 
 def cargar_ordenes_supabase():
@@ -1813,7 +1818,7 @@ def _home_tecnico(df):
             ot_visible = "SIN ID"
             if "ID OT" in grupo_eq_df.columns:
                 for ot_valor in grupo_eq_df["ID OT"].tolist():
-                    ot_tmp = limpiar(ot_valor, "").strip()
+                    ot_tmp = normalizar_id_ot(ot_valor, "").strip()
                     if ot_tmp:
                         ot_visible = ot_tmp
                         break
