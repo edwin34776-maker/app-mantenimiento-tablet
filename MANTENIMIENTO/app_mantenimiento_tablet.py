@@ -1,5 +1,7 @@
 
+
 import streamlit as st
+# Auto-refresh para dashboard en tiempo real
 try:
     from streamlit_autorefresh import st_autorefresh
     _HAS_AUTOREFRESH = True
