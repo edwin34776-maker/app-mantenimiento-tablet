@@ -3047,8 +3047,22 @@ def pantalla_sincronizar():
     if "id_ot" in df_preview.columns:
         df_preview["id_ot"] = df_preview["id_ot"].apply(lambda x: normalizar_id_ot(x, ""))
     if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
-        df_preview["id_unico_generado"] = df_preview.apply(
-            lambda r: hashlib.md5("|".join(str(r.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"]).encode()).hexdigest()[:20], axis=1)
+        def generar_id_preview(row):
+            raw = "|".join(str(row.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"])
+            return hashlib.md5(raw.encode()).hexdigest()[:20]
+
+        df_preview["id_unico_generado"] = df_preview.apply(generar_id_preview, axis=1)
+
+        # Mostrar también el mismo tratamiento de duplicados que se usa
+        # al sincronizar, para que la vista previa coincida con Supabase.
+        contador_preview = {}
+        ids_preview = []
+        for id_base in df_preview["id_unico_generado"].tolist():
+            contador_preview[id_base] = contador_preview.get(id_base, 0) + 1
+            numero = contador_preview[id_base]
+            ids_preview.append(id_base if numero == 1 else f"{id_base}_{numero}")
+        df_preview["id_unico_generado"] = ids_preview
+
         cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
         st.dataframe(df_preview[cols_show], use_container_width=True)
 
