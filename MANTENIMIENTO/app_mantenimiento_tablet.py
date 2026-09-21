@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1349,10 +1350,7 @@ def pantalla_login():
             nodo_completo = nodos_validos.iloc[0]
             nodo_hoy = nodo_completo.split("-", 1)[0].strip() or "SIN NODO"
 
-   nodo_completo = str(valor_nodo).strip()
-nodo_hoy = nodo_completo.split("-", 1)[0].strip()
-
-st.markdown(f"""
+    st.markdown(f"""
     <div style="
         text-align:left;
         font-size:20px;
@@ -1362,7 +1360,7 @@ st.markdown(f"""
     ">
         📌 HOY TOCA: {nodo_hoy}
     </div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
     st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
