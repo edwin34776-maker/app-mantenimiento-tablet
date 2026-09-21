@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1296,20 +1297,6 @@ def pantalla_login():
         📅 {fecha_actual}
     </div>
     """, unsafe_allow_html=True)
-
-    # 🔄 Auto-refresh cada 5 segundos en el dashboard (solo si no está escribiendo contraseña de admin)
-    if not st.session_state.get("mostrar_login_admin", False):
-        if _HAS_AUTOREFRESH:
-            st_autorefresh(interval=5000, key="dashboard_auto_refresh")
-        else:
-            # Fallback: recarga automática vía JavaScript cada 8 segundos
-            st.markdown("""
-            <script>
-                setTimeout(function(){
-                    window.location.reload();
-                }, 8000);
-            </script>
-            """, unsafe_allow_html=True)
 
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
     st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
