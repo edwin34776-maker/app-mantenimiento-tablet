@@ -665,8 +665,44 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             return False, "❌ No hay registros válidos para sincronizar"
 
         if modo == "reemplazar":
+            # Borrar por IDs en lotes y VERIFICAR que realmente no queden registros
+            # antes de insertar el Excel. Esto evita que un registro viejo provoque
+            # nuevamente: duplicate key value violates unique constraint "unique_id_unico".
             with st.spinner("🗑️ Borrando datos antiguos..."):
-                supabase.table("ordenes_trabajo").delete().neq("id", 0).execute()
+                try:
+                    while True:
+                        resp_ids = (
+                            supabase.table("ordenes_trabajo")
+                            .select("id")
+                            .order("id")
+                            .limit(1000)
+                            .execute()
+                        )
+                        ids_a_borrar = [r.get("id") for r in (resp_ids.data or []) if r.get("id") is not None]
+                        if not ids_a_borrar:
+                            break
+
+                        for j in range(0, len(ids_a_borrar), 500):
+                            lote_ids = ids_a_borrar[j:j + 500]
+                            supabase.table("ordenes_trabajo").delete().in_("id", lote_ids).execute()
+
+                    # Verificación final: si por permisos/RLS quedó algún registro,
+                    # NO intentamos insertar para evitar el error de clave única.
+                    verificacion = (
+                        supabase.table("ordenes_trabajo")
+                        .select("id", count="exact")
+                        .limit(1)
+                        .execute()
+                    )
+                    restantes = int(verificacion.count or 0)
+                    if restantes > 0:
+                        return False, (
+                            f"❌ No se pudieron borrar todos los datos anteriores ({restantes} registros siguen en la base). "
+                            "La carga fue detenida para evitar duplicados. Revisa los permisos/RLS de Supabase."
+                        )
+                except Exception as e_borrado:
+                    return False, f"❌ No se pudieron borrar los datos anteriores. La carga fue detenida para evitar duplicados: {e_borrado}"
+
         elif modo != "upsert":
             return False, "Modo no válido"
 
@@ -1295,6 +1331,19 @@ def pantalla_login():
         margin:8px 0 10px 15px;
     ">
         📅 {fecha_actual}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ========== AVISO DE NODO DEL DÍA ==========
+    st.markdown("""
+    <div style="
+        text-align:left;
+        font-size:20px;
+        font-weight:700;
+        color:#0F172A;
+        margin:0 0 12px 15px;
+    ">
+        📌 HOY TOCA: NODO 1
     </div>
     """, unsafe_allow_html=True)
 
