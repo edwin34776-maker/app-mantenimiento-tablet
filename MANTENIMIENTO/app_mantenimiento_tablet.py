@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1289,6 +1288,13 @@ def color_porcentaje(pct):
     return f"#{r:02X}{g:02X}{b:02X}"
 
 def pantalla_login():
+    # Actualiza únicamente esta pantalla automáticamente cada 15 segundos.
+    # No realiza una recarga completa del navegador ni afecta las demás pantallas.
+    if _HAS_AUTOREFRESH:
+        st_autorefresh(interval=15000, key="dashboard_login_auto_refresh")
+        # Evita que el dashboard conserve datos antiguos durante el refresco.
+        _cargar_ordenes_cache.clear()
+
     header_tablet("App Tablet Mtto Preventivo")
 
     # 📅 FECHA ACTUAL — debajo del encabezado y alineada a la izquierda
@@ -1337,7 +1343,7 @@ def pantalla_login():
     # El dashboard usa la misma copia de datos de la sesión.
     # Así el auto-refresh no cambia el total de actividades por una lectura
     # diferente de Supabase entre refrescos.
-    df = recargar_datos()
+    df = recargar_datos(forzar=True)
 
     # ========== AVISO DE NODO DEL DÍA ==========
     # Toma directamente el valor de la columna "Nodo" y muestra SOLO
