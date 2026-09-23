@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1288,13 +1289,6 @@ def color_porcentaje(pct):
     return f"#{r:02X}{g:02X}{b:02X}"
 
 def pantalla_login():
-    # Actualiza únicamente esta pantalla automáticamente cada 15 segundos.
-    # No realiza una recarga completa del navegador ni afecta las demás pantallas.
-    if _HAS_AUTOREFRESH:
-        st_autorefresh(interval=15000, key="dashboard_login_auto_refresh")
-        # Evita que el dashboard conserve datos antiguos durante el refresco.
-        _cargar_ordenes_cache.clear()
-
     header_tablet("App Tablet Mtto Preventivo")
 
     # 📅 FECHA ACTUAL — debajo del encabezado y alineada a la izquierda
@@ -1343,30 +1337,8 @@ def pantalla_login():
     # El dashboard usa la misma copia de datos de la sesión.
     # Así el auto-refresh no cambia el total de actividades por una lectura
     # diferente de Supabase entre refrescos.
-    df = recargar_datos(forzar=True)
+    df = recargar_datos()
 
-    # ========== AVISO DE NODO DEL DÍA ==========
-    # Toma directamente el valor de la columna "Nodo" y muestra SOLO
-    # la parte anterior al primer guion. Ejemplo: RIGTF01-E02RD04 -> RIGTF01.
-    nodo_hoy = "SIN NODO"
-    if not df.empty and "Nodo" in df.columns:
-        nodos_validos = df["Nodo"].dropna().astype(str).str.strip()
-        nodos_validos = nodos_validos[nodos_validos != ""]
-        if not nodos_validos.empty:
-            nodo_completo = nodos_validos.iloc[0]
-            nodo_hoy = nodo_completo.split("-", 1)[0].strip() or "SIN NODO"
-
-    st.markdown(f"""
-    <div style="
-        text-align:left;
-        font-size:20px;
-        font-weight:700;
-        color:#0F172A;
-        margin:0 0 12px 15px;
-    ">
-        📌 HOY TOCA: {nodo_hoy}
-    </div>
-    """, unsafe_allow_html=True)
 
     # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
     st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
