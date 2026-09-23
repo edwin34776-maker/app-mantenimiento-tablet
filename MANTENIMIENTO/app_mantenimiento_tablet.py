@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -112,20 +111,16 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         estados = df["Estado"].fillna("").astype(str).str.strip()
         ejecutadas = int((estados == "Ejecutado").sum())
         verificadas = int((estados == "Verificado").sum())
-        no_aplica = int((estados == "No aplica").sum())
-        # "No aplica" es un estado cerrado/exento: no cuenta como pendiente.
-        pendientes = int((~estados.isin(["Ejecutado", "Verificado", "No aplica"])).sum())
+        pendientes = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
     else:
         ejecutadas = 0
         verificadas = 0
-        no_aplica = 0
         pendientes = total
 
     pct_ejecutadas = round(ejecutadas / total * 100, 1) if total else 0.0
     pct_pendientes = round(pendientes / total * 100, 1) if total else 0.0
     pct_verificadas = round(verificadas / total * 100, 1) if total else 0.0
-    # Ejecutado, Verificado y No aplica se consideran estados cerrados.
-    pct_avance = round((ejecutadas + verificadas + no_aplica) / total * 100, 1) if total else 0.0
+    pct_avance = round((ejecutadas + verificadas) / total * 100, 1) if total else 0.0
 
     output = io.BytesIO()
     try:
@@ -359,9 +354,6 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                 elif val == "verificado":
                     cell.fill = PatternFill("solid", fgColor="168FEA")
                     cell.font = Font(color=blanco, bold=True)
-                elif val == "no aplica":
-                    cell.fill = PatternFill("solid", fgColor="E2E8F0")
-                    cell.font = Font(color="475569", bold=True)
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
         # Tabla Excel con filtros.
@@ -1019,29 +1011,15 @@ def recargar_datos(forzar=False):
     _reintentar_cambios_pendientes()
     return st.session_state.df_mantenimientos
 def calcular_progreso(df):
-    """Calcula progreso sin considerar "No aplica" como pendiente.
-
-    "No aplica" cuenta como actividad cerrada/exenta para el porcentaje de avance,
-    pero se mantiene separado de Ejecutado y Verificado.
-    """
     total = len(df)
-    if total == 0 or "Estado" not in df.columns:
+    if total == 0:
         return 0, 0, 0
-    estados = df["Estado"].fillna("").astype(str).str.strip()
-    ejecutadas = int((estados == "Ejecutado").sum())
-    verificadas = int((estados == "Verificado").sum())
-    no_aplica = int((estados == "No aplica").sum())
-    pct_ejec = round(ejecutadas / total * 100, 1)
-    pct_verif = round(verificadas / total * 100, 1)
-    pct_pdte = round(max(0, 100 - pct_ejec - pct_verif - (no_aplica / total * 100)), 1)
-    return pct_ejec, pct_pdte, pct_verif
+    pct_ejec = round(len(df[df["Estado"] == "Ejecutado"]) / total * 100, 1)
+    pct_verif = round(len(df[df["Estado"] == "Verificado"]) / total * 100, 1)
+    return pct_ejec, round(100 - pct_ejec - pct_verif, 1), pct_verif
 
 def obtener_estado_visual(estado):
-    return {
-        "Ejecutado": "estado-ejecutado",
-        "Verificado": "estado-verificado",
-        "No aplica": "estado-no-aplica",
-    }.get(estado, "estado-pendiente")
+    return {"Ejecutado": "estado-ejecutado", "Verificado": "estado-verificado"}.get(estado, "estado-pendiente")
 
 def obtener_color_prioridad(prioridad):
     colores = {
@@ -1093,9 +1071,6 @@ def calcular_duracion(hora_inicio, hora_fin):
 def estado_efectivo(row):
     """Si no tiene técnico pero figura Ejecutado/Verificado, se trata como Pendiente."""
     estado = limpiar(row.get("Estado"), "Pendiente")
-    # "No aplica" siempre conserva su estado aunque no tenga técnico asignado.
-    if estado == "No aplica":
-        return "No aplica"
     if not limpiar(row.get("Tecnico_Asignado"), "") and estado in ("Ejecutado", "Verificado"):
         return "Pendiente"
     return estado
@@ -1204,7 +1179,7 @@ def panel_info_orden(row, incluir_tecnico=False):
     ubicacion = limpiar(row.get('Ubicacion'), 'N/A')
     especialidad = limpiar(row.get('Especialidad'), 'N/A')
     estado = limpiar(row.get('Estado'), 'Pendiente')
-    est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6", "No aplica": "#64748b"}.get(estado, "#64748b")
+    est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado, "#64748b")
     html = f"""<div style="background: #FFFFFF; border-radius: 16px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-top: 10px; border: 1px solid #CBD5E1; color: #0F172A;">
         <div style="font-size: 14px; line-height: 1.8;">"""
     if nodo:
@@ -1416,18 +1391,15 @@ def pantalla_login():
                 # En la pantalla del técnico esos registros se consideran pendientes.
                 if "Estado" in df_esp.columns:
                     estados = df_esp["Estado"].fillna("").astype(str).str.strip()
-                    no_aplica_esp = int((estados == "No aplica").sum())
-                    pend = int((~estados.isin(["Ejecutado", "Verificado", "No aplica"])).sum())
+                    pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
                     ejec = int((estados == "Ejecutado").sum())
                     verif = int((estados == "Verificado").sum())
                 else:
                     pend = total_esp
                     ejec = 0
                     verif = 0
-                    no_aplica_esp = 0
 
-                # "No aplica" también cierra la actividad, pero se muestra aparte.
-                pct_avance = round((ejec + verif + no_aplica_esp) / total_esp * 100, 1) if total_esp else 0
+                pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
 
                 st.markdown(f"""
                 <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
@@ -1452,11 +1424,6 @@ def pantalla_login():
                         <div style="flex: 1; text-align: center;">
                             <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
                             <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
-                        </div>
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#64748B' if no_aplica_esp > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{no_aplica_esp}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">No aplica</div>
                         </div>
                     </div>
                     <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
@@ -1564,9 +1531,8 @@ def pantalla_home():
         total_act = len(df)
         asignadas = 0
         if total_act > 0 and "Tecnico_Asignado" in df.columns:
-            asignadas = len(df[(df["Tecnico_Asignado"].notna() & (df["Tecnico_Asignado"] != "")) | (df["Estado"] == "No aplica")])
-        # "No aplica" no necesita técnico y tampoco debe aparecer como pendiente de asignación.
-        pendientes_asig = max(0, total_act - asignadas)
+            asignadas = len(df[df["Tecnico_Asignado"].notna() & (df["Tecnico_Asignado"] != "")])
+        pendientes_asig = total_act - asignadas
         pct_asig = round(asignadas / total_act * 100, 1) if total_act else 0
 
         verificadas = 0
@@ -1757,7 +1723,7 @@ def _home_tecnico(df):
 
     total_asignadas = len(df_mias)
     conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
-               for est in ["Pendiente", "Ejecutado", "Verificado", "No aplica"]}
+               for est in ["Pendiente", "Ejecutado", "Verificado"]}
 
     st.markdown(f"""
     <div style="text-align: center; margin: 15px 0 8px 0;">
@@ -1769,13 +1735,12 @@ def _home_tecnico(df):
         {tarjeta_contador(conteos["Pendiente"], "Pendientes", "#ffc107")}
         {tarjeta_contador(conteos["Ejecutado"], "Ejecutadas", "#28a745")}
         {tarjeta_contador(conteos["Verificado"], "Verificadas", "#007bff")}
-        {tarjeta_contador(conteos["No aplica"], "No aplica", "#64748b")}
     </div>""", unsafe_allow_html=True)
 
     st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
     st.caption("Las actividades que no alcances a terminar se pueden pasar fácilmente a otro técnico de tu misma especialidad.")
 
-    df_pendientes = df_mias[~df_mias["Estado"].fillna("Pendiente").astype(str).str.strip().isin(["Ejecutado", "Verificado", "No aplica"])].copy()
+    df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
     if df_pendientes.empty and not df_mias.empty:
         st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
         st.balloons()
@@ -1922,13 +1887,13 @@ def _home_tecnico(df):
             eq_key = ubi_key + "__" + str(equipo_limpio).replace(" ", "_").replace("-", "_").replace(".", "")
 
             # Contar realizadas basado en ESTADO de BD + checkboxes marcados en UI
-            realizadas_bd = len(grupo_eq_df[grupo_eq_df["Estado"].isin(["Ejecutado", "Verificado", "No aplica"])])
+            realizadas_bd = len(grupo_eq_df[grupo_eq_df["Estado"].isin(["Ejecutado", "Verificado"])])
             realizadas_marcadas = 0
             for _, r_chk in grupo_eq_df.iterrows():
                 iid_chk = limpiar(r_chk.get("ID"), "")
                 if iid_chk:
                     estado_chk = limpiar(r_chk.get("Estado"), "Pendiente")
-                    if estado_chk not in ["Ejecutado", "Verificado", "No aplica"]:
+                    if estado_chk not in ["Ejecutado", "Verificado"]:
                         if st.session_state.get(_chk_key(iid_chk), False):
                             realizadas_marcadas += 1
             realizadas_total = realizadas_bd + realizadas_marcadas
@@ -2110,7 +2075,7 @@ def pantalla_mis_ordenes():
 
     col_f1, col_f2 = st.columns(2)
     with col_f1:
-        filtro_estado = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado", "No aplica"],
+        filtro_estado = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado"],
                                      index=0, key=gen_key("filtro_estado_tec"))
     with col_f2:
         busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
@@ -2791,7 +2756,7 @@ def pantalla_asignacion():
             for _, row in df_grafica.iterrows():
                 t1 = limpiar(row.get("Tecnico_Asignado"), "")
                 t2 = limpiar(row.get("Tecnico_Asignado"), "")
-                if not t1 and not t2 and limpiar(row.get("Estado"), "Pendiente") != "No aplica":
+                if not t1 and not t2:
                     sin_asignar += 1
             if sin_asignar > 0:
                 tecnicos_count["Sin asignar"] = sin_asignar
@@ -2974,7 +2939,7 @@ def pantalla_asignacion():
             tec_asig2 = limpiar(row.get("Tecnico_Asignado"), "")
             nodo = limpiar(row.get("Nodo"), "")
             nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
-            estado_cls = {"Ejecutado": "eq-estado-ej", "Verificado": "eq-estado-vf", "No aplica": "eq-estado-cr"}.get(estado, "eq-estado-pd")
+            estado_cls = {"Ejecutado": "eq-estado-ej", "Verificado": "eq-estado-vf"}.get(estado, "eq-estado-pd")
             tecnicos_str = tec_asig
             if tec_asig2 and tec_asig2 != tec_asig:
                 tecnicos_str = f"{tec_asig} + {tec_asig2}"
