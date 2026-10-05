@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -600,6 +599,7 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad_actividad", "nivel", "color", "urgencia"],
             "tecnico_asignado": ["tecnico_asignado", "tecnico_asignado", "tecnico", "tecnico_1", "tecnico1", "tecnico_asignado_1"],
         }
+
         columnas_renombrar = {}
         for supabase_col, posibles in mapeo_columnas.items():
             for posible in posibles:
@@ -607,9 +607,11 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 if posible_norm in cols_originales:
                     columnas_renombrar[cols_originales[posible_norm]] = supabase_col
                     break
+
         df = df.rename(columns=columnas_renombrar)
         detectadas = list(columnas_renombrar.values())
         faltantes = [c for c in mapeo_columnas if c not in detectadas]
+
         st.markdown(f"""
         <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 10px; margin: 8px 0;">
             <div style="font-size: 12px; color: #166534;">
@@ -622,6 +624,7 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
         if "equipo" not in df.columns and "ubicacion" in df.columns:
             df["equipo"] = df["ubicacion"]
             st.info("ℹ️ No se detectó columna 'equipo'. Se usará 'ubicacion' como equipo.")
+
         if "ubicacion" not in df.columns and "equipo" in df.columns:
             df["ubicacion"] = df["equipo"]
             st.info("ℹ️ No se detectó columna 'ubicacion'. Se usará 'equipo' como ubicacion.")
@@ -630,44 +633,112 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
         if not cols_validas:
             st.error(f"❌ No se detectaron columnas válidas. Columnas en tu Excel: {list(df_excel.columns)}")
             return False, "No se detectaron columnas válidas"
-        df = df[cols_validas].where(pd.notnull(df), None)
-        for col in df.columns:
-            if df[col].dtype == object:
-                df[col] = df[col].apply(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
 
-        # Normalizar el OT ANTES de generar id_unico para que 425059 y 425059.0
-        # representen exactamente el mismo registro lógico.
+        # ================================================================
+        # LIMPIEZA DE VALORES VACÍOS
+        # ================================================================
+        df = df[cols_validas].copy()
+
+        # Convertir NaN/NaT a None y cadenas con solo espacios a None.
+        for col in df.columns:
+            df[col] = df[col].apply(
+                lambda x: None
+                if pd.isna(x) or (isinstance(x, str) and not x.strip())
+                else x
+            )
+
+        # ================================================================
+        # ELIMINAR FILAS COMPLETAMENTE VACÍAS DEL EXCEL
+        # ================================================================
+        # Excel puede traer muchas filas vacías por formato, rangos usados,
+        # fórmulas eliminadas, etc. Esas filas NO deben llegar a Supabase.
+        def valor_vacio(x):
+            if x is None:
+                return True
+            if isinstance(x, str):
+                return not x.strip()
+            try:
+                return bool(pd.isna(x))
+            except Exception:
+                return False
+
+        columnas_para_validar = [
+            c for c in [
+                "id_ot",
+                "equipo",
+                "ubicacion",
+                "especialidad",
+                "actividades",
+                "procedimiento",
+                "nodo",
+                "prioridad_actividad",
+                "tecnico_asignado",
+            ]
+            if c in df.columns
+        ]
+
+        if columnas_para_validar:
+            mascara_fila_vacia = df[columnas_para_validar].apply(
+                lambda fila: all(valor_vacio(v) for v in fila),
+                axis=1
+            )
+
+            filas_vacias = int(mascara_fila_vacia.sum())
+
+            if filas_vacias > 0:
+                df = df.loc[~mascara_fila_vacia].copy()
+                st.info(
+                    f"🧹 Se ignoraron {filas_vacias} filas completamente vacías del Excel. "
+                    "No se enviarán a Supabase."
+                )
+
+        # Si después de limpiar no queda ningún registro real, detener la carga.
+        if df.empty:
+            return False, "❌ El Excel no contiene registros válidos para sincronizar"
+
+        # ================================================================
+        # NORMALIZAR OT ANTES DE GENERAR ID ÚNICO
+        # ================================================================
         if "id_ot" in df.columns:
-            df["id_ot"] = df["id_ot"].apply(lambda x: normalizar_id_ot(x, None))
+            df["id_ot"] = df["id_ot"].apply(
+                lambda x: normalizar_id_ot(x, None)
+            )
 
         def generar_id_unico(row):
-            raw = "|".join(str(row.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"])
+            raw = "|".join(
+                str(row.get(c, ""))
+                for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"]
+            )
             return hashlib.md5(raw.encode()).hexdigest()[:20]
 
-        # Generar el ID base como antes, pero evitar colisiones cuando el Excel
-        # contiene dos o más filas con exactamente los mismos datos.
-        # La primera fila conserva el ID original; las repetidas reciben un
-        # sufijo estable (_2, _3, ...). No cambia ningún otro campo del Excel.
+        # Generar ID único para los registros reales.
         df["id_unico"] = df.apply(generar_id_unico, axis=1)
+
+        # Evitar colisiones cuando existen filas legítimamente repetidas.
         repetidos = df["id_unico"].duplicated(keep=False)
         if repetidos.any():
             contador_ids = {}
             ids_unicos = []
+
             for id_base in df["id_unico"].tolist():
                 contador_ids[id_base] = contador_ids.get(id_base, 0) + 1
                 numero = contador_ids[id_base]
-                ids_unicos.append(id_base if numero == 1 else f"{id_base}_{numero}")
+                ids_unicos.append(
+                    id_base if numero == 1 else f"{id_base}_{numero}"
+                )
+
             df["id_unico"] = ids_unicos
 
         registros = df.to_dict(orient="records")
         total = len(registros)
+
         if total == 0:
             return False, "❌ No hay registros válidos para sincronizar"
 
+        # ================================================================
+        # REEMPLAZAR DATOS ACTUALES
+        # ================================================================
         if modo == "reemplazar":
-            # Borrar por IDs en lotes y VERIFICAR que realmente no queden registros
-            # antes de insertar el Excel. Esto evita que un registro viejo provoque
-            # nuevamente: duplicate key value violates unique constraint "unique_id_unico".
             with st.spinner("🗑️ Borrando datos antiguos..."):
                 try:
                     while True:
@@ -678,7 +749,13 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                             .limit(1000)
                             .execute()
                         )
-                        ids_a_borrar = [r.get("id") for r in (resp_ids.data or []) if r.get("id") is not None]
+
+                        ids_a_borrar = [
+                            r.get("id")
+                            for r in (resp_ids.data or [])
+                            if r.get("id") is not None
+                        ]
+
                         if not ids_a_borrar:
                             break
 
@@ -686,43 +763,70 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                             lote_ids = ids_a_borrar[j:j + 500]
                             supabase.table("ordenes_trabajo").delete().in_("id", lote_ids).execute()
 
-                    # Verificación final: si por permisos/RLS quedó algún registro,
-                    # NO intentamos insertar para evitar el error de clave única.
+                    # Verificación final antes de insertar.
                     verificacion = (
                         supabase.table("ordenes_trabajo")
                         .select("id", count="exact")
                         .limit(1)
                         .execute()
                     )
+
                     restantes = int(verificacion.count or 0)
+
                     if restantes > 0:
                         return False, (
-                            f"❌ No se pudieron borrar todos los datos anteriores ({restantes} registros siguen en la base). "
-                            "La carga fue detenida para evitar duplicados. Revisa los permisos/RLS de Supabase."
+                            f"❌ No se pudieron borrar todos los datos anteriores "
+                            f"({restantes} registros siguen en la base). "
+                            "La carga fue detenida para evitar duplicados. "
+                            "Revisa los permisos/RLS de Supabase."
                         )
+
                 except Exception as e_borrado:
-                    return False, f"❌ No se pudieron borrar los datos anteriores. La carga fue detenida para evitar duplicados: {e_borrado}"
+                    return False, (
+                        "❌ No se pudieron borrar los datos anteriores. "
+                        f"La carga fue detenida para evitar duplicados: {e_borrado}"
+                    )
 
         elif modo != "upsert":
             return False, "Modo no válido"
 
-        procesados, batch_size = 0, 500
+        # ================================================================
+        # INSERTAR / ACTUALIZAR EN LOTES
+        # ================================================================
+        procesados = 0
+        batch_size = 500
         barra = st.progress(0)
+
         for i in range(0, total, batch_size):
             lote = registros[i:i + batch_size]
+
             if modo == "reemplazar":
                 supabase.table("ordenes_trabajo").insert(lote).execute()
             else:
-                supabase.table("ordenes_trabajo").upsert(lote, on_conflict="id_unico").execute()
+                supabase.table("ordenes_trabajo").upsert(
+                    lote,
+                    on_conflict="id_unico"
+                ).execute()
+
             procesados += len(lote)
             barra.progress(min((i + batch_size) / total, 1.0))
+
         barra.empty()
 
         if modo == "reemplazar":
-            return True, f"✅ Sincronización completa: {procesados} registros insertados con ID único."
-        return True, f"✅ Sincronización completa: {procesados} registros actualizados/insertados. Las asignaciones de técnicos se mantuvieron."
+            return True, (
+                f"✅ Sincronización completa: {procesados} registros insertados. "
+                "Las filas vacías del Excel fueron ignoradas."
+            )
+
+        return True, (
+            f"✅ Sincronización completa: {procesados} registros actualizados/insertados. "
+            "Las asignaciones de técnicos se mantuvieron y las filas vacías fueron ignoradas."
+        )
+
     except Exception as e:
         return False, f"❌ Error: {e}"
+
 
 # ==================== ESTILOS ====================
 st.set_page_config(page_title="App Tablet Mtto Preventivo", page_icon="🔧", layout="wide", initial_sidebar_state="collapsed")
