@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -289,6 +288,125 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
             for cell in row:
                 cell.border = Border(bottom=borde)
         ws_res["C17"].number_format = '0.0"%"'
+
+        # ---------------- ASIGNACIÓN POR ESPECIALIDAD Y TÉCNICO ----------------
+        # Las actividades asignadas son las que tienen técnico asignado.
+        # Ejecutada/Verificada se considera realizada para el avance.
+        df_stats = df.copy()
+        if "Especialidad" not in df_stats.columns:
+            df_stats["Especialidad"] = "SIN ESPECIALIDAD"
+        if "Tecnico_Asignado" not in df_stats.columns:
+            df_stats["Tecnico_Asignado"] = ""
+        if "Estado" not in df_stats.columns:
+            df_stats["Estado"] = ""
+
+        df_stats["Especialidad"] = df_stats["Especialidad"].fillna("SIN ESPECIALIDAD").astype(str).str.strip().str.upper()
+        df_stats["Tecnico_Asignado"] = df_stats["Tecnico_Asignado"].fillna("").astype(str).str.strip()
+        df_stats["Estado"] = df_stats["Estado"].fillna("").astype(str).str.strip().str.lower()
+        df_stats["Asignada"] = df_stats["Tecnico_Asignado"] != ""
+        df_stats["Realizada"] = df_stats["Estado"].isin(["ejecutado", "verificado"])
+
+        # Tabla 1: resumen por especialidad (MEC / ELE).
+        resumen_esp = []
+        for esp in ["MEC", "ELE"]:
+            g = df_stats[(df_stats["Especialidad"] == esp) & df_stats["Asignada"]]
+            asignadas_esp = len(g)
+            realizadas_esp = int(g["Realizada"].sum())
+            pendientes_esp = asignadas_esp - realizadas_esp
+            pct_esp = round(realizadas_esp / asignadas_esp * 100, 1) if asignadas_esp else 0.0
+            resumen_esp.append([esp, asignadas_esp, realizadas_esp, pendientes_esp, pct_esp])
+
+        # Incluir otras especialidades si existen.
+        otras_esp = sorted(set(df_stats.loc[df_stats["Asignada"], "Especialidad"]) - {"MEC", "ELE", ""})
+        for esp in otras_esp:
+            g = df_stats[(df_stats["Especialidad"] == esp) & df_stats["Asignada"]]
+            asignadas_esp = len(g)
+            realizadas_esp = int(g["Realizada"].sum())
+            pendientes_esp = asignadas_esp - realizadas_esp
+            pct_esp = round(realizadas_esp / asignadas_esp * 100, 1) if asignadas_esp else 0.0
+            resumen_esp.append([esp, asignadas_esp, realizadas_esp, pendientes_esp, pct_esp])
+
+        fila_inicio_esp = 20
+        ws_res.merge_cells(start_row=fila_inicio_esp, start_column=2, end_row=fila_inicio_esp, end_column=6)
+        ws_res.cell(fila_inicio_esp, 2).value = "👷 Actividades asignadas y ejecutadas por especialidad"
+        ws_res.cell(fila_inicio_esp, 2).fill = PatternFill("solid", fgColor=azul)
+        ws_res.cell(fila_inicio_esp, 2).font = Font(color=blanco, bold=True, size=12)
+        ws_res.cell(fila_inicio_esp, 2).alignment = Alignment(horizontal="left", vertical="center")
+
+        encabezados_esp = ["Especialidad", "Asignadas", "Ejecutadas", "Pendientes", "% ejecución"]
+        for j, encabezado in enumerate(encabezados_esp, start=2):
+            cell = ws_res.cell(fila_inicio_esp + 1, j)
+            cell.value = encabezado
+            cell.fill = PatternFill("solid", fgColor=azul_oscuro)
+            cell.font = Font(color=blanco, bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        for i, fila in enumerate(resumen_esp, start=fila_inicio_esp + 2):
+            for j, valor in enumerate(fila, start=2):
+                cell = ws_res.cell(i, j)
+                cell.value = valor
+                cell.border = Border(bottom=borde)
+                cell.alignment = Alignment(horizontal="center" if j >= 3 else "left", vertical="center")
+                if j == 6:
+                    cell.number_format = '0.0"%"'
+
+        # Tabla 2: detalle de actividades por técnico.
+        fila_inicio_tec = fila_inicio_esp + max(len(resumen_esp), 2) + 4
+        ws_res.merge_cells(start_row=fila_inicio_tec, start_column=2, end_row=fila_inicio_tec, end_column=8)
+        ws_res.cell(fila_inicio_tec, 2).value = "🧑‍🔧 Actividades asignadas por técnico"
+        ws_res.cell(fila_inicio_tec, 2).fill = PatternFill("solid", fgColor=azul)
+        ws_res.cell(fila_inicio_tec, 2).font = Font(color=blanco, bold=True, size=12)
+        ws_res.cell(fila_inicio_tec, 2).alignment = Alignment(horizontal="left", vertical="center")
+
+        encabezados_tec = ["Especialidad", "Técnico", "Asignadas", "Ejecutadas", "Pendientes", "% avance", "Estado"]
+        for j, encabezado in enumerate(encabezados_tec, start=2):
+            cell = ws_res.cell(fila_inicio_tec + 1, j)
+            cell.value = encabezado
+            cell.fill = PatternFill("solid", fgColor=azul_oscuro)
+            cell.font = Font(color=blanco, bold=True)
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        detalle_tecnicos = []
+        df_asig = df_stats[df_stats["Asignada"]].copy()
+        if not df_asig.empty:
+            for (esp, tecnico), g in df_asig.groupby(["Especialidad", "Tecnico_Asignado"], dropna=False):
+                asignadas_tec = len(g)
+                realizadas_tec = int(g["Realizada"].sum())
+                pendientes_tec = asignadas_tec - realizadas_tec
+                pct_tec = round(realizadas_tec / asignadas_tec * 100, 1) if asignadas_tec else 0.0
+                estado_tec = "Completo" if pct_tec >= 100 else "En proceso" if pct_tec > 0 else "Pendiente"
+                detalle_tecnicos.append([esp or "SIN ESPECIALIDAD", tecnico, asignadas_tec, realizadas_tec, pendientes_tec, pct_tec, estado_tec])
+
+        detalle_tecnicos.sort(key=lambda x: (str(x[0]), -int(x[2]), str(x[1]).lower()))
+        for i, fila in enumerate(detalle_tecnicos, start=fila_inicio_tec + 2):
+            for j, valor in enumerate(fila, start=2):
+                cell = ws_res.cell(i, j)
+                cell.value = valor
+                cell.border = Border(bottom=borde)
+                cell.alignment = Alignment(horizontal="center" if j in [4, 5, 6, 7] else "left", vertical="center")
+                if j == 7:
+                    cell.number_format = '0.0"%"'
+                if j == 8:
+                    val = str(valor).lower()
+                    if val == "completo":
+                        cell.fill = PatternFill("solid", fgColor=verde)
+                        cell.font = Font(color=blanco, bold=True)
+                    elif val == "en proceso":
+                        cell.fill = PatternFill("solid", fgColor=amarillo)
+                        cell.font = Font(color="000000", bold=True)
+                    else:
+                        cell.fill = PatternFill("solid", fgColor="F44336")
+                        cell.font = Font(color=blanco, bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        # Ajuste de columnas del Resumen para las nuevas tablas.
+        ws_res.column_dimensions["B"].width = 22
+        ws_res.column_dimensions["C"].width = 24
+        ws_res.column_dimensions["D"].width = 14
+        ws_res.column_dimensions["E"].width = 14
+        ws_res.column_dimensions["F"].width = 14
+        ws_res.column_dimensions["G"].width = 14
+        ws_res.column_dimensions["H"].width = 18
 
         # ---------------- PREVENTIVAS ----------------
         ws.sheet_view.showGridLines = False
