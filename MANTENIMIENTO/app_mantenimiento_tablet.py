@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -789,6 +790,25 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
 
         elif modo != "upsert":
             return False, "Modo no válido"
+
+        # ================================================================
+        # LIMPIAR FILAS BASURA QUE YA EXISTAN EN SUPABASE
+        # ================================================================
+        # El modo UPSERT no elimina registros antiguos. Si en una carga anterior
+        # entraron filas completamente NULL, las eliminamos antes de sincronizar.
+        if modo == "upsert":
+            try:
+                (
+                    supabase.table("ordenes_trabajo")
+                    .delete()
+                    .is_("id_ot", "null")
+                    .is_("equipo", "null")
+                    .is_("ubicacion", "null")
+                    .is_("actividades", "null")
+                    .execute()
+                )
+            except Exception as e_limpieza:
+                st.warning(f"⚠️ No se pudieron limpiar las filas vacías anteriores: {e_limpieza}")
 
         # ================================================================
         # INSERTAR / ACTUALIZAR EN LOTES
