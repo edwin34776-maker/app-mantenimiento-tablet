@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -792,23 +791,67 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             return False, "Modo no válido"
 
         # ================================================================
-        # LIMPIAR FILAS BASURA QUE YA EXISTAN EN SUPABASE
+        # SINCRONIZACIÓN EXACTA DEL EXCEL EN MODO UPSERT
         # ================================================================
-        # El modo UPSERT no elimina registros antiguos. Si en una carga anterior
-        # entraron filas completamente NULL, las eliminamos antes de sincronizar.
+        # UPSERT por sí solo NO elimina registros que ya no vienen en el Excel.
+        # Por eso, cuando el Excel actual es más pequeño que la base, los
+        # registros antiguos permanecen. Aquí eliminamos únicamente los
+        # registros cuyo id_unico YA NO existe en el Excel actual.
+        #
+        # Los registros que SÍ siguen en el Excel no se borran, por lo que
+        # conservan estado, comentarios, técnico, fechas, etc.
         if modo == "upsert":
             try:
-                (
-                    supabase.table("ordenes_trabajo")
-                    .delete()
-                    .is_("id_ot", "null")
-                    .is_("equipo", "null")
-                    .is_("ubicacion", "null")
-                    .is_("actividades", "null")
-                    .execute()
-                )
+                ids_excel = set(str(r.get("id_unico")) for r in registros if r.get("id_unico"))
+
+                ids_existentes = []
+                offset = 0
+                page_size = 1000
+
+                while True:
+                    resp_existentes = (
+                        supabase.table("ordenes_trabajo")
+                        .select("id,id_unico")
+                        .range(offset, offset + page_size - 1)
+                        .execute()
+                    )
+                    datos_existentes = resp_existentes.data or []
+                    if not datos_existentes:
+                        break
+
+                    ids_existentes.extend(datos_existentes)
+
+                    if len(datos_existentes) < page_size:
+                        break
+                    offset += page_size
+
+                ids_a_eliminar = [
+                    r["id"] for r in ids_existentes
+                    if r.get("id") is not None
+                    and str(r.get("id_unico") or "") not in ids_excel
+                ]
+
+                if ids_a_eliminar:
+                    with st.spinner(f"🧹 Eliminando {len(ids_a_eliminar)} registros que ya no están en el Excel..."):
+                        for j in range(0, len(ids_a_eliminar), 500):
+                            lote_ids = ids_a_eliminar[j:j + 500]
+                            (
+                                supabase.table("ordenes_trabajo")
+                                .delete()
+                                .in_("id", lote_ids)
+                                .execute()
+                            )
+
+                    st.info(
+                        f"🧹 Se eliminaron {len(ids_a_eliminar)} registros antiguos que ya no existen en el Excel. "
+                        f"Se conservaron {len(ids_excel)} registros del Excel actual."
+                    )
+
             except Exception as e_limpieza:
-                st.warning(f"⚠️ No se pudieron limpiar las filas vacías anteriores: {e_limpieza}")
+                return False, (
+                    "❌ No se pudo completar la limpieza de registros antiguos. "
+                    f"La sincronización fue detenida para evitar inconsistencias: {e_limpieza}"
+                )
 
         # ================================================================
         # INSERTAR / ACTUALIZAR EN LOTES
