@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1532,7 +1533,7 @@ def pantalla_login():
         color:#0F172A;
         margin:0 0 12px 15px;
     ">
-        📌 HOY TOCA: {nodo_hoy}
+        📌 MAQUINA PROGRAMADA: {nodo_hoy}
     </div>
     """, unsafe_allow_html=True)
 
