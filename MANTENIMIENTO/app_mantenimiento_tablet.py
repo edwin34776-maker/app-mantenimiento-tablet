@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1514,15 +1513,16 @@ def pantalla_login():
     # diferente de Supabase entre refrescos.
     df = recargar_datos(forzar=True)
 
-    # ========== MÁQUINA PROGRAMADA ==========
-    maquina_programada = "SIN MÁQUINA PROGRAMADA"
-    if not df.empty:
-        columna_maquina = next((c for c in ["Máquina", "Maquina", "Equipo", "equipo"] if c in df.columns), None)
-        if columna_maquina:
-            maquinas_validas = df[columna_maquina].dropna().astype(str).str.strip()
-            maquinas_validas = maquinas_validas[maquinas_validas != ""]
-            if not maquinas_validas.empty:
-                maquina_programada = maquinas_validas.iloc[0]
+    # ========== AVISO DE NODO DEL DÍA ==========
+    # Toma directamente el valor de la columna "Nodo" y muestra SOLO
+    # la parte anterior al primer guion. Ejemplo: RIGTF01-E02RD04 -> RIGTF01.
+    nodo_hoy = "SIN NODO"
+    if not df.empty and "Nodo" in df.columns:
+        nodos_validos = df["Nodo"].dropna().astype(str).str.strip()
+        nodos_validos = nodos_validos[nodos_validos != ""]
+        if not nodos_validos.empty:
+            nodo_completo = nodos_validos.iloc[0]
+            nodo_hoy = nodo_completo.split("-", 1)[0].strip() or "SIN NODO"
 
     st.markdown(f"""
     <div style="
@@ -1532,7 +1532,7 @@ def pantalla_login():
         color:#0F172A;
         margin:0 0 12px 15px;
     ">
-        📌 MÁQUINA PROGRAMADA: {maquina_programada}
+        📌 HOY TOCA: {nodo_hoy}
     </div>
     """, unsafe_allow_html=True)
 
