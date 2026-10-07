@@ -1691,7 +1691,7 @@ def pantalla_login():
                 st.markdown(f"""
                 <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">⚡ {esp_label}</div>
+                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">{'⚡' if esp_label == 'ELE' else '⚙️'} {esp_label}</div>
                         <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
                     </div>
                     <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
