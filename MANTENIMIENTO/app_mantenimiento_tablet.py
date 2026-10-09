@@ -840,6 +840,23 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
                 "No se enviarán a Supabase."
             )
 
+        # Ignorar también filas que solo tienen ID OT pero ningún dato de actividad.
+        # Los campos opcionales (técnico, estado, prioridad) pueden seguir vacíos.
+        columnas_contenido = [
+            c for c in ["equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo"]
+            if c in df.columns
+        ]
+        if columnas_contenido:
+            mascara_sin_contenido = df[columnas_contenido].apply(
+                lambda fila: all(valor_vacio(v) for v in fila), axis=1
+            )
+            filas_sin_contenido = int(mascara_sin_contenido.sum())
+            if filas_sin_contenido:
+                df = df.loc[~mascara_sin_contenido].copy()
+                st.info(
+                    f"🧹 Se ignoraron {filas_sin_contenido} filas con ID OT pero sin equipo, actividad ni datos de contenido."
+                )
+
         # Protección: nunca sincronizar ni reemplazar datos con una tabla
         # vacía después de aplicar las validaciones.
         if df.empty:
@@ -935,67 +952,12 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             return False, "Modo no válido"
 
         # ================================================================
-        # SINCRONIZACIÓN EXACTA DEL EXCEL EN MODO UPSERT
+        # MODO UPSERT SEGURO: NO BORRAR REGISTROS AUSENTES DEL EXCEL
         # ================================================================
-        # UPSERT por sí solo NO elimina registros que ya no vienen en el Excel.
-        # Por eso, cuando el Excel actual es más pequeño que la base, los
-        # registros antiguos permanecen. Aquí eliminamos únicamente los
-        # registros cuyo id_unico YA NO existe en el Excel actual.
-        #
-        # Los registros que SÍ siguen en el Excel no se borran, por lo que
-        # conservan estado, comentarios, técnico, fechas, etc.
-        if modo == "upsert":
-            try:
-                ids_excel = set(str(r.get("id_unico")) for r in registros if r.get("id_unico"))
-
-                ids_existentes = []
-                offset = 0
-                page_size = 1000
-
-                while True:
-                    resp_existentes = (
-                        supabase.table("ordenes_trabajo")
-                        .select("id,id_unico")
-                        .range(offset, offset + page_size - 1)
-                        .execute()
-                    )
-                    datos_existentes = resp_existentes.data or []
-                    if not datos_existentes:
-                        break
-
-                    ids_existentes.extend(datos_existentes)
-
-                    if len(datos_existentes) < page_size:
-                        break
-                    offset += page_size
-
-                ids_a_eliminar = [
-                    r["id"] for r in ids_existentes
-                    if r.get("id") is not None
-                    and str(r.get("id_unico") or "") not in ids_excel
-                ]
-
-                if ids_a_eliminar:
-                    with st.spinner(f"🧹 Eliminando {len(ids_a_eliminar)} registros que ya no están en el Excel..."):
-                        for j in range(0, len(ids_a_eliminar), 500):
-                            lote_ids = ids_a_eliminar[j:j + 500]
-                            (
-                                supabase.table("ordenes_trabajo")
-                                .delete()
-                                .in_("id", lote_ids)
-                                .execute()
-                            )
-
-                    st.info(
-                        f"🧹 Se eliminaron {len(ids_a_eliminar)} registros antiguos que ya no existen en el Excel. "
-                        f"Se conservaron {len(ids_excel)} registros del Excel actual."
-                    )
-
-            except Exception as e_limpieza:
-                return False, (
-                    "❌ No se pudo completar la limpieza de registros antiguos. "
-                    f"La sincronización fue detenida para evitar inconsistencias: {e_limpieza}"
-                )
+        # Un Excel puede ser parcial o tener filas vacías. Por seguridad,
+        # actualizar/insertar no elimina registros de Supabase que no aparezcan
+        # en este archivo. Los registros coincidentes mantienen sus estados y
+        # asignaciones según el comportamiento de upsert de la aplicación.
 
         # ================================================================
         # INSERTAR / ACTUALIZAR EN LOTES
