@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -709,14 +710,14 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
         cols_originales = {normalizar_nombre_columna(c): c for c in df.columns}
         mapeo_columnas = {
             "id_ot": ["id ot", "id_ot", "ot", "numero ot", "no. ot", "orden", "no ot", "id"],
-            "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina"],
+            "equipo": ["equipo", "descripción", "descripcion", "id activo", "id_activo", "activo", "maquina", "máquina", "un"],
             "ubicacion": ["ubicacion", "ubicación", "lugar", "area", "área", "un", "unidad", "localizacion", "sala"],
-            "especialidad": ["especialidad", "esp", "area tecnica", "disciplina"],
-            "actividades": ["actividades", "actividad", "descr", "descr larga", "tarea", "trabajo", "falla", "problema"],
+            "especialidad": ["especialidad", "esp", "tipo de ot", "tipo_ot", "tipo", "area tecnica", "disciplina"],
+            "actividades": ["actividades", "actividad", "descr", "descripcion", "descripción", "tarea", "trabajo", "falla", "problema"],
             "procedimiento": ["procedimiento", "proc", "proceso", "tipo procedimiento"],
             "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag"],
-            "prioridad_actividad": ["prioridad", "prioridad_actividad", "nivel", "color", "urgencia"],
-            "tecnico_asignado": ["tecnico_asignado", "tecnico", "tecnico_1", "tecnico1", "tecnico_asignado_1"],
+            "prioridad_actividad": ["prioridad", "prioridad_actividad", "prioridad_actividad", "nivel", "color", "urgencia"],
+            "tecnico_asignado": ["tecnico_asignado", "tecnico_asignado", "tecnico", "tecnico_1", "tecnico1", "tecnico_asignado_1"],
         }
 
         columnas_renombrar = {}
@@ -910,11 +911,67 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             return False, "Modo no válido"
 
         # ================================================================
-        # MODO UPSERT SEGURO
+        # SINCRONIZACIÓN EXACTA DEL EXCEL EN MODO UPSERT
         # ================================================================
-        # No se eliminan registros que no aparezcan en el Excel importado.
-        # Esto evita borrar órdenes por usar una hoja parcial o un archivo filtrado.
-        # Los registros coincidentes se actualizan por id_unico; los demás permanecen.
+        # UPSERT por sí solo NO elimina registros que ya no vienen en el Excel.
+        # Por eso, cuando el Excel actual es más pequeño que la base, los
+        # registros antiguos permanecen. Aquí eliminamos únicamente los
+        # registros cuyo id_unico YA NO existe en el Excel actual.
+        #
+        # Los registros que SÍ siguen en el Excel no se borran, por lo que
+        # conservan estado, comentarios, técnico, fechas, etc.
+        if modo == "upsert":
+            try:
+                ids_excel = set(str(r.get("id_unico")) for r in registros if r.get("id_unico"))
+
+                ids_existentes = []
+                offset = 0
+                page_size = 1000
+
+                while True:
+                    resp_existentes = (
+                        supabase.table("ordenes_trabajo")
+                        .select("id,id_unico")
+                        .range(offset, offset + page_size - 1)
+                        .execute()
+                    )
+                    datos_existentes = resp_existentes.data or []
+                    if not datos_existentes:
+                        break
+
+                    ids_existentes.extend(datos_existentes)
+
+                    if len(datos_existentes) < page_size:
+                        break
+                    offset += page_size
+
+                ids_a_eliminar = [
+                    r["id"] for r in ids_existentes
+                    if r.get("id") is not None
+                    and str(r.get("id_unico") or "") not in ids_excel
+                ]
+
+                if ids_a_eliminar:
+                    with st.spinner(f"🧹 Eliminando {len(ids_a_eliminar)} registros que ya no están en el Excel..."):
+                        for j in range(0, len(ids_a_eliminar), 500):
+                            lote_ids = ids_a_eliminar[j:j + 500]
+                            (
+                                supabase.table("ordenes_trabajo")
+                                .delete()
+                                .in_("id", lote_ids)
+                                .execute()
+                            )
+
+                    st.info(
+                        f"🧹 Se eliminaron {len(ids_a_eliminar)} registros antiguos que ya no existen en el Excel. "
+                        f"Se conservaron {len(ids_excel)} registros del Excel actual."
+                    )
+
+            except Exception as e_limpieza:
+                return False, (
+                    "❌ No se pudo completar la limpieza de registros antiguos. "
+                    f"La sincronización fue detenida para evitar inconsistencias: {e_limpieza}"
+                )
 
         # ================================================================
         # INSERTAR / ACTUALIZAR EN LOTES
@@ -3211,283 +3268,191 @@ def pantalla_sincronizar():
     boton_volver_inicio("sincronizar")
 
     st.markdown("""
-    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:14px;margin:10px 0;">
-        <div style="font-size:14px;font-weight:700;color:#1D4ED8;margin-bottom:6px;">📋 Importación flexible de Excel</div>
-        <div style="font-size:12px;color:#334155;line-height:1.6;">
-            La app busca automáticamente la hoja y la fila de encabezados con mayor coincidencia.
-            Si algún encabezado tiene otro nombre, puedes relacionar manualmente las columnas.
-            <b>Actualizar/insertar no elimina registros que no aparezcan en el Excel.</b>
+    <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 16px; margin: 12px 0;">
+        <div style="font-size: 14px; font-weight: 700; color: #0369a1; margin-bottom: 6px;">📋 ¿Cómo funciona el ID Único?</div>
+        <div style="font-size: 12px; color: #475569; line-height: 1.6;">
+            La app genera automáticamente un <b>ID único</b> para cada actividad basado en:
+            <code>id_ot + equipo + ubicacion + actividades + nodo</code>.<br><br>
+            ✅ <b>Reemplazar Todo:</b> Borra todo e inserta el Excel (usa la primera vez).<br>
+            🔄 <b>Actualizar/Insertar:</b> Solo cambia lo que cambió, mantiene técnicos y estados.
         </div>
     </div>""", unsafe_allow_html=True)
 
+    # --- PASO 1: SUBIR ARCHIVO ---
     st.subheader("📁 Paso 1: Sube tu Excel")
-    archivo = st.file_uploader(
-        "Arrastra tu archivo Excel aquí",
-        type=["xlsx", "xls", "xlsm", "xltx", "xltm"],
-        key="sync_upload_excel_flexible_v4"
-    )
+    archivo = st.file_uploader("Arrastra tu archivo Excel aquí", type=["xlsx", "xls"], key="sync_upload_excel_v3")
+
     if archivo is None:
         st.info("⬆️ Sube un archivo Excel para comenzar")
-        for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel", "sync_df_mapeado", "sync_df_cache_key"]:
+        # Limpiar session si había uno anterior
+        for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel"]:
             st.session_state.pop(k, None)
         return
 
-    if ("sync_archivo_bytes" not in st.session_state
-            or st.session_state.get("sync_archivo_name") != archivo.name):
-        st.session_state.sync_archivo_bytes = archivo.getvalue()
+    # Guardar en session_state para que no se pierda al interactuar con otros widgets
+    if "sync_archivo_bytes" not in st.session_state or st.session_state.get("sync_archivo_name") != archivo.name:
+        st.session_state.sync_archivo_bytes = archivo.read()
         st.session_state.sync_archivo_name = archivo.name
-        for k in ["sync_df_excel", "sync_df_mapeado", "sync_df_cache_key", "sync_hoja_detectada", "sync_skip_detectado"]:
-            st.session_state.pop(k, None)
+        # Resetear df cacheado si cambia el archivo
+        st.session_state.pop("sync_df_excel", None)
 
-    archivo_bytes = st.session_state.sync_archivo_bytes
+    archivo_bytes = io.BytesIO(st.session_state.sync_archivo_bytes)
     nombre_archivo = st.session_state.sync_archivo_name.lower()
-    extension = nombre_archivo.rsplit(".", 1)[-1] if "." in nombre_archivo else "xlsx"
-    if extension == "xls":
-        engine = "xlrd"
+
+    # --- PASO 2: CONFIGURAR SKIPROWS ---
+    st.subheader("⚙️ Paso 2: Configurar encabezados")
+    col_skip, col_info = st.columns([1, 3])
+    with col_skip:
+        skiprows_int = int(st.number_input(
+            "Saltar filas antes del header", min_value=0, max_value=10,
+            value=1, step=1, key="sync_skiprows_input_v2"))
+    with col_info:
+        st.caption("💡 Si tu Excel tiene título arriba del encabezado, pon 1. Si no, pon 0.")
+
+    # --- FUNCIONES AUXILIARES (definidas con nombre_archivo ya conocido) ---
+    def leer_excel(buf, skip):
+        buf.seek(0)
+        engine = "xlrd" if nombre_archivo.endswith(".xls") else "openpyxl"
+        return pd.read_excel(buf, engine=engine, skiprows=skip)
+
+    def detectar_header(buf, max_skip=5):
+        posibles = ["un", "id ot", "tipo de ot", "descr", "procedimiento", "nodo", "equipo", "ubicacion", "especialidad", "actividades"]
+        mejor_skip, mejor_puntaje = 0, -999
+        for s in range(max_skip + 1):
+            try:
+                engine_test = "xlrd" if nombre_archivo.endswith(".xls") else "openpyxl"
+                df_test = pd.read_excel(io.BytesIO(buf.getvalue()), engine=engine_test, skiprows=s, nrows=3)
+                cols_lower = [str(c).strip().lower() for c in df_test.columns]
+                puntaje = sum(1 for h in posibles if any(h in c for c in cols_lower))
+                puntaje -= sum(1 for c in cols_lower if "unnamed" in c) * 3
+                if puntaje > mejor_puntaje:
+                    mejor_puntaje, mejor_skip = puntaje, s
+            except Exception:
+                continue
+        return mejor_skip
+
+    # --- PASO 3: LEER Y VALIDAR ---
+    st.subheader("📊 Paso 3: Vista previa")
+
+    # Cachear df_excel en session_state para no releer al cambiar modo
+    cache_key = f"sync_df_excel_{skiprows_int}_{nombre_archivo}"
+    if st.session_state.get("sync_df_cache_key") != cache_key:
+        st.session_state.pop("sync_df_excel", None)
+        st.session_state.sync_df_cache_key = cache_key
+
+    if "sync_df_excel" in st.session_state:
+        df_excel = st.session_state.sync_df_excel
+        st.success(f"📊 Excel en caché: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas**")
     else:
-        engine = "openpyxl"
+        try:
+            df_excel = leer_excel(archivo_bytes, skiprows_int)
+            cols_lower = [str(c).strip().lower() for c in df_excel.columns]
+            headers_ok = any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades", "procedimiento"])
 
-    # Campos internos que entiende la función de sincronización existente.
-    alias_campos = {
-        # Alias adaptados al archivo AJ_CONTROL_OT_APROBADAS_3181.xls
-        "id_ot": ["id ot", "id_ot", "ot", "numero ot", "número ot", "no ot", "no. ot", "orden", "orden de trabajo", "work order", "workorder"],
-        # En AJ_CONTROL_OT_APROBADAS, "Descripción" es el nombre del activo/equipo.
-        "equipo": ["equipo", "máquina", "maquina", "activo", "id activo", "descripcion", "descripción", "descripcion equipo", "descripción equipo", "asset", "machine"],
-        # "UN" identifica la unidad de la orden; se usa como ubicación disponible en ese archivo.
-        "ubicacion": ["ubicacion", "ubicación", "area", "área", "lugar", "sala", "unidad", "un", "localizacion", "localización", "location"],
-        # No se asigna "Tipo de OT" automáticamente como especialidad porque E/C/P son tipos de OT.
-        "especialidad": ["especialidad", "disciplina", "area tecnica", "área técnica", "especialidad tecnica", "especialidad técnica"],
-        # En este archivo "Descr" contiene el texto principal de la actividad; "Descr Larga" es respaldo.
-        "actividades": ["actividades", "actividad", "tarea", "tareas", "trabajo", "detalle", "procedimiento a realizar", "task", "activity", "description", "descr", "descr larga", "falla", "problema"],
-        "procedimiento": ["procedimiento", "proceso", "proc", "tipo procedimiento", "instruccion", "instrucción", "method"],
-        "nodo": ["nodo", "codigo", "código", "referencia", "id nodo", "tag", "punto", "punto de lubricacion", "punto de lubricación"],
-        "prioridad_actividad": ["prioridad", "prioridad actividad", "nivel", "color", "urgencia", "priority"],
-        # "Nombre" no se asigna automáticamente: podría ser el creador/aprobador, no el técnico ejecutor.
-        "tecnico_asignado": ["tecnico asignado", "técnico asignado", "tecnico", "técnico", "responsable", "asignado a", "tecnico 1", "técnico 1", "technician"],
-    }
+            if any("unnamed" in c for c in cols_lower) or not headers_ok:
+                st.warning("⚠️ Los headers no se leyeron bien. Auto-detectando fila de encabezados...")
+                auto_skip = detectar_header(archivo_bytes)
+                if auto_skip != skiprows_int:
+                    st.info(f"🔍 Header real detectado en fila {auto_skip + 1}. Releyendo...")
+                    df_excel = leer_excel(archivo_bytes, auto_skip)
+                    skiprows_int = auto_skip
+                else:
+                    st.error("❌ No se pudieron detectar los headers automáticamente. Revisa el archivo.")
+                    return
 
-    def _norm_header(valor):
-        return normalizar_nombre_columna(valor).replace("_", " ").strip()
-
-    alias_norm = {destino: {_norm_header(a) for a in aliases} for destino, aliases in alias_campos.items()}
-
-    def _score_columnas(columnas):
-        headers = [_norm_header(c) for c in columnas]
-        score = 0
-        encontrados = set()
-        for destino, aliases in alias_norm.items():
-            if any(h in aliases or any(a and (a in h or h in a and len(h) >= 4) for a in aliases) for h in headers):
-                encontrados.add(destino)
-                score += {"actividades": 5, "equipo": 4, "ubicacion": 3, "id_ot": 3, "especialidad": 2}.get(destino, 1)
-        score -= sum(2 for h in headers if not h or h.startswith("unnamed"))
-        return score, encontrados
-
-    st.subheader("🔎 Paso 2: Detección automática")
-    try:
-        excel_file = pd.ExcelFile(io.BytesIO(archivo_bytes), engine=engine)
-        mejor = None
-        errores_lectura = []
-        # Revisar todas las hojas y las primeras 11 filas posibles de encabezado.
-        for nombre_hoja in excel_file.sheet_names:
-            for saltar in range(0, 11):
-                try:
-                    prueba = pd.read_excel(
-                        io.BytesIO(archivo_bytes), sheet_name=nombre_hoja,
-                        engine=engine, skiprows=saltar, nrows=5
-                    )
-                    score, detectados = _score_columnas(prueba.columns)
-                    # Prioriza encabezados útiles y filas tempranas; descarta hojas vacías.
-                    if prueba.empty and score <= 0:
-                        continue
-                    candidato = (score, -saltar, len(detectados), nombre_hoja, saltar)
-                    if mejor is None or candidato[:3] > mejor[:3]:
-                        mejor = candidato
-                except Exception as exc:
-                    errores_lectura.append(str(exc))
-        if mejor is None or mejor[0] <= 0:
-            st.error("No pude detectar encabezados reconocibles automáticamente. Revisa que el archivo tenga una tabla con encabezados; puedes probar otro Excel.")
-            st.caption("Hojas encontradas: " + ", ".join(excel_file.sheet_names))
+            st.session_state.sync_df_excel = df_excel
+            st.success(f"✅ Excel leído: **{len(df_excel)} filas** × **{len(df_excel.columns)} columnas** (saltadas {skiprows_int} filas)")
+        except ImportError as e:
+            if "xlrd" in str(e):
+                st.error("❌ Falta la librería 'xlrd' para archivos .xls. Agrega `xlrd>=2.0.1` a requirements.txt.")
+            else:
+                st.error(f"❌ Error de importación: {e}")
             return
-        hoja_detectada = mejor[3]
-        skip_detectado = mejor[4]
-        st.success(f"✅ Hoja detectada: **{hoja_detectada}** · Encabezados en la fila **{skip_detectado + 1}** · Coincidencia: **{mejor[0]}**")
-        if len(excel_file.sheet_names) > 1:
-            st.caption("Se revisaron estas hojas automáticamente: " + ", ".join(excel_file.sheet_names))
+        except Exception as e:
+            st.error(f"❌ Error leyendo Excel: {e}")
+            return
 
-        col_skip, col_ayuda = st.columns([1, 3])
-        with col_skip:
-            skiprows_int = int(st.number_input(
-                "Fila de encabezado (fila anterior a saltar)", min_value=1, max_value=11,
-                value=int(skip_detectado + 1), step=1, key="sync_skiprows_flexible_v4"
-            )) - 1
-        with col_ayuda:
-            st.caption("Si la detección no quedó exacta, ajusta el número de fila. La hoja se selecciona automáticamente según sus encabezados.")
-
-        cache_key = f"{archivo.name}|{hoja_detectada}|{skiprows_int}"
-        if st.session_state.get("sync_df_cache_key") != cache_key:
-            st.session_state.pop("sync_df_excel", None)
-            st.session_state.pop("sync_df_mapeado", None)
-            st.session_state.sync_df_cache_key = cache_key
-
-        if "sync_df_excel" not in st.session_state:
-            df_leido = pd.read_excel(
-                io.BytesIO(archivo_bytes), sheet_name=hoja_detectada,
-                engine=engine, skiprows=skiprows_int
-            )
-            # Retira filas/columnas totalmente vacías antes de mostrar o sincronizar.
-            df_leido = df_leido.dropna(axis=0, how="all").dropna(axis=1, how="all")
-            df_leido.columns = [str(c).strip() for c in df_leido.columns]
-            st.session_state.sync_df_excel = df_leido
-            st.session_state.sync_hoja_detectada = hoja_detectada
-            st.session_state.sync_skip_detectado = skiprows_int
-        df_excel = st.session_state.sync_df_excel.copy()
-
-    except ImportError as exc:
-        if extension == "xls":
-            st.error("Falta la librería para archivos .xls. Agrega `xlrd>=2.0.1` a requirements.txt. Para .xlsx/.xlsm usa openpyxl.")
-        else:
-            st.error(f"Falta una librería necesaria para leer el archivo: {exc}")
-        return
-    except Exception as exc:
-        st.error(f"❌ No se pudo leer el Excel: {exc}")
-        return
-
-    if df_excel.empty or len(df_excel.columns) == 0:
-        st.error("La hoja detectada no contiene filas de datos. Ajusta la fila de encabezado o revisa el archivo.")
-        return
-
-    st.subheader("👁️ Vista previa del Excel")
-    st.caption(f"Archivo: {archivo.name} · Hoja: {hoja_detectada} · {len(df_excel)} filas y {len(df_excel.columns)} columnas detectadas")
-    with st.expander("Ver primeras 10 filas", expanded=True):
+    with st.expander("👁️ Ver primeras 10 filas", expanded=True):
         st.dataframe(df_excel.head(10), use_container_width=True)
-    st.caption("Columnas originales: " + " · ".join(str(c) for c in df_excel.columns))
 
-    # Proponer asignaciones automáticas, pero permitir corregir cualquier columna.
-    st.subheader("🧩 Paso 3: Relacionar columnas")
-    st.caption("La app propone las coincidencias. Cambia cualquier selector si el Excel usa otros nombres. Los campos que no existan pueden dejarse en 'No importar'.")
-    no_usar = "— No importar —"
-    columnas_origen = [str(c) for c in df_excel.columns]
+    st.markdown(f"<div style='font-size:11px;color:#64748B;'>📋 Columnas detectadas: <code>{list(df_excel.columns)}</code></div>", unsafe_allow_html=True)
 
-    def _sugerir_columna(destino):
-        aliases = alias_norm[destino]
-        # Coincidencia exacta primero.
-        for col in columnas_origen:
-            if _norm_header(col) in aliases:
-                return col
-        # Coincidencia parcial como respaldo, evitando encabezados demasiado cortos.
-        for col in columnas_origen:
-            h = _norm_header(col)
-            if len(h) >= 4 and any(a in h or h in a for a in aliases if len(a) >= 4):
-                return col
-        return no_usar
-
-    campos = [
-        ("id_ot", "Orden de trabajo / OT", True),
-        ("equipo", "Equipo / máquina", True),
-        ("ubicacion", "Ubicación / área", True),
-        ("actividades", "Actividad / tarea", True),
-        ("especialidad", "Especialidad", False),
-        ("procedimiento", "Procedimiento", False),
-        ("nodo", "Nodo / código / tag", False),
-        ("prioridad_actividad", "Prioridad", False),
-        ("tecnico_asignado", "Técnico asignado", False),
-    ]
-    selecciones = {}
-    col1, col2 = st.columns(2)
-    for i, (destino, etiqueta, principal) in enumerate(campos):
-        contenedor = col1 if i % 2 == 0 else col2
-        with contenedor:
-            opciones = [no_usar] + columnas_origen
-            sugerida = _sugerir_columna(destino)
-            default_index = opciones.index(sugerida) if sugerida in opciones else 0
-            selecciones[destino] = st.selectbox(
-                etiqueta + (" *" if principal else ""), opciones,
-                index=default_index, key=f"sync_map_{destino}_v4"
-            )
-
-    seleccionadas = [v for v in selecciones.values() if v != no_usar]
-    duplicadas = sorted({v for v in seleccionadas if seleccionadas.count(v) > 1})
-    if duplicadas:
-        st.warning("La misma columna está asignada a varios campos: " + ", ".join(duplicadas) + ". Corrige la relación para evitar importar datos equivocados.")
-
-    df_mapeado = pd.DataFrame(index=df_excel.index)
-    for destino, origen in selecciones.items():
-        if origen != no_usar:
-            # Usar el nombre canónico que ya reconoce sincronizar_excel_a_supabase.
-            df_mapeado[destino] = df_excel[origen]
-
-    # Filas sin datos en todos los campos mapeados no cuentan como registros.
-    if not df_mapeado.empty:
-        df_mapeado = df_mapeado.dropna(axis=0, how="all")
-        for col in df_mapeado.columns:
-            df_mapeado[col] = df_mapeado[col].apply(
-                lambda v: None if (v is None or (isinstance(v, str) and not v.strip()) or (not isinstance(v, str) and pd.isna(v))) else v
-            )
-        if len(df_mapeado.columns):
-            mascara_vacia = df_mapeado.apply(
-                lambda fila: all(v is None or (isinstance(v, str) and not v.strip()) or (not isinstance(v, str) and pd.isna(v)) for v in fila),
-                axis=1
-            )
-            df_mapeado = df_mapeado.loc[~mascara_vacia].copy()
-
-    campos_clave_presentes = any(selecciones[c] != no_usar for c in ["id_ot", "equipo", "ubicacion", "actividades"])
-    if not campos_clave_presentes:
-        st.error("Relaciona al menos una columna de OT, equipo, ubicación o actividad antes de sincronizar.")
+    # Validaciones
+    cols_lower = [str(c).strip().lower() for c in df_excel.columns]
+    if any("unnamed" in c for c in cols_lower):
+        st.error("❌ Hay columnas 'Unnamed'. Aumenta 'Saltar filas antes del header'.")
         return
-    if duplicadas:
-        st.error("No se puede sincronizar mientras una misma columna esté relacionada con varios campos.")
-        return
-    if df_mapeado.empty:
-        st.error("Después de quitar filas vacías no quedan registros para importar.")
+    elif not any(h in cols_lower for h in ["un", "id ot", "tipo de ot", "descr", "equipo", "ubicacion", "actividades"]):
+        st.error("❌ No se detectaron columnas esperadas. Revisa el archivo.")
         return
 
-    st.success(f"✅ Datos preparados: **{len(df_mapeado)} registros con información**. Las filas y columnas vacías se ignoran.")
-    with st.expander("Ver datos ya relacionados", expanded=False):
-        st.dataframe(df_mapeado.head(20), use_container_width=True)
+    cols_norm = [normalizar_nombre_columna(c) for c in df_excel.columns]
+    esperadas = ["id_ot", "equipo", "ubicacion", "especialidad", "actividades", "procedimiento", "nodo", "prioridad_actividad"]
+    faltantes = [c for c in esperadas if c not in cols_norm]
+    if faltantes:
+        st.warning(f"⚠️ Columnas no detectadas: **{', '.join(faltantes)}**")
+    else:
+        st.success("✅ Todas las columnas principales detectadas.")
 
-    # Preview de IDs, calculados con los mismos campos que usa la sincronización.
-    st.subheader("🔑 Vista previa de identificadores")
-    df_preview = df_mapeado.head(5).copy()
+    # Preview de IDs únicos
+    st.subheader("🔑 IDs Únicos generados")
+    st.caption("La app crea estos IDs automáticamente para cada fila.")
+    df_preview = df_excel.head(5).copy()
+    df_preview.columns = cols_norm
     if "id_ot" in df_preview.columns:
         df_preview["id_ot"] = df_preview["id_ot"].apply(lambda x: normalizar_id_ot(x, ""))
-    def _id_preview(row):
-        raw = "|".join(str(row.get(c, "") if row.get(c) is not None else "") for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"])
-        return hashlib.md5(raw.encode()).hexdigest()[:20]
-    df_preview["id_unico_generado"] = df_preview.apply(_id_preview, axis=1)
-    st.dataframe(df_preview, use_container_width=True)
+    if "equipo" in df_preview.columns and "actividades" in df_preview.columns:
+        def generar_id_preview(row):
+            raw = "|".join(str(row.get(c, "")) for c in ["id_ot", "equipo", "ubicacion", "actividades", "nodo"])
+            return hashlib.md5(raw.encode()).hexdigest()[:20]
 
-    st.subheader("🚀 Paso 4: Sincronizar con Supabase")
-    modo = st.radio(
-        "Elige qué hacer:",
-        ["🔄 ACTUALIZAR/INSERTAR — Conserva los registros que no estén en este Excel",
-         "🗑️ REEMPLAZAR TODO — Borra todos los registros actuales y carga solo este Excel"],
-        index=0, key="sync_modo_sync_flexible_v4"
-    )
-    modo_valor = "reemplazar" if modo.startswith("🗑️") else "upsert"
+        df_preview["id_unico_generado"] = df_preview.apply(generar_id_preview, axis=1)
+
+        # Mostrar también el mismo tratamiento de duplicados que se usa
+        # al sincronizar, para que la vista previa coincida con Supabase.
+        contador_preview = {}
+        ids_preview = []
+        for id_base in df_preview["id_unico_generado"].tolist():
+            contador_preview[id_base] = contador_preview.get(id_base, 0) + 1
+            numero = contador_preview[id_base]
+            ids_preview.append(id_base if numero == 1 else f"{id_base}_{numero}")
+        df_preview["id_unico_generado"] = ids_preview
+
+        cols_show = [c for c in ["id_ot", "equipo", "actividades", "id_unico_generado"] if c in df_preview.columns]
+        st.dataframe(df_preview[cols_show], use_container_width=True)
+
+    # --- PASO 4: MODO Y SINCRONIZAR ---
+    st.subheader("🚀 Paso 4: Sincronizar")
+    modo = st.radio("Elige qué hacer:", [
+        "🗑️ REEMPLAZAR TODO — Borra todo e inserta el Excel nuevo",
+        "🔄 ACTUALIZAR/INSERTAR — Mantiene lo existente, actualiza por ID único"
+    ], key="sync_modo_sync_v3")
+    modo_valor = "reemplazar" if "REEMPLAZAR" in modo else "upsert"
+
+    if modo_valor == "reemplazar":
+        st.error("⚠️ **ATENCIÓN:** Esto borrará TODOS los datos actuales. ¡Usa con cuidado!")
+
+    # Checkbox de confirmación para reemplazar
     confirmar = True
-    if modo_valor == "upsert":
-        st.info("🔒 Modo seguro: agrega o actualiza por ID único; no elimina órdenes que no aparezcan en el Excel y conserva estados/asignaciones de los registros existentes.")
-    else:
-        st.error("⚠️ Esta opción borra TODOS los registros actuales de `ordenes_trabajo` antes de importar. Úsala solo si estás completamente seguro.")
-        confirmar_check = st.checkbox("Entiendo que se borrará toda la tabla actual de órdenes de trabajo.", key="sync_confirmar_borrar_flexible_v4")
-        confirmar_texto = st.text_input("Escribe REEMPLAZAR para habilitar la operación", key="sync_confirmar_texto_flexible_v4")
-        confirmar = confirmar_check and confirmar_texto.strip().upper() == "REEMPLAZAR"
+    if modo_valor == "reemplazar":
+        confirmar = st.checkbox("✅ Sí, quiero borrar todo y reemplazar", key="sync_confirmar_borrar")
 
-    if st.button(
-        "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR",
-        use_container_width=True, type="primary", key="sync_btn_sync_flexible_v4", disabled=not confirmar
-    ):
-        with st.spinner("Sincronizando con Supabase, por favor espera..."):
-            exito, mensaje = sincronizar_excel_a_supabase(df_mapeado, modo=modo_valor)
-        if exito:
-            st.success(mensaje)
-            st.balloons()
-            for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel", "sync_df_mapeado", "sync_df_cache_key", "sync_hoja_detectada", "sync_skip_detectado"]:
-                st.session_state.pop(k, None)
-            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
-            st.info("🔄 Datos actualizados. Puedes volver al inicio.")
-        else:
-            st.error(mensaje)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        btn_text = "🚀 REEMPLAZAR Y SINCRONIZAR" if modo_valor == "reemplazar" else "🚀 ACTUALIZAR Y SINCRONIZAR"
+        if st.button(btn_text, use_container_width=True, type="primary", key="sync_btn_sync_v3", disabled=not confirmar):
+            with st.spinner("Sincronizando, por favor espera..."):
+                exito, mensaje = sincronizar_excel_a_supabase(df_excel, modo=modo_valor)
+            if exito:
+                st.success(mensaje)
+                st.balloons()
+                # Limpiar archivo de session_state
+                for k in ["sync_archivo_bytes", "sync_archivo_name", "sync_df_excel", "sync_df_cache_key"]:
+                    st.session_state.pop(k, None)
+                st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                st.info("🔄 Datos actualizados. Puedes volver al inicio.")
+            else:
+                st.error(mensaje)
 
 # ==================== PROTECCIÓN DE RUTAS ADMIN ====================
 # Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
