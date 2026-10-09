@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -817,11 +816,36 @@ def sincronizar_excel_a_supabase(df_excel, modo="reemplazar"):
             return False, "❌ El Excel no contiene registros válidos para sincronizar"
 
         # ================================================================
-        # NORMALIZAR OT ANTES DE GENERAR ID ÚNICO
+        # VALIDAR Y NORMALIZAR ID OT ANTES DE GENERAR ID ÚNICO
         # ================================================================
-        if "id_ot" in df.columns:
-            df["id_ot"] = df["id_ot"].apply(
-                lambda x: normalizar_id_ot(x, None)
+        # Una fila solo se considera una orden válida si tiene ID OT.
+        # Las demás columnas pueden estar vacías si son opcionales; no se
+        # deben descartar órdenes válidas por no tener técnico, nodo, etc.
+        if "id_ot" not in df.columns:
+            return False, (
+                "❌ No se encontró una columna de ID OT en el Excel. "
+                "Relaciona la columna correcta antes de sincronizar."
+            )
+
+        df["id_ot"] = df["id_ot"].apply(
+            lambda x: normalizar_id_ot(x, None)
+        )
+
+        mascara_ot_vacia = df["id_ot"].apply(valor_vacio)
+        filas_sin_ot = int(mascara_ot_vacia.sum())
+        if filas_sin_ot > 0:
+            df = df.loc[~mascara_ot_vacia].copy()
+            st.info(
+                f"🧹 Se ignoraron {filas_sin_ot} filas sin ID OT. "
+                "No se enviarán a Supabase."
+            )
+
+        # Protección: nunca sincronizar ni reemplazar datos con una tabla
+        # vacía después de aplicar las validaciones.
+        if df.empty:
+            return False, (
+                "❌ No quedaron órdenes con ID OT válido. "
+                "No se modificó Supabase. Revisa los encabezados del Excel."
             )
 
         def generar_id_unico(row):
