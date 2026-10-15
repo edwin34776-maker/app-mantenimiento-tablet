@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -3110,66 +3111,112 @@ def pantalla_asignacion():
             tec1_masivo = st.selectbox("Técnico", lista_tecnicos, key=gen_key("masivo_tec1"), label_visibility="collapsed")
         with c2:
             if st.button("Asignar", use_container_width=True, type="primary", key=gen_key("btn_masivo_asig")):
-                guardados = 0
-                es_no_aplica = tec1_masivo == "NO APLICA DEFINIR ACTIVIDAD"
-                tec1_masivo_valor = "" if es_no_aplica or tec1_masivo == "" else tec1_masivo
-                for _, row in df_asig.iterrows():
-                    internal_id = limpiar(row.get("ID"), "")
-                    if not internal_id or not seleccion.get(internal_id, False):
-                        continue
-                    estado_bd = limpiar(row.get("Estado"), "Pendiente")
-                    tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
-
-                    # "NO APLICA DEFINIR ACTIVIDAD" marca las actividades seleccionadas
-                    # como NO APLICA para que dejen de aparecer como pendientes.
-                    if es_no_aplica:
-                        if estado_bd == "No aplica":
-                            continue
-                        datos = {
-                            "Tecnico_Asignado": "",
-                            "Estado": "No aplica",
-                            "Hora_Inicio": None,
-                            "Hora_Fin": None,
-                            "Fecha_Ejecucion": None,
-                        }
-                    else:
-                        # Si ya tiene ese técnico, saltar
-                        if tec1_masivo_valor == tec_actual:
-                            continue
-                        # Preparar datos: cambiar técnico y resetear estado si es necesario
-                        datos = {"Tecnico_Asignado": tec1_masivo_valor}
-                        if estado_bd in ["Ejecutado", "Verificado"]:
-                            datos["Estado"] = "Pendiente"
-                            datos["Hora_Inicio"] = None
-                            datos["Hora_Fin"] = None
-                            datos["Fecha_Ejecucion"] = None
-                            datos["Comentarios"] = None
-                    # Enviar directamente a Supabase sin comparación interna
-                    try:
-                        datos_enviar = {mapear_campo_supabase(k): v for k, v in datos.items()}
-                        supabase.table("ordenes_trabajo").update(datos_enviar).eq("id", internal_id).execute()
-                        idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
-                        if idx_local is not None:
-                            for k, v in datos.items():
-                                st.session_state.df_mantenimientos.at[idx_local, k] = v
-                        guardados += 1
-                    except Exception as e:
-                        st.error(f"Error en OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}: {e}")
-                if guardados > 0:
-                    st.success(f"✅ {guardados} actividades actualizadas")
-                    st.session_state[sel_key] = {}
-                    try:
-                        _cargar_ordenes_cache.clear()
-                    except Exception:
-                        pass
-                    st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                ids_seleccionados = [
+                    limpiar(row.get("ID"), "")
+                    for _, row in df_asig.iterrows()
+                    if limpiar(row.get("ID"), "") and seleccion.get(limpiar(row.get("ID"), ""), False)
+                ]
+                if not ids_seleccionados:
+                    st.warning("Selecciona al menos una actividad primero.")
+                elif tec1_masivo == "NO APLICA DEFINIR ACTIVIDAD":
+                    st.session_state[gen_key("no_aplica_ids_pendientes")] = ids_seleccionados
+                    st.session_state[gen_key("mostrar_motivo_no_aplica")] = True
                     st.rerun()
                 else:
-                    st.warning("Selecciona actividades y un técnico primero")
+                    guardados = 0
+                    tec1_masivo_valor = "" if tec1_masivo == "" else tec1_masivo
+                    for _, row in df_asig.iterrows():
+                        internal_id = limpiar(row.get("ID"), "")
+                        if not internal_id or internal_id not in ids_seleccionados:
+                            continue
+                        estado_bd = limpiar(row.get("Estado"), "Pendiente")
+                        tec_actual = limpiar(row.get("Tecnico_Asignado"), "")
+                        if tec1_masivo_valor == tec_actual:
+                            continue
+                        datos = {"Tecnico_Asignado": tec1_masivo_valor}
+                        if estado_bd in ["Ejecutado", "Verificado"]:
+                            datos.update({"Estado": "Pendiente", "Hora_Inicio": None, "Hora_Fin": None, "Fecha_Ejecucion": None, "Comentarios": None})
+                        try:
+                            datos_enviar = {mapear_campo_supabase(k): v for k, v in datos.items()}
+                            supabase.table("ordenes_trabajo").update(datos_enviar).eq("id", internal_id).execute()
+                            idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+                            if idx_local is not None:
+                                for k, v in datos.items():
+                                    st.session_state.df_mantenimientos.at[idx_local, k] = v
+                            guardados += 1
+                        except Exception as e:
+                            st.error(f"Error en OT {normalizar_id_ot(row.get('ID OT'), 'SIN ID')}: {e}")
+                    if guardados > 0:
+                        st.success(f"✅ {guardados} actividades actualizadas")
+                        st.session_state[sel_key] = {}
+                        try:
+                            _cargar_ordenes_cache.clear()
+                        except Exception:
+                            pass
+                        st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                        st.rerun()
+                    else:
+                        st.warning("No se realizaron cambios. Verifica las actividades seleccionadas.")
         with c3:
             if st.button("🗑️ Limpiar", use_container_width=True, type="secondary", key=gen_key("btn_masivo_limpiar")):
                 st.session_state[sel_key] = {}
                 st.rerun()
+
+        # Pedir y guardar obligatoriamente el motivo antes de marcar como No aplica.
+        no_aplica_flag_key = gen_key("mostrar_motivo_no_aplica")
+        no_aplica_ids_key = gen_key("no_aplica_ids_pendientes")
+        if st.session_state.get(no_aplica_flag_key, False):
+            st.warning("📝 Antes de marcar estas actividades como **No aplica**, explica por qué no aplican.")
+            motivo_no_aplica = st.text_area(
+                "Motivo (obligatorio)",
+                key=gen_key("motivo_texto_no_aplica"),
+                placeholder="Escribe por qué estas actividades no aplican...",
+                max_chars=2000,
+            )
+            confirmar_col, cancelar_col = st.columns(2)
+            with confirmar_col:
+                if st.button("Confirmar No aplica", type="primary", use_container_width=True, key=gen_key("confirmar_no_aplica")):
+                    motivo = (motivo_no_aplica or "").strip()
+                    if not motivo:
+                        st.error("Debes escribir el motivo para continuar.")
+                    else:
+                        ids_pendientes = st.session_state.get(no_aplica_ids_key, [])
+                        guardados = 0
+                        for internal_id in ids_pendientes:
+                            try:
+                                datos = {
+                                    "Tecnico_Asignado": "",
+                                    "Estado": "No aplica",
+                                    "Hora_Inicio": None,
+                                    "Hora_Fin": None,
+                                    "Fecha_Ejecucion": None,
+                                    "Comentarios": motivo,
+                                }
+                                datos_enviar = {mapear_campo_supabase(k): v for k, v in datos.items()}
+                                supabase.table("ordenes_trabajo").update(datos_enviar).eq("id", internal_id).execute()
+                                idx_local, _ = get_row_by_internal_id(st.session_state.df_mantenimientos, internal_id)
+                                if idx_local is not None:
+                                    for k, v in datos.items():
+                                        st.session_state.df_mantenimientos.at[idx_local, k] = v
+                                guardados += 1
+                            except Exception as e:
+                                st.error(f"Error al actualizar la actividad {internal_id}: {e}")
+                        if guardados:
+                            st.success(f"✅ {guardados} actividades marcadas como No aplica. Motivo guardado en Comentarios.")
+                            st.session_state[sel_key] = {}
+                            st.session_state[no_aplica_flag_key] = False
+                            st.session_state[no_aplica_ids_key] = []
+                            try:
+                                _cargar_ordenes_cache.clear()
+                            except Exception:
+                                pass
+                            st.session_state.df_mantenimientos = cargar_excel_mantenimiento()
+                            st.rerun()
+            with cancelar_col:
+                if st.button("Cancelar", use_container_width=True, key=gen_key("cancelar_no_aplica")):
+                    st.session_state[no_aplica_flag_key] = False
+                    st.session_state[no_aplica_ids_key] = []
+                    st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
         if df_asig.empty:
