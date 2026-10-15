@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1834,14 +1833,16 @@ def pantalla_home():
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-    # ========== GRÁFICAS: EJECUTADAS Y PENDIENTES POR ESPECIALIDAD Y TÉCNICO ==========
+    # ========== GRÁFICA ÚNICA: EJECUTADAS Y PENDIENTES POR TÉCNICO ==========
+    # Se muestra una sola gráfica para evitar duplicar información.
+    # Cada técnico lleva la especialidad asociada (ELE/MEC) junto a su nombre.
     if perfil == "admin":
         st.markdown("""<div style="font-size:18px;font-weight:800;color:#0F172A;margin:12px 0 4px 0;">
-            📊 Actividades ejecutadas y pendientes</div>
+            📊 Actividades ejecutadas y pendientes por técnico</div>
             <div style="font-size:12px;color:#64748B;margin-bottom:8px;">Actualización automática cada 15 segundos desde Supabase</div>""",
             unsafe_allow_html=True)
         if df.empty:
-            st.info("No hay actividades disponibles para construir las gráficas.")
+            st.info("No hay actividades disponibles para construir la gráfica.")
         else:
             df_graf = df.copy()
             for columna, defecto in [("Especialidad", "SIN ESPECIALIDAD"), ("Tecnico_Asignado", "Sin asignar"), ("Estado", "Pendiente")]:
@@ -1849,63 +1850,58 @@ def pantalla_home():
                     df_graf[columna] = defecto
                 df_graf[columna] = df_graf[columna].fillna(defecto).astype(str).str.strip()
                 df_graf.loc[df_graf[columna] == "", columna] = defecto
+
             df_graf["Especialidad"] = df_graf["Especialidad"].str.upper()
             df_graf["Resultado"] = df_graf["Estado"].apply(
                 lambda estado: "Ejecutadas" if estado.strip().lower() in ("ejecutado", "verificado") else "Pendientes"
             )
 
-            col_graf_esp, col_graf_tec = st.columns(2)
-            with col_graf_esp:
-                st.markdown("**Por especialidad**")
-                datos_esp = df_graf.groupby(["Especialidad", "Resultado"]).size().unstack(fill_value=0)
-                for categoria in ["Ejecutadas", "Pendientes"]:
-                    if categoria not in datos_esp.columns:
-                        datos_esp[categoria] = 0
-                datos_esp = datos_esp[["Ejecutadas", "Pendientes"]].sort_index()
-                # Gráfica de barras apiladas hecha en HTML/CSS para evitar Altair.
-                # Cada fila muestra ejecutadas + pendientes y el total al final.
-                def _mostrar_barras_apiladas(datos, etiqueta_col, clave):
-                    bloques = [
-                        "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 10px 0;font-size:11px;'>",
-                        "<span><b style='color:#22C55E;'>■</b> Ejecutadas</span>",
-                        "<span><b style='color:#F59E0B;'>■</b> Pendientes</span>",
-                        "</div>",
-                        "<div style='display:flex;flex-direction:column;gap:14px;margin-bottom:14px;'>"
-                    ]
-                    for etiqueta, fila in datos.iterrows():
-                        nombre = html.escape(str(etiqueta))
-                        ejecutadas_val = int(fila.get("Ejecutadas", 0))
-                        pendientes_val = int(fila.get("Pendientes", 0))
-                        total = ejecutadas_val + pendientes_val
-                        if total <= 0:
-                            total = 1
-                        ancho_ejecutadas = ejecutadas_val / total * 100
-                        ancho_pendientes = pendientes_val / total * 100
-                        bloques.append(
-                            f"<div><div style='display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;'>"
-                            f"<span style='font-size:12px;font-weight:700;color:#334155;overflow-wrap:anywhere;'>{nombre}</span>"
-                            f"<span style='font-size:11px;color:#475569;white-space:nowrap;'>Total: {ejecutadas_val + pendientes_val}</span></div>"
-                            "<div style='height:24px;display:flex;width:100%;background:#E2E8F0;border-radius:6px;overflow:hidden;'>"
-                            f"<div title='Ejecutadas: {ejecutadas_val}' style='height:24px;width:{ancho_ejecutadas:.2f}%;background:#22C55E;display:flex;align-items:center;justify-content:center;color:#052E16;font-size:11px;font-weight:800;min-width:{'2px' if ejecutadas_val else '0'};'>"
-                            f"{ejecutadas_val if ancho_ejecutadas >= 15 else ''}</div>"
-                            f"<div title='Pendientes: {pendientes_val}' style='height:24px;width:{ancho_pendientes:.2f}%;background:#F59E0B;display:flex;align-items:center;justify-content:center;color:#451A03;font-size:11px;font-weight:800;min-width:{'2px' if pendientes_val else '0'};'>"
-                            f"{pendientes_val if ancho_pendientes >= 15 else ''}</div></div>"
-                            f"<div style='display:flex;justify-content:space-between;font-size:10px;color:#64748B;margin-top:3px;'>"
-                            f"<span>Ejecutadas: {ejecutadas_val}</span><span>Pendientes: {pendientes_val}</span></div></div>"
-                        )
-                    bloques.append("</div>")
-                    st.markdown("".join(bloques), unsafe_allow_html=True)
+            # Etiqueta visible: nombre del técnico y su especialidad (ELE/MEC).
+            mapa_etiquetas = {}
+            for nombre_tecnico, grupo in df_graf.groupby("Tecnico_Asignado", dropna=False):
+                especialidades = sorted({
+                    str(v).strip().upper() for v in grupo["Especialidad"].tolist()
+                    if str(v).strip() and str(v).strip().upper() not in ("NAN", "NONE", "SIN ESPECIALIDAD")
+                })
+                esp = "/".join(especialidades) if especialidades else "SIN ESPECIALIDAD"
+                mapa_etiquetas[nombre_tecnico] = f"{nombre_tecnico} · {esp}"
+            df_graf["Tecnico_Etiqueta"] = df_graf["Tecnico_Asignado"].map(mapa_etiquetas).fillna("Sin asignar · SIN ESPECIALIDAD")
+            datos_tec = df_graf.groupby(["Tecnico_Etiqueta", "Resultado"]).size().unstack(fill_value=0)
+            for categoria in ["Ejecutadas", "Pendientes"]:
+                if categoria not in datos_tec.columns:
+                    datos_tec[categoria] = 0
+            datos_tec = datos_tec[["Ejecutadas", "Pendientes"]].sort_index()
 
-                _mostrar_barras_apiladas(datos_esp, "Especialidad", "especialidad")
-                st.caption("Ejecutadas incluye los estados Ejecutado y Verificado.")
-            with col_graf_tec:
-                st.markdown("**Por técnico**")
-                datos_tec = df_graf.groupby(["Tecnico_Asignado", "Resultado"]).size().unstack(fill_value=0)
-                for categoria in ["Ejecutadas", "Pendientes"]:
-                    if categoria not in datos_tec.columns:
-                        datos_tec[categoria] = 0
-                datos_tec = datos_tec[["Ejecutadas", "Pendientes"]].sort_index()
-                _mostrar_barras_apiladas(datos_tec, "Técnico", "tecnico")
+            bloques = [
+                "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 10px 0;font-size:11px;'>",
+                "<span><b style='color:#22C55E;'>■</b> Ejecutadas</span>",
+                "<span><b style='color:#F59E0B;'>■</b> Pendientes</span>",
+                "</div>",
+                "<div style='display:flex;flex-direction:column;gap:14px;margin-bottom:14px;'>"
+            ]
+            for etiqueta, fila in datos_tec.iterrows():
+                nombre = html.escape(str(etiqueta))
+                ejecutadas_val = int(fila.get("Ejecutadas", 0))
+                pendientes_val = int(fila.get("Pendientes", 0))
+                total = ejecutadas_val + pendientes_val
+                divisor = total if total > 0 else 1
+                ancho_ejecutadas = ejecutadas_val / divisor * 100
+                ancho_pendientes = pendientes_val / divisor * 100
+                bloques.append(
+                    f"<div><div style='display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;'>"
+                    f"<span style='font-size:12px;font-weight:700;color:#334155;overflow-wrap:anywhere;'>{nombre}</span>"
+                    f"<span style='font-size:11px;color:#475569;white-space:nowrap;'>Total: {total}</span></div>"
+                    "<div style='height:24px;display:flex;width:100%;background:#E2E8F0;border-radius:6px;overflow:hidden;'>"
+                    f"<div title='Ejecutadas: {ejecutadas_val}' style='height:24px;width:{ancho_ejecutadas:.2f}%;background:#22C55E;display:flex;align-items:center;justify-content:center;color:#052E16;font-size:11px;font-weight:800;min-width:{'2px' if ejecutadas_val else '0'};'>"
+                    f"{ejecutadas_val if ancho_ejecutadas >= 10 else ''}</div>"
+                    f"<div title='Pendientes: {pendientes_val}' style='height:24px;width:{ancho_pendientes:.2f}%;background:#F59E0B;display:flex;align-items:center;justify-content:center;color:#451A03;font-size:11px;font-weight:800;min-width:{'2px' if pendientes_val else '0'};'>"
+                    f"{pendientes_val if ancho_pendientes >= 10 else ''}</div></div>"
+                    f"<div style='display:flex;justify-content:space-between;font-size:10px;color:#64748B;margin-top:3px;'>"
+                    f"<span>Ejecutadas: {ejecutadas_val}</span><span>Pendientes: {pendientes_val}</span></div></div>"
+                )
+            bloques.append("</div>")
+            st.markdown("".join(bloques), unsafe_allow_html=True)
+            st.caption("Ejecutadas incluye los estados Ejecutado y Verificado. La especialidad se muestra junto al nombre de cada técnico.")
 
     if perfil == "admin":
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
