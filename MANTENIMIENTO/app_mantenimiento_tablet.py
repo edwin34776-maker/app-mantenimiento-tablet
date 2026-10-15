@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1833,12 +1834,10 @@ def pantalla_home():
         with col_g2:
             # ========== GRÁFICA ÚNICA: EJECUTADAS Y PENDIENTES POR TÉCNICO ==========
             # Cada técnico lleva la especialidad asociada (ELE/MEC) junto a su nombre.
-            # Tarjeta con el mismo estilo y altura visual que el indicador izquierdo.
-            # El contenido completo se dibuja en un único bloque HTML para evitar
-            # que el navegador separe el borde de la tarjeta de sus elementos.
-            titulo_grafica = """<div style="background:#FFFFFF;border-radius:16px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #E2E8F0;box-sizing:border-box;min-height:174px;height:174px;overflow:hidden;">
-                <div style="font-size:13px;font-weight:700;color:#0F172A;margin:0 0 4px 0;text-align:center;">📊 Actividades ejecutadas y pendientes por técnico</div>
-                <div style="font-size:11px;color:#64748B;margin-bottom:5px;text-align:center;">Actualización automática cada 15 segundos desde Supabase</div>"""
+            st.markdown("""<div style="font-size:18px;font-weight:800;color:#0F172A;margin:12px 0 4px 0;">
+                📊 Actividades ejecutadas y pendientes por técnico</div>
+                <div style="font-size:12px;color:#64748B;margin-bottom:8px;">Actualización automática cada 15 segundos desde Supabase</div>""",
+                unsafe_allow_html=True)
             if df.empty:
                 st.info("No hay actividades disponibles para construir la gráfica.")
             else:
@@ -1871,12 +1870,11 @@ def pantalla_home():
                 datos_tec = datos_tec[["Ejecutadas", "Pendientes"]].sort_index()
 
                 bloques = [
-                    titulo_grafica,
-                    "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:2px 0 6px 0;font-size:10px;'>",
+                    "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 10px 0;font-size:11px;'>",
                     "<span><b style='color:#22C55E;'>■</b> Ejecutadas</span>",
                     "<span><b style='color:#F59E0B;'>■</b> Pendientes</span>",
                     "</div>",
-                    "<div style='display:flex;flex-direction:column;gap:8px;max-height:95px;overflow-y:auto;padding-right:3px;'>"
+                    "<div style='display:flex;flex-direction:column;gap:14px;margin-bottom:14px;'>"
                 ]
                 for etiqueta, fila in datos_tec.iterrows():
                     nombre = html.escape(str(etiqueta))
@@ -1898,8 +1896,9 @@ def pantalla_home():
                         f"<div style='display:flex;justify-content:space-between;font-size:10px;color:#64748B;margin-top:3px;'>"
                         f"<span>Ejecutadas: {ejecutadas_val}</span><span>Pendientes: {pendientes_val}</span></div></div>"
                     )
-                bloques.append("</div><div style='font-size:9px;color:#64748B;margin-top:4px;'>Ejecutadas incluye Ejecutado y Verificado · Desplázate dentro de la tarjeta para ver todos los técnicos.</div></div>")
+                bloques.append("</div>")
                 st.markdown("".join(bloques), unsafe_allow_html=True)
+                st.caption("Ejecutadas incluye los estados Ejecutado y Verificado. La especialidad se muestra junto al nombre de cada técnico.")
 
     if perfil == "admin":
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
