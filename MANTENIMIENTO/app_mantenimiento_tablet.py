@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1798,7 +1797,11 @@ def _home_envio_correo(df):
 
 def pantalla_home():
     perfil = st.session_state.perfil
-    df = recargar_datos()
+    # Actualizar automáticamente el panel administrativo cada 15 segundos.
+    # La consulta forzada vuelve a leer Supabase para que la gráfica no use datos antiguos.
+    if perfil == "admin" and _HAS_AUTOREFRESH:
+        st_autorefresh(interval=15000, key="home_graficas_auto_refresh")
+    df = recargar_datos(forzar=(perfil == "admin"))
     header_tablet("App Tablet Mtto", "&#128100; Admin" if perfil == "admin" else "&#128295; Tecnico")
 
     if perfil == "admin" and not df.empty:
@@ -1830,7 +1833,67 @@ def pantalla_home():
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
 
-        # ========== GRÁFICA DE TORTA GENERAL ==========
+    # ========== GRÁFICAS: EJECUTADAS Y PENDIENTES POR ESPECIALIDAD Y TÉCNICO ==========
+    if perfil == "admin":
+        st.markdown("""<div style="font-size:18px;font-weight:800;color:#0F172A;margin:12px 0 4px 0;">
+            📊 Actividades ejecutadas y pendientes</div>
+            <div style="font-size:12px;color:#64748B;margin-bottom:8px;">Actualización automática cada 15 segundos desde Supabase</div>""",
+            unsafe_allow_html=True)
+        if df.empty:
+            st.info("No hay actividades disponibles para construir las gráficas.")
+        else:
+            df_graf = df.copy()
+            for columna, defecto in [("Especialidad", "SIN ESPECIALIDAD"), ("Tecnico_Asignado", "Sin asignar"), ("Estado", "Pendiente")]:
+                if columna not in df_graf.columns:
+                    df_graf[columna] = defecto
+                df_graf[columna] = df_graf[columna].fillna(defecto).astype(str).str.strip()
+                df_graf.loc[df_graf[columna] == "", columna] = defecto
+            df_graf["Especialidad"] = df_graf["Especialidad"].str.upper()
+            df_graf["Resultado"] = df_graf["Estado"].apply(
+                lambda estado: "Ejecutadas" if estado.strip().lower() in ("ejecutado", "verificado") else "Pendientes"
+            )
+
+            col_graf_esp, col_graf_tec = st.columns(2)
+            with col_graf_esp:
+                st.markdown("**Por especialidad**")
+                datos_esp = df_graf.groupby(["Especialidad", "Resultado"]).size().unstack(fill_value=0)
+                for categoria in ["Ejecutadas", "Pendientes"]:
+                    if categoria not in datos_esp.columns:
+                        datos_esp[categoria] = 0
+                datos_esp = datos_esp[["Ejecutadas", "Pendientes"]].sort_index()
+                # Gráfica HTML propia: evita st.bar_chart/Altair, que puede
+                # fallar por incompatibilidades de versiones en Streamlit Cloud.
+                def _mostrar_barras_horizontal(datos, etiqueta_col, clave):
+                    maximo = int(datos[["Ejecutadas", "Pendientes"]].to_numpy().max()) if not datos.empty else 0
+                    maximo = max(maximo, 1)
+                    bloques = ["<div style='display:flex;flex-direction:column;gap:12px;margin:8px 0 14px 0;'>"]
+                    for etiqueta, fila in datos.iterrows():
+                        nombre = html.escape(str(etiqueta))
+                        bloques.append(f"<div style='font-size:12px;font-weight:700;color:#334155;margin-bottom:3px;'>{nombre}</div>")
+                        for serie, color in (("Ejecutadas", "#22C55E"), ("Pendientes", "#F59E0B")):
+                            valor = int(fila.get(serie, 0))
+                            ancho = max(0, min(100, valor / maximo * 100))
+                            bloques.append(
+                                "<div style='display:flex;align-items:center;gap:7px;margin:3px 0;'>"
+                                f"<div style='width:76px;flex-shrink:0;font-size:11px;color:#475569;'>{serie}</div>"
+                                "<div style='height:13px;flex:1;background:#E2E8F0;border-radius:5px;overflow:hidden;'>"
+                                f"<div style='height:13px;width:{ancho:.2f}%;background:{color};border-radius:5px;'></div></div>"
+                                f"<div style='width:28px;text-align:right;font-size:11px;font-weight:700;color:#0F172A;'>{valor}</div></div>"
+                            )
+                    bloques.append("</div>")
+                    st.markdown("".join(bloques), unsafe_allow_html=True)
+
+                _mostrar_barras_horizontal(datos_esp, "Especialidad", "especialidad")
+                st.caption("Ejecutadas incluye los estados Ejecutado y Verificado.")
+            with col_graf_tec:
+                st.markdown("**Por técnico**")
+                datos_tec = df_graf.groupby(["Tecnico_Asignado", "Resultado"]).size().unstack(fill_value=0)
+                for categoria in ["Ejecutadas", "Pendientes"]:
+                    if categoria not in datos_tec.columns:
+                        datos_tec[categoria] = 0
+                datos_tec = datos_tec[["Ejecutadas", "Pendientes"]].sort_index()
+                _mostrar_barras_horizontal(datos_tec, "Técnico", "tecnico")
+
     if perfil == "admin":
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns(3)
