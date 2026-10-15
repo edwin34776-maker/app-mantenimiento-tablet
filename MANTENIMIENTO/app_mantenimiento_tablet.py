@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1861,29 +1862,41 @@ def pantalla_home():
                     if categoria not in datos_esp.columns:
                         datos_esp[categoria] = 0
                 datos_esp = datos_esp[["Ejecutadas", "Pendientes"]].sort_index()
-                # Gráfica HTML propia: evita st.bar_chart/Altair, que puede
-                # fallar por incompatibilidades de versiones en Streamlit Cloud.
-                def _mostrar_barras_horizontal(datos, etiqueta_col, clave):
-                    maximo = int(datos[["Ejecutadas", "Pendientes"]].to_numpy().max()) if not datos.empty else 0
-                    maximo = max(maximo, 1)
-                    bloques = ["<div style='display:flex;flex-direction:column;gap:12px;margin:8px 0 14px 0;'>"]
+                # Gráfica de barras apiladas hecha en HTML/CSS para evitar Altair.
+                # Cada fila muestra ejecutadas + pendientes y el total al final.
+                def _mostrar_barras_apiladas(datos, etiqueta_col, clave):
+                    bloques = [
+                        "<div style='display:flex;gap:12px;flex-wrap:wrap;margin:8px 0 10px 0;font-size:11px;'>",
+                        "<span><b style='color:#22C55E;'>■</b> Ejecutadas</span>",
+                        "<span><b style='color:#F59E0B;'>■</b> Pendientes</span>",
+                        "</div>",
+                        "<div style='display:flex;flex-direction:column;gap:14px;margin-bottom:14px;'>"
+                    ]
                     for etiqueta, fila in datos.iterrows():
                         nombre = html.escape(str(etiqueta))
-                        bloques.append(f"<div style='font-size:12px;font-weight:700;color:#334155;margin-bottom:3px;'>{nombre}</div>")
-                        for serie, color in (("Ejecutadas", "#22C55E"), ("Pendientes", "#F59E0B")):
-                            valor = int(fila.get(serie, 0))
-                            ancho = max(0, min(100, valor / maximo * 100))
-                            bloques.append(
-                                "<div style='display:flex;align-items:center;gap:7px;margin:3px 0;'>"
-                                f"<div style='width:76px;flex-shrink:0;font-size:11px;color:#475569;'>{serie}</div>"
-                                "<div style='height:13px;flex:1;background:#E2E8F0;border-radius:5px;overflow:hidden;'>"
-                                f"<div style='height:13px;width:{ancho:.2f}%;background:{color};border-radius:5px;'></div></div>"
-                                f"<div style='width:28px;text-align:right;font-size:11px;font-weight:700;color:#0F172A;'>{valor}</div></div>"
-                            )
+                        ejecutadas_val = int(fila.get("Ejecutadas", 0))
+                        pendientes_val = int(fila.get("Pendientes", 0))
+                        total = ejecutadas_val + pendientes_val
+                        if total <= 0:
+                            total = 1
+                        ancho_ejecutadas = ejecutadas_val / total * 100
+                        ancho_pendientes = pendientes_val / total * 100
+                        bloques.append(
+                            f"<div><div style='display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;'>"
+                            f"<span style='font-size:12px;font-weight:700;color:#334155;overflow-wrap:anywhere;'>{nombre}</span>"
+                            f"<span style='font-size:11px;color:#475569;white-space:nowrap;'>Total: {ejecutadas_val + pendientes_val}</span></div>"
+                            "<div style='height:24px;display:flex;width:100%;background:#E2E8F0;border-radius:6px;overflow:hidden;'>"
+                            f"<div title='Ejecutadas: {ejecutadas_val}' style='height:24px;width:{ancho_ejecutadas:.2f}%;background:#22C55E;display:flex;align-items:center;justify-content:center;color:#052E16;font-size:11px;font-weight:800;min-width:{'2px' if ejecutadas_val else '0'};'>"
+                            f"{ejecutadas_val if ancho_ejecutadas >= 15 else ''}</div>"
+                            f"<div title='Pendientes: {pendientes_val}' style='height:24px;width:{ancho_pendientes:.2f}%;background:#F59E0B;display:flex;align-items:center;justify-content:center;color:#451A03;font-size:11px;font-weight:800;min-width:{'2px' if pendientes_val else '0'};'>"
+                            f"{pendientes_val if ancho_pendientes >= 15 else ''}</div></div>"
+                            f"<div style='display:flex;justify-content:space-between;font-size:10px;color:#64748B;margin-top:3px;'>"
+                            f"<span>Ejecutadas: {ejecutadas_val}</span><span>Pendientes: {pendientes_val}</span></div></div>"
+                        )
                     bloques.append("</div>")
                     st.markdown("".join(bloques), unsafe_allow_html=True)
 
-                _mostrar_barras_horizontal(datos_esp, "Especialidad", "especialidad")
+                _mostrar_barras_apiladas(datos_esp, "Especialidad", "especialidad")
                 st.caption("Ejecutadas incluye los estados Ejecutado y Verificado.")
             with col_graf_tec:
                 st.markdown("**Por técnico**")
@@ -1892,7 +1905,7 @@ def pantalla_home():
                     if categoria not in datos_tec.columns:
                         datos_tec[categoria] = 0
                 datos_tec = datos_tec[["Ejecutadas", "Pendientes"]].sort_index()
-                _mostrar_barras_horizontal(datos_tec, "Técnico", "tecnico")
+                _mostrar_barras_apiladas(datos_tec, "Técnico", "tecnico")
 
     if perfil == "admin":
         st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
