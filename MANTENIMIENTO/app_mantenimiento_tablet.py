@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1401,6 +1402,9 @@ def boton_cerrar_sesion():
         st.session_state.orden_seleccionada = None
         st.session_state.busqueda = ""
         st.session_state.admin_autenticado = False
+        st.session_state.planeador_autenticado = False
+        st.session_state.mostrar_login_admin = False
+        st.session_state.mostrar_login_planeador = False
         st.rerun()
 
 def botones_nav(pagina_volver, prefix):
@@ -1524,7 +1528,8 @@ for k, v in {
     "tecnico_seleccionado": "Seleccionar tecnico...", "tecnico_filtro_especialidad": "Todas",
     "mostrar_todos_tecnicos": False, "asignacion_exitosa": None,
     "mostrar_opciones_ordenes": False, "actividad_expandida": None,
-    "admin_autenticado": False, "mostrar_login_admin": False,
+    "admin_autenticado": False, "planeador_autenticado": False, "mostrar_login_admin": False, "mostrar_login_planeador": False,
+    "perfil_pendiente_acceso": None,
     "asignaciones_temp": {}, "asig_rapida_msg": None, "cambios_pendientes": {}
 }.items():
     st.session_state.setdefault(k, v)
@@ -1546,6 +1551,14 @@ def autenticar_admin(password):
         return False, "ADMIN_PASSWORD no configurado en Secrets"
     return (True, "OK") if password == admin_pass else (False, "Contrasena incorrecta")
 
+def autenticar_planeador(password):
+    """Autentica al perfil Planeador con una contraseña independiente."""
+    planeador_pass = st.secrets.get("EXCEL_PASSWORD", "")
+    if not planeador_pass:
+        return False, "EXCEL_PASSWORD no configurada en Secrets"
+    return (True, "OK") if password == planeador_pass else (False, "Contraseña incorrecta")
+
+
 def color_porcentaje(pct):
     """Devuelve un color HEX que va de rojo (0%) → amarillo (50%) → verde (100%)."""
     pct = max(0, min(100, pct))
@@ -1562,6 +1575,7 @@ def color_porcentaje(pct):
     return f"#{r:02X}{g:02X}{b:02X}"
 
 def pantalla_login():
+    """Pantalla de inicio con dashboard y una sola tarjeta para los tres perfiles."""
     # Actualiza únicamente esta pantalla automáticamente cada 15 segundos.
     # No realiza una recarga completa del navegador ni afecta las demás pantallas.
     if _HAS_AUTOREFRESH:
@@ -1709,54 +1723,81 @@ def pantalla_login():
         # Torta general
 
 
-    st.markdown("""
-    <div style="text-align: center; padding: 10px 0 20px 0;">
-        <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
-    </div>""", unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
+    st.markdown("""
+    <div style="text-align:center; padding:8px 0 14px 0; color:#64748B; font-weight:700;">
+        Selecciona tu perfil para continuar
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Una sola tarjeta visual para los tres perfiles.
+    with st.container(border=True):
         st.markdown("""
-        <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">&#128100;</div>
-            <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
-            <div class="perfil-desc"><div>Asigna tecnicos</div><div>Verifica ejecuciones</div></div>
-        </div>""", unsafe_allow_html=True)
-        if not st.session_state.mostrar_login_admin:
-            if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
-                st.session_state.mostrar_login_admin = True
-                st.rerun()
-        else:
-            st.markdown("<div style='font-size:12px; color:#64748B; margin-bottom:4px;'>🔐 Contraseña de administrador</div>", unsafe_allow_html=True)
-            pwd_admin = st.text_input("", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_admin"), label_visibility="collapsed")
-            col_ing, col_vol = st.columns(2)
-            with col_ing:
-                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_admin")):
-                    ok, msg = autenticar_admin(pwd_admin)
+        <div style="text-align:center; padding:12px 8px 4px 8px;">
+            <div style="font-size:42px;">👤</div>
+            <div style="font-size:20px; font-weight:800; color:#0F172A;">ACCESO AL SISTEMA</div>
+            <div style="font-size:13px; color:#64748B; margin-top:4px;">
+                Supervisor / Ingeniero · Planeador · Técnico
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        perfil_elegido = st.selectbox(
+            "Perfil",
+            ["Supervisor / Ingeniero", "Planeador", "Técnico"],
+            key=gen_key("perfil_unico_seleccionado"),
+        )
+
+        # Supervisor y Planeador necesitan contraseña; Técnico entra directamente.
+        pendiente = st.session_state.get("perfil_pendiente_acceso")
+        if pendiente:
+            etiqueta = "Supervisor / Ingeniero" if pendiente == "supervisor" else "Planeador"
+            st.markdown(f"**🔐 Contraseña de {etiqueta}**")
+            clave = st.text_input(
+                "Contraseña", type="password", placeholder="Escribe la contraseña...",
+                key=gen_key("clave_perfil_unico"), label_visibility="collapsed"
+            )
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("validar_perfil_unico")):
+                    if pendiente == "supervisor":
+                        ok, msg = autenticar_admin(clave)
+                    else:
+                        ok, msg = autenticar_planeador(clave)
                     if ok:
-                        st.session_state.perfil = "admin"
-                        st.session_state.admin_autenticado = True
+                        st.session_state.perfil = pendiente
+                        st.session_state.admin_autenticado = (pendiente == "supervisor")
+                        st.session_state.planeador_autenticado = (pendiente == "planeador")
                         st.session_state.pagina = "home"
-                        st.session_state.mostrar_login_admin = False
+                        st.session_state.perfil_pendiente_acceso = None
                         st.rerun()
                     else:
-                        st.error(f"❌ {msg}")
-            with col_vol:
-                if st.button("Cancelar", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_admin")):
-                    st.session_state.mostrar_login_admin = False
+                        st.error(msg)
+            with c2:
+                if st.button("VOLVER", use_container_width=True, key=gen_key("volver_perfil_unico")):
+                    st.session_state.perfil_pendiente_acceso = None
                     st.rerun()
+        else:
+            if perfil_elegido == "Supervisor / Ingeniero":
+                st.caption("🔴 Progreso de asignaciones, gráficas por técnico y filtros ELE/MEC.")
+            elif perfil_elegido == "Planeador":
+                st.caption("🟡 Órdenes, reportes por correo, carga de Excel y sincronización.")
+            else:
+                st.caption("🔧 Selecciona tu nombre, consulta tus órdenes y registra actividades. Sin contraseña.")
 
-    with col2:
-        st.markdown("""
-        <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">&#128295;</div>
-            <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
-            <div class="perfil-desc"><div>Ve sus ordenes</div><div>Ejecuta actividades</div></div>
-        </div>""", unsafe_allow_html=True)
-        if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
-            st.session_state.perfil = "tecnico"
-            st.session_state.pagina = "home"
-            st.rerun()
+            if st.button("CONTINUAR", use_container_width=True, type="primary", key=gen_key("continuar_perfil_unico")):
+                if perfil_elegido == "Técnico":
+                    st.session_state.perfil = "tecnico"
+                    st.session_state.admin_autenticado = False
+                    st.session_state.planeador_autenticado = False
+                    st.session_state.perfil_pendiente_acceso = None
+                    st.session_state.pagina = "home"
+                    st.rerun()
+                else:
+                    st.session_state.perfil_pendiente_acceso = (
+                        "supervisor" if perfil_elegido == "Supervisor / Ingeniero" else "planeador"
+                    )
+                    st.rerun()
 
 # ==================== PANTALLA: HOME ====================
 def _home_envio_correo(df):
@@ -1799,12 +1840,12 @@ def pantalla_home():
     perfil = st.session_state.perfil
     # Actualizar automáticamente el panel administrativo cada 15 segundos.
     # La consulta forzada vuelve a leer Supabase para que la gráfica no use datos antiguos.
-    if perfil == "admin" and _HAS_AUTOREFRESH:
+    if perfil in ("supervisor", "planeador") and _HAS_AUTOREFRESH:
         st_autorefresh(interval=15000, key="home_graficas_auto_refresh")
-    df = recargar_datos(forzar=(perfil == "admin"))
-    header_tablet("App Tablet Mtto", "&#128100; Admin" if perfil == "admin" else "&#128295; Tecnico")
+    df = recargar_datos(forzar=(perfil in ("supervisor", "planeador")))
+    header_tablet("App Tablet Mtto", "Supervisor / Ingeniero" if perfil == "supervisor" else ("Planeador" if perfil == "planeador" else "&#128295; Técnico"))
 
-    if perfil == "admin" and not df.empty:
+    if perfil == "supervisor" and not df.empty:
         # ========== GAUGES DE ASIGNACIÓN Y VERIFICACIÓN ==========
         total_act = len(df)
         asignadas = 0
@@ -1829,7 +1870,7 @@ def pantalla_home():
 
     # La gráfica ocupa el espacio superior derecho que antes usaba
     # el indicador de verificación. Se alinea con el progreso de asignación.
-    if perfil == "admin" and not df.empty:
+    if perfil == "supervisor" and not df.empty:
         with col_g2:
             # ========== GRÁFICA ÚNICA: EJECUTADAS Y PENDIENTES POR TÉCNICO ==========
             # Cada técnico lleva la especialidad asociada (ELE/MEC) junto a su nombre.
@@ -1899,8 +1940,8 @@ def pantalla_home():
                 st.markdown("".join(bloques), unsafe_allow_html=True)
                 st.caption("Ejecutadas incluye los estados Ejecutado y Verificado. La especialidad se muestra junto al nombre de cada técnico.")
 
-    if perfil == "admin":
-        st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
+    if perfil == "supervisor":
+        st.markdown("<div style='text-align:center;margin:15px 0 10px 0;font-weight:600;color:#666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns(3)
         for col, esp in zip([col1, col2, col3], ["Todas", "ELE", "MEC"]):
             with col:
@@ -1910,19 +1951,18 @@ def pantalla_home():
                     if esp != "Todas":
                         st.session_state.pagina = "asignacion"
                     st.rerun()
-        st.markdown("<br>", unsafe_allow_html=True)
 
-        col_btn1, col_btn3 = st.columns(2)
+    elif perfil == "planeador":
+        col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
+            if st.button("VER ÓRDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
                 st.session_state.mostrar_opciones_ordenes = not st.session_state.mostrar_opciones_ordenes
                 st.rerun()
-        with col_btn3:
+        with col_btn2:
             if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
         if st.session_state.mostrar_opciones_ordenes:
-            st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
             col_op1, col_op2 = st.columns(2)
             with col_op1:
                 if st.button("PREVENTIVAS", use_container_width=True, type="secondary", key=gen_key("btn_ver_preventivas")):
@@ -1941,7 +1981,7 @@ def pantalla_home():
     elif perfil == "tecnico":
         _home_tecnico(df)
 
-    if perfil == "admin" and st.session_state.mostrar_envio_correo:
+    if perfil == "planeador" and st.session_state.mostrar_envio_correo:
         _home_envio_correo(df)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -3555,16 +3595,33 @@ def pantalla_sincronizar():
             else:
                 st.error(mensaje)
 
-# ==================== PROTECCIÓN DE RUTAS ADMIN ====================
-# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
-if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
-    st.session_state.pagina = "login"
+# ==================== PROTECCIÓN ESTRICTA DE RUTAS POR PERFIL ====================
+perfil_actual = st.session_state.get("perfil")
+pagina_actual_guard = st.session_state.get("pagina", "login")
+
+# Si no hay sesión válida, volver a la entrada.
+if perfil_actual == "supervisor" and not st.session_state.get("admin_autenticado", False):
     st.session_state.perfil = None
-    st.session_state.mostrar_login_admin = False
-elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
-    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
     st.session_state.pagina = "login"
+    perfil_actual = None
+elif perfil_actual == "planeador" and not st.session_state.get("planeador_autenticado", False):
     st.session_state.perfil = None
+    st.session_state.pagina = "login"
+    perfil_actual = None
+
+PAGINAS_PERMITIDAS = {
+    # El supervisor solo ve su panel y la pantalla de asignación.
+    "supervisor": {"home", "asignacion"},
+    # El planeador administra órdenes, reportes y la sincronización del Excel.
+    "planeador": {"home", "ordenes", "verificar", "sincronizar", "detalle"},
+    # El técnico solo consulta y ejecuta sus propias órdenes.
+    "tecnico": {"home", "mis_ordenes", "ejecutar", "detalle_tecnico"},
+}
+if perfil_actual is not None and pagina_actual_guard not in PAGINAS_PERMITIDAS.get(perfil_actual, set()):
+    st.session_state.pagina = "home"
+    st.session_state.orden_seleccionada = None
+    st.session_state.busqueda = ""
+    st.rerun()
 
 # ==================== EJECUCIÓN PRINCIPAL ====================
 PANTALLAS = {
