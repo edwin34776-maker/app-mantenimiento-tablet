@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1402,6 +1401,9 @@ def boton_cerrar_sesion():
         st.session_state.orden_seleccionada = None
         st.session_state.busqueda = ""
         st.session_state.admin_autenticado = False
+        st.session_state.planeador_autenticado = False
+        st.session_state.mostrar_login_admin = False
+        st.session_state.mostrar_login_planeador = False
         st.rerun()
 
 def botones_nav(pagina_volver, prefix):
@@ -1525,7 +1527,7 @@ for k, v in {
     "tecnico_seleccionado": "Seleccionar tecnico...", "tecnico_filtro_especialidad": "Todas",
     "mostrar_todos_tecnicos": False, "asignacion_exitosa": None,
     "mostrar_opciones_ordenes": False, "actividad_expandida": None,
-    "admin_autenticado": False, "mostrar_login_admin": False,
+    "admin_autenticado": False, "planeador_autenticado": False, "mostrar_login_admin": False, "mostrar_login_planeador": False,
     "asignaciones_temp": {}, "asig_rapida_msg": None, "cambios_pendientes": {}
 }.items():
     st.session_state.setdefault(k, v)
@@ -1547,6 +1549,14 @@ def autenticar_admin(password):
         return False, "ADMIN_PASSWORD no configurado en Secrets"
     return (True, "OK") if password == admin_pass else (False, "Contrasena incorrecta")
 
+def autenticar_planeador(password):
+    """Autentica al perfil Planeador con una contraseña independiente."""
+    planeador_pass = st.secrets.get("EXCEL_PASSWORD", "")
+    if not planeador_pass:
+        return False, "EXCEL_PASSWORD no configurada en Secrets"
+    return (True, "OK") if password == planeador_pass else (False, "Contraseña incorrecta")
+
+
 def color_porcentaje(pct):
     """Devuelve un color HEX que va de rojo (0%) → amarillo (50%) → verde (100%)."""
     pct = max(0, min(100, pct))
@@ -1563,200 +1573,80 @@ def color_porcentaje(pct):
     return f"#{r:02X}{g:02X}{b:02X}"
 
 def pantalla_login():
-    # Actualiza únicamente esta pantalla automáticamente cada 15 segundos.
-    # No realiza una recarga completa del navegador ni afecta las demás pantallas.
-    if _HAS_AUTOREFRESH:
-        st_autorefresh(interval=15000, key="dashboard_login_auto_refresh")
-        # Evita que el dashboard conserve datos antiguos durante el refresco.
-        _cargar_ordenes_cache.clear()
-
+    """Entrada por perfil. No muestra datos operativos antes de iniciar sesión."""
     header_tablet("App Tablet Mtto Preventivo")
+    st.markdown("<div style='text-align:center;padding:8px 0 18px 0;color:#64748B;font-weight:600;'>Selecciona tu perfil para continuar</div>", unsafe_allow_html=True)
+    col_sup, col_plan, col_tec = st.columns(3, gap="medium")
 
-    # 📅 FECHA ACTUAL — debajo del encabezado y alineada a la izquierda
-    dias = {
-        "Monday": "Lunes",
-        "Tuesday": "Martes",
-        "Wednesday": "Miércoles",
-        "Thursday": "Jueves",
-        "Friday": "Viernes",
-        "Saturday": "Sábado",
-        "Sunday": "Domingo"
-    }
-
-    meses = {
-        "January": "enero",
-        "February": "febrero",
-        "March": "marzo",
-        "April": "abril",
-        "May": "mayo",
-        "June": "junio",
-        "July": "julio",
-        "August": "agosto",
-        "September": "septiembre",
-        "October": "octubre",
-        "November": "noviembre",
-        "December": "diciembre"
-    }
-
-    ahora = datetime.now()
-    dia_semana = dias[ahora.strftime("%A")]
-    mes = meses[ahora.strftime("%B")]
-    fecha_actual = f"{dia_semana} {ahora.day:02d} de {mes} de {ahora.year}"
-
-    st.markdown(f"""
-    <div style="
-        text-align:left;
-        font-size:22px;
-        font-weight:700;
-        color:#475569;
-        margin:8px 0 10px 15px;
-    ">
-        📅 {fecha_actual}
-    </div>
-    """, unsafe_allow_html=True)
-
-    # El dashboard usa la misma copia de datos de la sesión.
-    # Así el auto-refresh no cambia el total de actividades por una lectura
-    # diferente de Supabase entre refrescos.
-    df = recargar_datos(forzar=True)
-
-    # ========== AVISO DE NODO DEL DÍA ==========
-    # Toma directamente el valor de la columna "Nodo" y muestra SOLO
-    # la parte anterior al primer guion. Ejemplo: RIGTF01-E02RD04 -> RIGTF01.
-    nodo_hoy = "SIN NODO"
-    if not df.empty and "Nodo" in df.columns:
-        nodos_validos = df["Nodo"].dropna().astype(str).str.strip()
-        nodos_validos = nodos_validos[nodos_validos != ""]
-        if not nodos_validos.empty:
-            nodo_completo = nodos_validos.iloc[0]
-            nodo_hoy = nodo_completo.split("-", 1)[0].strip() or "SIN NODO"
-
-    st.markdown(f"""
-    <div style="
-        text-align:left;
-        font-size:20px;
-        font-weight:700;
-        color:#0F172A;
-        margin:0 0 12px 15px;
-    ">
-        📌 MAQUINA PROGRAMADA: {nodo_hoy}
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ========== DASHBOARD DE MONITOREO (visible para todos) ==========
-    st.markdown("<div style='font-size:16px; font-weight:700; color:#0F172A; margin: 12px 0 10px 0;'>📊 Avance por Especialidad — Diagrama de Proceso</div>", unsafe_allow_html=True)
-    if not df.empty:
-
-        col_e, col_m = st.columns(2)
-
-        for col, esp_label, esp_color, esp_code in [(col_e, "ELE", "#3B82F6", "ELE"), (col_m, "MEC", "#22C55E", "MEC")]:
-            with col:
-                if "Especialidad" in df.columns:
-                    df_esp = df[df["Especialidad"] == esp_code]
-                else:
-                    df_esp = df
-
-                total_esp = len(df_esp)
-                if total_esp == 0:
-                    st.info(f"📭 Sin datos {esp_label}")
-                    continue
-
-                # Normalizar estados para que el dashboard refleje también
-                # registros que vienen vacíos/NULL desde Supabase.
-                # En la pantalla del técnico esos registros se consideran pendientes.
-                if "Estado" in df_esp.columns:
-                    estados = df_esp["Estado"].fillna("").astype(str).str.strip()
-                    pend = int((~estados.isin(["Ejecutado", "Verificado"])).sum())
-                    ejec = int((estados == "Ejecutado").sum())
-                    verif = int((estados == "Verificado").sum())
-                else:
-                    pend = total_esp
-                    ejec = 0
-                    verif = 0
-
-                pct_avance = round((ejec + verif) / total_esp * 100, 1) if total_esp else 0
-
-                st.markdown(f"""
-                <div style="background: white; border-radius: 14px; padding: 16px; border: 2px solid {esp_color}; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                        <div style="font-size: 18px; font-weight: 800; color: {esp_color};">{'⚡' if esp_label == 'ELE' else '⚙️'} {esp_label}</div>
-                        <div style="font-size: 24px; font-weight: 900; color: #0F172A;">{pct_avance}%</div>
-                    </div>
-                    <div style="width: 100%; height: 28px; background: #F1F5F9; border-radius: 14px; overflow: hidden; margin-bottom: 12px;">
-                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}aa); border-radius: 14px;"></div>
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px;">
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#F59E0B' if pend > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{pend}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Pendiente</div>
-                        </div>
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#22C55E' if ejec > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{ejec}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Ejecutado</div>
-                        </div>
-                        <div style="color: #CBD5E1; font-size: 16px;">→</div>
-                        <div style="flex: 1; text-align: center;">
-                            <div style="width: 36px; height: 36px; background: {'#3B82F6' if verif > 0 else '#E2E8F0'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; margin: 0 auto 4px;">{verif}</div>
-                            <div style="font-size: 9px; color: #64748B; font-weight: 600; text-transform: uppercase;">Verificado</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 12px; width: 100%; height: 8px; background: #F1F5F9; border-radius: 4px; overflow: hidden;">
-                        <div style="width: {pct_avance}%; height: 100%; background: linear-gradient(90deg, {color_porcentaje(pct_avance)}, {color_porcentaje(pct_avance)}cc); border-radius: 4px;"></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-        # Torta general
-
-
-    st.markdown("""
-    <div style="text-align: center; padding: 10px 0 20px 0;">
-        <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Selecciona tu perfil para continuar</div>
-    </div>""", unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        <div class="perfil-card perfil-admin" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">&#128100;</div>
-            <div class="perfil-titulo" style="color: #dc3545;">ADMIN</div>
-            <div class="perfil-desc"><div>Asigna tecnicos</div><div>Verifica ejecuciones</div></div>
-        </div>""", unsafe_allow_html=True)
+    with col_sup:
+        st.markdown("""<div class="perfil-card perfil-supervisor" style="text-align:center;padding:20px;">
+        <div class="perfil-icon">👷</div><div class="perfil-titulo" style="color:#007bff;">SUPERVISOR / INGENIERO</div>
+        <div class="perfil-desc"><div>Progreso de asignación</div><div>Gráficas por técnico</div></div></div>""", unsafe_allow_html=True)
         if not st.session_state.mostrar_login_admin:
-            if st.button("ENTRAR COMO ADMIN", use_container_width=True, type="primary", key=gen_key("login_admin")):
+            if st.button("ENTRAR COMO SUPERVISOR / INGENIERO", use_container_width=True, type="primary", key=gen_key("login_supervisor")):
                 st.session_state.mostrar_login_admin = True
+                st.session_state.mostrar_login_planeador = False
                 st.rerun()
         else:
-            st.markdown("<div style='font-size:12px; color:#64748B; margin-bottom:4px;'>🔐 Contraseña de administrador</div>", unsafe_allow_html=True)
-            pwd_admin = st.text_input("", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_admin"), label_visibility="collapsed")
-            col_ing, col_vol = st.columns(2)
-            with col_ing:
-                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_admin")):
-                    ok, msg = autenticar_admin(pwd_admin)
+            pwd_sup = st.text_input("Contraseña Supervisor / Ingeniero", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_supervisor"))
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_supervisor")):
+                    ok, msg = autenticar_admin(pwd_sup)
                     if ok:
-                        st.session_state.perfil = "admin"
+                        st.session_state.perfil = "supervisor"
                         st.session_state.admin_autenticado = True
+                        st.session_state.planeador_autenticado = False
                         st.session_state.pagina = "home"
                         st.session_state.mostrar_login_admin = False
                         st.rerun()
                     else:
-                        st.error(f"❌ {msg}")
-            with col_vol:
-                if st.button("Cancelar", use_container_width=True, type="secondary", key=gen_key("btn_cancelar_admin")):
+                        st.error(msg)
+            with c2:
+                if st.button("Cancelar", use_container_width=True, key=gen_key("btn_cancelar_supervisor")):
                     st.session_state.mostrar_login_admin = False
                     st.rerun()
 
-    with col2:
-        st.markdown("""
-        <div class="perfil-card perfil-tecnico" style="text-align: center; padding: 20px;">
-            <div class="perfil-icon">&#128295;</div>
-            <div class="perfil-titulo" style="color: #28a745;">TECNICO</div>
-            <div class="perfil-desc"><div>Ve sus ordenes</div><div>Ejecuta actividades</div></div>
-        </div>""", unsafe_allow_html=True)
-        if st.button("ENTRAR COMO TECNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
+    with col_plan:
+        st.markdown("""<div class="perfil-card perfil-admin" style="text-align:center;padding:20px;">
+        <div class="perfil-icon">📋</div><div class="perfil-titulo" style="color:#dc3545;">PLANEADOR</div>
+        <div class="perfil-desc"><div>Ver órdenes y reportes</div><div>Sincronizar Excel</div></div></div>""", unsafe_allow_html=True)
+        if not st.session_state.mostrar_login_planeador:
+            if st.button("ENTRAR COMO PLANEADOR", use_container_width=True, type="primary", key=gen_key("login_planeador")):
+                st.session_state.mostrar_login_planeador = True
+                st.session_state.mostrar_login_admin = False
+                st.rerun()
+        else:
+            pwd_plan = st.text_input("Contraseña Planeador", type="password", placeholder="Escribe la contraseña...", key=gen_key("pwd_planeador"))
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("INGRESAR", use_container_width=True, type="primary", key=gen_key("btn_ingresar_planeador")):
+                    ok, msg = autenticar_planeador(pwd_plan)
+                    if ok:
+                        st.session_state.perfil = "planeador"
+                        st.session_state.planeador_autenticado = True
+                        st.session_state.admin_autenticado = False
+                        st.session_state.pagina = "home"
+                        st.session_state.mostrar_login_planeador = False
+                        st.rerun()
+                    else:
+                        st.error(msg)
+            with c2:
+                if st.button("Cancelar", use_container_width=True, key=gen_key("btn_cancelar_planeador")):
+                    st.session_state.mostrar_login_planeador = False
+                    st.rerun()
+
+    with col_tec:
+        st.markdown("""<div class="perfil-card perfil-tecnico" style="text-align:center;padding:20px;">
+        <div class="perfil-icon">🔧</div><div class="perfil-titulo" style="color:#28a745;">TÉCNICO</div>
+        <div class="perfil-desc"><div>Consulta sus órdenes</div><div>Ejecuta actividades</div></div></div>""", unsafe_allow_html=True)
+        if st.button("ENTRAR COMO TÉCNICO", use_container_width=True, type="primary", key=gen_key("login_tecnico")):
             st.session_state.perfil = "tecnico"
+            st.session_state.admin_autenticado = False
+            st.session_state.planeador_autenticado = False
             st.session_state.pagina = "home"
+            st.session_state.mostrar_login_admin = False
+            st.session_state.mostrar_login_planeador = False
             st.rerun()
 
 # ==================== PANTALLA: HOME ====================
@@ -1800,12 +1690,12 @@ def pantalla_home():
     perfil = st.session_state.perfil
     # Actualizar automáticamente el panel administrativo cada 15 segundos.
     # La consulta forzada vuelve a leer Supabase para que la gráfica no use datos antiguos.
-    if perfil == "admin" and _HAS_AUTOREFRESH:
+    if perfil in ("supervisor", "planeador") and _HAS_AUTOREFRESH:
         st_autorefresh(interval=15000, key="home_graficas_auto_refresh")
-    df = recargar_datos(forzar=(perfil == "admin"))
-    header_tablet("App Tablet Mtto", "&#128100; Admin" if perfil == "admin" else "&#128295; Tecnico")
+    df = recargar_datos(forzar=(perfil in ("supervisor", "planeador")))
+    header_tablet("App Tablet Mtto", "Supervisor / Ingeniero" if perfil == "supervisor" else ("Planeador" if perfil == "planeador" else "&#128295; Técnico"))
 
-    if perfil == "admin" and not df.empty:
+    if perfil == "supervisor" and not df.empty:
         # ========== GAUGES DE ASIGNACIÓN Y VERIFICACIÓN ==========
         total_act = len(df)
         asignadas = 0
@@ -1830,7 +1720,7 @@ def pantalla_home():
 
     # La gráfica ocupa el espacio superior derecho que antes usaba
     # el indicador de verificación. Se alinea con el progreso de asignación.
-    if perfil == "admin" and not df.empty:
+    if perfil == "supervisor" and not df.empty:
         with col_g2:
             # ========== GRÁFICA ÚNICA: EJECUTADAS Y PENDIENTES POR TÉCNICO ==========
             # Cada técnico lleva la especialidad asociada (ELE/MEC) junto a su nombre.
@@ -1900,8 +1790,8 @@ def pantalla_home():
                 st.markdown("".join(bloques), unsafe_allow_html=True)
                 st.caption("Ejecutadas incluye los estados Ejecutado y Verificado. La especialidad se muestra junto al nombre de cada técnico.")
 
-    if perfil == "admin":
-        st.markdown("<div style='text-align: center; margin: 15px 0 10px 0; font-weight: 600; color: #666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
+    if perfil == "supervisor":
+        st.markdown("<div style='text-align:center;margin:15px 0 10px 0;font-weight:600;color:#666;'>Filtrar por Especialidad</div>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns(3)
         for col, esp in zip([col1, col2, col3], ["Todas", "ELE", "MEC"]):
             with col:
@@ -1911,19 +1801,18 @@ def pantalla_home():
                     if esp != "Todas":
                         st.session_state.pagina = "asignacion"
                     st.rerun()
-        st.markdown("<br>", unsafe_allow_html=True)
 
-        col_btn1, col_btn3 = st.columns(2)
+    elif perfil == "planeador":
+        col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
-            if st.button("VER ORDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
+            if st.button("VER ÓRDENES ▼", use_container_width=True, type="primary", key=gen_key("btn_ver_ordenes_toggle")):
                 st.session_state.mostrar_opciones_ordenes = not st.session_state.mostrar_opciones_ordenes
                 st.rerun()
-        with col_btn3:
+        with col_btn2:
             if st.button("ENVIAR REPORTE POR CORREO", use_container_width=True, type="primary", key=gen_key("btn_abrir_correo")):
                 st.session_state.mostrar_envio_correo = True
                 st.rerun()
         if st.session_state.mostrar_opciones_ordenes:
-            st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
             col_op1, col_op2 = st.columns(2)
             with col_op1:
                 if st.button("PREVENTIVAS", use_container_width=True, type="secondary", key=gen_key("btn_ver_preventivas")):
@@ -1942,7 +1831,7 @@ def pantalla_home():
     elif perfil == "tecnico":
         _home_tecnico(df)
 
-    if perfil == "admin" and st.session_state.mostrar_envio_correo:
+    if perfil == "planeador" and st.session_state.mostrar_envio_correo:
         _home_envio_correo(df)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -3556,16 +3445,33 @@ def pantalla_sincronizar():
             else:
                 st.error(mensaje)
 
-# ==================== PROTECCIÓN DE RUTAS ADMIN ====================
-# Si alguien intenta forzar una pagina de admin sin estar autenticado, lo sacamos
-if st.session_state.perfil == "admin" and not st.session_state.get("admin_autenticado", False):
-    st.session_state.pagina = "login"
+# ==================== PROTECCIÓN ESTRICTA DE RUTAS POR PERFIL ====================
+perfil_actual = st.session_state.get("perfil")
+pagina_actual_guard = st.session_state.get("pagina", "login")
+
+# Si no hay sesión válida, volver a la entrada.
+if perfil_actual == "supervisor" and not st.session_state.get("admin_autenticado", False):
     st.session_state.perfil = None
-    st.session_state.mostrar_login_admin = False
-elif st.session_state.perfil != "admin" and st.session_state.pagina in ["asignacion", "verificar"]:
-    # Si un tecnico de alguna forma llega a asignacion o verificar, lo saco
     st.session_state.pagina = "login"
+    perfil_actual = None
+elif perfil_actual == "planeador" and not st.session_state.get("planeador_autenticado", False):
     st.session_state.perfil = None
+    st.session_state.pagina = "login"
+    perfil_actual = None
+
+PAGINAS_PERMITIDAS = {
+    # El supervisor solo ve su panel y la pantalla de asignación.
+    "supervisor": {"home", "asignacion"},
+    # El planeador administra órdenes, reportes y la sincronización del Excel.
+    "planeador": {"home", "ordenes", "verificar", "sincronizar", "detalle"},
+    # El técnico solo consulta y ejecuta sus propias órdenes.
+    "tecnico": {"home", "mis_ordenes", "ejecutar", "detalle_tecnico"},
+}
+if perfil_actual is not None and pagina_actual_guard not in PAGINAS_PERMITIDAS.get(perfil_actual, set()):
+    st.session_state.pagina = "home"
+    st.session_state.orden_seleccionada = None
+    st.session_state.busqueda = ""
+    st.rerun()
 
 # ==================== EJECUCIÓN PRINCIPAL ====================
 PANTALLAS = {
