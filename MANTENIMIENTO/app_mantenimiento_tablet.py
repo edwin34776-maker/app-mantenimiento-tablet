@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -57,6 +56,30 @@ def limpiar(valor, default=""):
         pass
     s = str(valor).strip()
     return default if s.lower() in ("nan", "none", "nat", "null") else s
+
+def obtener_ubicacion_visible(row):
+    """Usa Ubicacion cuando existe; si está vacía, muestra Nodo como referencia.
+    No modifica los datos originales de Supabase.
+    """
+    vacios = {"", "-", "n/a", "na", "null", "none", "sin ubicación", "sin ubicacion"}
+    ubicacion = limpiar(row.get("Ubicacion"), "")
+    nodo = limpiar(row.get("Nodo"), "")
+    if ubicacion.casefold() not in vacios:
+        return ubicacion
+    if nodo.casefold() not in vacios:
+        return nodo
+    return "Sin ubicación ni nodo"
+
+
+def agregar_ubicacion_visible(df):
+    """Añade una columna de presentación sin sobrescribir Ubicacion ni Nodo."""
+    d = df.copy()
+    if "Ubicacion" not in d.columns:
+        d["Ubicacion"] = ""
+    if "Nodo" not in d.columns:
+        d["Nodo"] = ""
+    d["Ubicacion_Visible"] = d.apply(obtener_ubicacion_visible, axis=1)
+    return d
 
 def normalizar_id_ot(valor, default=""):
     """Muestra el OT como entero, sin ".0" ni ceros agregados delante."""
@@ -1321,10 +1344,11 @@ def extraer_subsistema_nodo(nodo):
     return partes[1] if len(partes) > 1 else "SIN_CODIGO"
 
 def obtener_maquinas_disponibles(df):
-    if df.empty or "Ubicacion" not in df.columns:
+    if df.empty:
         return ["Todas"]
     try:
-        maquinas = [m for m in df["Ubicacion"].dropna().unique().tolist() if str(m).strip()]
+        d = agregar_ubicacion_visible(df)
+        maquinas = [m for m in d["Ubicacion_Visible"].dropna().unique().tolist() if str(m).strip()]
         return ["Todas"] + sorted(maquinas)
     except Exception:
         return ["Todas"]
@@ -1356,8 +1380,9 @@ def aplicar_filtros_globales(df, maquina=""):
     if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in d.columns:
         d = d[d["Especialidad"] == st.session_state.filtro_especialidad]
     maq = st.session_state.filtro_maquina if maquina == "" else maquina
-    if maq and maq != "Todas" and "Ubicacion" in d.columns:
-        d = d[d["Ubicacion"] == maq]
+    if maq and maq != "Todas":
+        d = agregar_ubicacion_visible(d)
+        d = d[d["Ubicacion_Visible"] == maq]
     if "Nodo" in d.columns:
         if st.session_state.filtro_maquina_nodo != "Todas":
             d = d[d["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
@@ -1454,7 +1479,7 @@ def panel_info_orden(row, incluir_tecnico=False):
     """Panel Equipo/Ubicación/Especialidad/Estado usado en detalle y ejecución."""
     nodo = limpiar(row.get('Nodo'), '')
     equipo = limpiar(row.get('Equipo'), 'N/A')
-    ubicacion = limpiar(row.get('Ubicacion'), 'N/A')
+    ubicacion = obtener_ubicacion_visible(row)
     especialidad = limpiar(row.get('Especialidad'), 'N/A')
     estado = limpiar(row.get('Estado'), 'Pendiente')
     est_color = {"Pendiente": "#f59e0b", "Ejecutado": "#22c55e", "Verificado": "#3b82f6"}.get(estado, "#64748b")
@@ -2232,8 +2257,8 @@ def _home_tecnico(df):
         )
 
     # === ESTRUCTURA: Ubicación → Equipo → Actividades ===
-    for ubicacion_raw, grupo_ubi_df in df_pendientes.groupby(["Ubicacion"]):
-        ubicacion = ubicacion_raw[0] if isinstance(ubicacion_raw, tuple) else ubicacion_raw
+    df_pendientes = agregar_ubicacion_visible(df_pendientes)
+    for ubicacion, grupo_ubi_df in df_pendientes.groupby("Ubicacion_Visible", dropna=False):
         grupo_ubi_df = grupo_ubi_df.copy()
         if grupo_ubi_df.empty:
             continue
@@ -2527,7 +2552,7 @@ def pantalla_mis_ordenes():
                         ot_visible = ot_tmp
                         break
 
-            ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
+            ubicacion = obtener_ubicacion_visible(primera_fila)
             especialidad = limpiar(primera_fila.get("Especialidad"), "")
 
             # Una sola OT visible en el encabezado del equipo.
@@ -2806,7 +2831,7 @@ def pantalla_verificar():
                 <span class="estado-badge estado-ejecutado">Ejecutado</span>
             </div>
             <div style="font-size: 12px; color: #666;">
-                <strong>{limpiar(row.get('Especialidad'), 'SIN ESP')}</strong> | {limpiar(row.get('Equipo'), 'Sin equipo')} — {limpiar(row.get('Ubicacion'), 'Sin ubicacion')}<br>
+                <strong>{limpiar(row.get('Especialidad'), 'SIN ESP')}</strong> | {limpiar(row.get('Equipo'), 'Sin equipo')} — {obtener_ubicacion_visible(row)}<br>
                 Tecnico: {tec_label}<br>
                 Ejecutado: {limpiar(row.get('Fecha_Ejecucion'), 'N/A')} | {limpiar(row.get('Hora_Inicio'), 'N/A')} - {limpiar(row.get('Hora_Fin'), 'N/A')}
             </div>
@@ -2896,9 +2921,11 @@ def pantalla_asignacion():
     df_grafica = df_asig_base.copy()
     df_asig = df_asig_base.copy()
 
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
-        df_grafica = df_grafica[df_grafica["Ubicacion"] == st.session_state.filtro_maquina]
+    if st.session_state.filtro_maquina != "Todas":
+        df_asig = agregar_ubicacion_visible(df_asig)
+        df_grafica = agregar_ubicacion_visible(df_grafica)
+        df_asig = df_asig[df_asig["Ubicacion_Visible"] == st.session_state.filtro_maquina]
+        df_grafica = df_grafica[df_grafica["Ubicacion_Visible"] == st.session_state.filtro_maquina]
 
     # Una actividad se considera asignada únicamente por su técnico principal.
     if not df_asig.empty:
