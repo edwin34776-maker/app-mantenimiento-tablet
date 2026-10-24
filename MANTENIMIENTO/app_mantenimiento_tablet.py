@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -2491,7 +2490,7 @@ def pantalla_mis_ordenes():
         filtro_estado = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado"],
                                      index=0, key=gen_key("filtro_estado_tec"))
     with col_f2:
-        busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
+        busq_tec = st.text_input("Buscar...", placeholder="ID OT, equipo o nodo", key=gen_key("busq_tec"))
 
     mask_tec = pd.Series(False, index=df.index)
     if "Tecnico_Asignado" in df.columns:
@@ -2505,7 +2504,7 @@ def pantalla_mis_ordenes():
             df_mias["Estado"].fillna("").astype(str).str.strip().str.casefold()
             == filtro_estado.casefold()
         ]
-    df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo"])
+    df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo", "Nodo", "Ubicacion", "Actividades"])
 
     mask_tec_all = pd.Series(False, index=df.index)
     if "Tecnico_Asignado" in df.columns:
@@ -2539,118 +2538,126 @@ def pantalla_mis_ordenes():
     # Las actividades conservan su ID interno real para que los
     # botones "Ver detalle" y "Ejecutar" sigan funcionando correctamente.
     # ================================================================
-    if "Equipo" in df_mias.columns:
-        grupos_equipo = []
-        vistos_equipos = set()
+    # Agrupar por máquina cuando exista; si la actividad no tiene máquina,
+    # usar el NODO para que el técnico igualmente vea sus actividades.
+    # Si tampoco hay nodo, la actividad queda visible bajo "Sin máquina ni nodo".
+    grupos_equipo = []
+    vistos_grupos = set()
+    if "_Grupo_Tecnico" not in df_mias.columns:
+        def _clave_grupo_tecnico(row):
+            maquina = limpiar(row.get("Equipo"), "")
+            nodo = limpiar(row.get("Nodo"), "")
+            if maquina:
+                return "MAQUINA::" + maquina.casefold()
+            if nodo:
+                return "NODO::" + nodo.casefold()
+            return "SIN_MAQUINA_NODO"
+        df_mias = df_mias.copy()
+        df_mias["_Grupo_Tecnico"] = df_mias.apply(_clave_grupo_tecnico, axis=1)
 
-        for _, row in df_mias.iterrows():
-            equipo = limpiar(row.get("Equipo"), "Sin equipo")
-            clave_equipo = equipo.strip().casefold()
-            if clave_equipo not in vistos_equipos:
-                vistos_equipos.add(clave_equipo)
-                grupos_equipo.append((equipo, df_mias[df_mias["Equipo"].apply(lambda x: limpiar(x, "Sin equipo").strip().casefold()) == clave_equipo]))
+    for _, row in df_mias.iterrows():
+        clave_grupo = row["_Grupo_Tecnico"]
+        if clave_grupo in vistos_grupos:
+            continue
+        vistos_grupos.add(clave_grupo)
+        grupo_df = df_mias[df_mias["_Grupo_Tecnico"] == clave_grupo].copy()
+        primera = grupo_df.iloc[0]
+        maquina = limpiar(primera.get("Equipo"), "")
+        nodo = limpiar(primera.get("Nodo"), "")
+        if maquina:
+            etiqueta_grupo = maquina
+        elif nodo:
+            etiqueta_grupo = f"Nodo: {nodo}"
+        else:
+            etiqueta_grupo = "Sin máquina ni nodo"
+        grupos_equipo.append((etiqueta_grupo, grupo_df))
 
-        for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
-            primera_fila = df_equipo.iloc[0]
+    for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
+        etiqueta_grupo = equipo
+        primera_fila = df_equipo.iloc[0]
 
-            # Mostrar UNA sola OT por equipo.
-            # Buscamos la primera OT no vacía del grupo para evitar que
-            # aparezca "SIN ID" cuando la primera actividad no tenga OT.
-            ot_visible = "SIN ID"
-            if "ID OT" in df_equipo.columns:
-                for ot_valor in df_equipo["ID OT"].tolist():
-                    # En la vista del técnico, mostrar el OT limpio: 425059.0 -> 425059
-                    # y sin agregar ceros delante del número.
-                    ot_tmp = normalizar_id_ot(ot_valor, "").strip()
-                    if ot_tmp:
-                        ot_visible = ot_tmp
-                        break
+        # Mostrar UNA sola OT por equipo.
+        # Buscamos la primera OT no vacía del grupo para evitar que
+        # aparezca "SIN ID" cuando la primera actividad no tenga OT.
+        ot_visible = "SIN ID"
+        if "ID OT" in df_equipo.columns:
+            for ot_valor in df_equipo["ID OT"].tolist():
+                # En la vista del técnico, mostrar el OT limpio: 425059.0 -> 425059
+                # y sin agregar ceros delante del número.
+                ot_tmp = normalizar_id_ot(ot_valor, "").strip()
+                if ot_tmp:
+                    ot_visible = ot_tmp
+                    break
 
-            ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
-            especialidad = limpiar(primera_fila.get("Especialidad"), "")
+        ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
+        especialidad = limpiar(primera_fila.get("Especialidad"), "")
 
-            # Una sola OT visible en el encabezado del equipo.
-            st.markdown(f"""
-            <div style="
-                background: linear-gradient(90deg, #10A9E8, #35B7EA);
-                color:white;
-                border-radius:12px 12px 0 0;
-                padding:12px 16px;
-                margin-top:12px;
-                box-shadow:0 2px 6px rgba(0,0,0,.15);
-            ">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                    <div>
-                        <div style="font-size:15px; font-weight:800;">
-                            🔧 {escapar(equipo)}
-                        </div>
-                        <div style="margin-top:6px; margin-bottom:5px;">
-                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
-                                📋 OT {escapar(ot_visible)}
-                            </span>
-                        </div>
-                        <div style="font-size:11px; opacity:.95;">
-                            {(' · ' + escapar(especialidad)) if especialidad else ''}
-                            {(' · ' + escapar(ubicacion)) if ubicacion else ''}
-                        </div>
+        # Una sola OT visible en el encabezado del equipo.
+        st.markdown(f"""
+        <div style="
+            background: linear-gradient(90deg, #10A9E8, #35B7EA);
+            color:white;
+            border-radius:12px 12px 0 0;
+            padding:12px 16px;
+            margin-top:12px;
+            box-shadow:0 2px 6px rgba(0,0,0,.15);
+        ">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <div>
+                    <div style="font-size:15px; font-weight:800;">
+                        🔧 {escapar(etiqueta_grupo)}
+                    </div>
+                    <div style="margin-top:6px; margin-bottom:5px;">
+                        <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
+                            📋 OT {escapar(ot_visible)}
+                        </span>
+                    </div>
+                    <div style="font-size:11px; opacity:.95;">
+                        {(' · ' + escapar(especialidad)) if especialidad else ''}
+                        {(' · ' + escapar(ubicacion)) if ubicacion else ''}
                     </div>
                 </div>
             </div>
-            <div style="height:4px; background:#0F172A; border-radius:0 0 8px 8px; margin-bottom:4px;"></div>
-            """, unsafe_allow_html=True)
+        </div>
+        <div style="height:4px; background:#0F172A; border-radius:0 0 8px 8px; margin-bottom:4px;"></div>
+        """, unsafe_allow_html=True)
 
-            # Todas las actividades del equipo siguen disponibles.
-            for _, row in df_equipo.iterrows():
-                internal_id = limpiar(row.get("ID"), "")
-                if not internal_id:
-                    continue
+        # Todas las actividades del equipo siguen disponibles.
+        for _, row in df_equipo.iterrows():
+            internal_id = limpiar(row.get("ID"), "")
+            if not internal_id:
+                continue
 
-                descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
-                estado = estado_efectivo(row)
-                estado_cls = obtener_estado_visual(estado)
+            descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
+            estado = estado_efectivo(row)
+            estado_cls = obtener_estado_visual(estado)
 
-                col_info, col_acc = st.columns([5, 1.6], gap="small")
-                with col_info:
-                    st.markdown(f"""
-                    <div style="
-                        background:#FFFFFF;
-                        border:1px solid #E2E8F0;
-                        border-radius:7px;
-                        padding:8px 10px;
-                        margin-bottom:4px;
-                    ">
-                        <div style="font-size:12px; color:#0F172A; font-weight:600;">{escapar(descripcion)}</div>
-                        <div style="font-size:10px; color:#64748B; margin-top:3px;">
-                            {escapar(limpiar(row.get("Procedimiento"), ""))}
-                            · <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
-                        </div>
+            col_info, col_acc = st.columns([5, 1.6], gap="small")
+            with col_info:
+                st.markdown(f"""
+                <div style="
+                    background:#FFFFFF;
+                    border:1px solid #E2E8F0;
+                    border-radius:7px;
+                    padding:8px 10px;
+                    margin-bottom:4px;
+                ">
+                    <div style="font-size:12px; color:#0F172A; font-weight:600;">{escapar(descripcion)}</div>
+                    <div style="font-size:10px; color:#64748B; margin-top:3px;">
+                        {escapar(limpiar(row.get("Procedimiento"), ""))}
+                        · <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
                     </div>
-                    """, unsafe_allow_html=True)
-                with col_acc:
-                    if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
-                        st.session_state.orden_seleccionada = internal_id
-                        st.session_state.pagina = "detalle_tecnico"
-                        st.rerun()
-                    if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
-                        st.session_state.orden_seleccionada = internal_id
-                        st.session_state.pagina = "ejecutar"
-                        st.rerun()
-    else:
-        # Respaldo si por alguna razón no existe la columna Equipo.
-        for _, row in df_mias.iterrows():
-            internal_id = render_fila_orden(row, truncar_tecnico=True)
-            col1, col2 = st.columns(2)
-            with col1:
+                </div>
+                """, unsafe_allow_html=True)
+            with col_acc:
                 if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
                     st.session_state.orden_seleccionada = internal_id
                     st.session_state.pagina = "detalle_tecnico"
                     st.rerun()
-            with col2:
-                if estado_efectivo(row) == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+                if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
                     st.session_state.orden_seleccionada = internal_id
                     st.session_state.pagina = "ejecutar"
                     st.rerun()
-
 
 # ==================== PANTALLA: EJECUTAR ====================
 def pantalla_ejecutar():
