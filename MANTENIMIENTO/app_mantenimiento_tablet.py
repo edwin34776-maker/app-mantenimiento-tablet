@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -71,12 +72,12 @@ def normalizar_clave_nodo(valor):
 
 
 def obtener_mascara_actividades_tecnico(df, tecnico):
-    """Incluye asignaciones directas y actividades sin técnico del mismo nodo asignado.
-
-    Nunca incluye filas que estén asignadas expresamente a otro técnico.
+    """Muestra órdenes asignadas al técnico y, si no tiene asignaciones directas,
+    permite ver actividades sin asignar de su especialidad. Nunca muestra órdenes
+    asignadas expresamente a otro técnico.
     """
     mascara = pd.Series(False, index=df.index, dtype=bool)
-    if df.empty or "Tecnico_Asignado" not in df.columns:
+    if df is None or df.empty or "Tecnico_Asignado" not in df.columns:
         return mascara
 
     clave = normalizar_nombre_tecnico(tecnico)
@@ -84,9 +85,7 @@ def obtener_mascara_actividades_tecnico(df, tecnico):
     directas = asignados.eq(clave) if clave else mascara.copy()
     mascara |= directas
 
-    # Si el técnico tiene actividades asignadas en un nodo, también mostrar
-    # las actividades de ese mismo nodo que quedaron sin técnico y sin máquina.
-    # Así el nodo sirve como referencia cuando Equipo/Máquina está vacío.
+    # Las actividades sin técnico del mismo nodo se pueden mostrar junto al técnico.
     if "Nodo" in df.columns and directas.any():
         nodos_tecnico = {
             normalizar_clave_nodo(v)
@@ -94,9 +93,22 @@ def obtener_mascara_actividades_tecnico(df, tecnico):
             if normalizar_clave_nodo(v)
         }
         if nodos_tecnico:
-            filas_sin_tecnico = asignados.eq("")
+            sin_tecnico = asignados.eq("")
             nodos_fila = df["Nodo"].apply(normalizar_clave_nodo)
-            mascara |= filas_sin_tecnico & nodos_fila.isin(nodos_tecnico)
+            mascara |= sin_tecnico & nodos_fila.isin(nodos_tecnico)
+
+    # Corrección para la situación observada: técnico sin asignaciones guardadas
+    # y filas de Supabase con tecnico_asignado NULL. Mostrar las pendientes sin
+    # asignar de la especialidad del técnico, para que puedan verse y asignarse.
+    if not directas.any() and "Especialidad" in df.columns:
+        try:
+            especialidad = limpiar(obtener_especialidad_tecnico(tecnico), "")
+        except Exception:
+            especialidad = ""
+        if especialidad:
+            esp_filas = df["Especialidad"].apply(lambda x: limpiar(x, "").casefold())
+            sin_tecnico = asignados.eq("")
+            mascara |= sin_tecnico & esp_filas.eq(especialidad.casefold())
 
     return mascara
 
@@ -1399,30 +1411,18 @@ def estado_efectivo(row):
     return estado
 
 def aplicar_filtros_globales(df, maquina=""):
-    """Aplica especialidad y nodo/subsistema; maquina=None omite el filtro de ubicación."""
-    if df is None:
-        return pd.DataFrame()
+    """Aplica especialidad + máquina + nodo/subsistema. maquina=None omite el filtro de máquina."""
     d = df.copy()
-    if d.empty:
-        return d
-
-    especialidad = st.session_state.get("filtro_especialidad", "Todas")
-    if especialidad != "Todas" and "Especialidad" in d.columns:
-        d = d[d["Especialidad"].fillna("").astype(str).str.strip() == str(especialidad).strip()]
-
-    # None significa explícitamente que esta pantalla aplicará su propio filtro de máquina.
-    maq = st.session_state.get("filtro_maquina", "Todas") if maquina == "" else maquina
-    if maq is not None and maq and maq != "Todas" and "Ubicacion" in d.columns:
-        d = d[d["Ubicacion"].fillna("").astype(str).str.strip() == str(maq).strip()]
-
-    col_nodo = next((c for c in d.columns if str(c).strip().casefold() == "nodo"), None)
-    if col_nodo:
-        filtro_nodo = st.session_state.get("filtro_maquina_nodo", "Todas")
-        filtro_sub = st.session_state.get("filtro_subsistema_nodo", "Todos")
-        if filtro_nodo != "Todas":
-            d = d[d[col_nodo].apply(extraer_maquina_nodo) == filtro_nodo]
-        if filtro_sub != "Todos":
-            d = d[d[col_nodo].apply(extraer_subsistema_nodo) == filtro_sub]
+    if st.session_state.filtro_especialidad != "Todas" and "Especialidad" in d.columns:
+        d = d[d["Especialidad"] == st.session_state.filtro_especialidad]
+    maq = st.session_state.filtro_maquina if maquina == "" else maquina
+    if maq and maq != "Todas" and "Ubicacion" in d.columns:
+        d = d[d["Ubicacion"] == maq]
+    if "Nodo" in d.columns:
+        if st.session_state.filtro_maquina_nodo != "Todas":
+            d = d[d["Nodo"].apply(extraer_maquina_nodo) == st.session_state.filtro_maquina_nodo]
+        if st.session_state.filtro_subsistema_nodo != "Todos":
+            d = d[d["Nodo"].apply(extraer_subsistema_nodo) == st.session_state.filtro_subsistema_nodo]
     return d
 
 def gen_key(base, *parts):
@@ -2171,15 +2171,26 @@ def _home_tecnico(df):
 
     tecnico_actual = tecnico_sel
     esp_sel = obtener_especialidad_tecnico(tecnico_actual)
-    df = recargar_datos()
+    df = recargar_datos(forzar=True)
     mask_tec = obtener_mascara_actividades_tecnico(df, tecnico_actual)
-    # Se muestran sus asignaciones directas y las actividades sin técnico
-    # que pertenecen al mismo nodo que ya tiene asignado. Nunca se muestran
-    # actividades asignadas expresamente a otro técnico.
+    # Se muestran asignaciones directas y actividades sin asignar de su especialidad.
+    # Nunca se incluyen actividades asignadas expresamente a otro técnico.
     df_mias = df.loc[mask_tec].copy()
 
+    # En Supabase, estado puede ser NULL. Para la aplicación eso significa
+    # actividad pendiente, no actividad completada. Normalizar antes de contar.
+    if "Estado" in df_mias.columns:
+        df_mias["Estado"] = df_mias["Estado"].apply(
+            lambda v: limpiar(v, "Pendiente") or "Pendiente"
+        )
+        df_mias["Estado"] = df_mias["Estado"].replace(
+            {"NULL": "Pendiente", "null": "Pendiente", "NaN": "Pendiente", "nan": "Pendiente"}
+        )
+    else:
+        df_mias["Estado"] = "Pendiente"
+
     total_asignadas = len(df_mias)
-    conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
+    conteos = {est: int(df_mias["Estado"].astype(str).str.strip().str.casefold().eq(est.casefold()).sum())
                for est in ["Pendiente", "Ejecutado", "Verificado"]}
 
     st.markdown(f"""
@@ -2197,7 +2208,11 @@ def _home_tecnico(df):
     st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
     st.caption("Las actividades que no alcances a terminar se pueden pasar fácilmente a otro técnico de tu misma especialidad.")
 
-    df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
+    df_pendientes = df_mias[
+        df_mias["Estado"].astype(str).str.strip().str.casefold().isin(
+            ["pendiente", "", "none", "nan", "null"]
+        )
+    ].copy()
     if df_pendientes.empty and not df_mias.empty:
         st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
         st.balloons()
@@ -2983,24 +2998,9 @@ def pantalla_asignacion():
     df_grafica = df_asig_base.copy()
     df_asig = df_asig_base.copy()
 
-    if st.session_state.filtro_maquina != "Todas":
-        maquina_sel = str(st.session_state.filtro_maquina).strip()
-
-        def _coincide_maquina_o_nodo(fila):
-            ubicacion = limpiar(fila.get("Ubicacion"), "").strip()
-            if ubicacion.casefold() == maquina_sel.casefold():
-                return True
-            # Si la actividad no tiene máquina/ubicación, intentar identificarla por el nodo.
-            nodo = limpiar(fila.get("Nodo"), "")
-            if not ubicacion and nodo:
-                try:
-                    return str(extraer_maquina_nodo(nodo)).strip().casefold() == maquina_sel.casefold()
-                except Exception:
-                    return False
-            return False
-
-        df_asig = df_asig[df_asig.apply(_coincide_maquina_o_nodo, axis=1)]
-        df_grafica = df_grafica[df_grafica.apply(_coincide_maquina_o_nodo, axis=1)]
+    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
+        df_grafica = df_grafica[df_grafica["Ubicacion"] == st.session_state.filtro_maquina]
 
     # Una actividad se considera asignada únicamente por su técnico principal.
     if not df_asig.empty:
