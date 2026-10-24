@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -56,6 +57,10 @@ def limpiar(valor, default=""):
         pass
     s = str(valor).strip()
     return default if s.lower() in ("nan", "none", "nat", "null") else s
+
+def normalizar_nombre_tecnico(valor):
+    """Normaliza el nombre para comparar asignaciones sin errores de espacios o mayúsculas."""
+    return " ".join(limpiar(valor, "").split()).casefold()
 
 def normalizar_id_ot(valor, default=""):
     """Muestra el OT como entero, sin ".0" ni ceros agregados delante."""
@@ -1255,12 +1260,10 @@ def abreviar_tecnico(nombre):
     return nombre
 
 def contar_ordenes_por_tecnico(df, tecnico):
-    if df.empty:
+    if df.empty or "Tecnico_Asignado" not in df.columns:
         return 0
-    count = 0
-    if "Tecnico_Asignado" in df.columns:
-        count += len(df[df["Tecnico_Asignado"] == tecnico])
-    return count
+    clave = normalizar_nombre_tecnico(tecnico)
+    return int(df["Tecnico_Asignado"].apply(normalizar_nombre_tecnico).eq(clave).sum())
 
 def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     tecnicos = [{"nombre": t, "especialidad": obtener_especialidad_tecnico(t),
@@ -1278,6 +1281,14 @@ def cargar_excel_mantenimiento():
         return pd.DataFrame()
 
 def recargar_datos(forzar=False):
+    # Si se solicita una recarga forzada, invalidar también la caché de Supabase.
+    # Así el técnico recibe las asignaciones recientes, no una copia antigua de su sesión.
+    if forzar:
+        try:
+            _cargar_ordenes_cache.clear()
+        except Exception:
+            pass
+
     if forzar or "df_mantenimientos" not in st.session_state:
         df = cargar_ordenes_supabase()
         if not df.empty or "df_mantenimientos" not in st.session_state:
@@ -2069,7 +2080,23 @@ def _reasignar_actividad(internal_id, key_widget):
 
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
-    opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
+    nombres_configurados = [t["nombre"] for t in tecnicos_info]
+
+    # Incluir también cualquier nombre que ya esté asignado en Supabase,
+    # aunque todavía no figure en las listas fijas de técnicos.
+    if "Tecnico_Asignado" in df.columns:
+        nombres_guardados = [
+            limpiar(v, "") for v in df["Tecnico_Asignado"].tolist()
+            if normalizar_nombre_tecnico(v)
+        ]
+        claves_existentes = {normalizar_nombre_tecnico(n) for n in nombres_configurados}
+        for nombre in nombres_guardados:
+            clave = normalizar_nombre_tecnico(nombre)
+            if clave and clave not in claves_existentes:
+                nombres_configurados.append(nombre)
+                claves_existentes.add(clave)
+
+    opciones = ["Seleccionar tecnico..."] + nombres_configurados
 
     # FIX: una sola fuente de verdad para el selector del técnico.
     # Antes se mezclaban `index=` y `st.session_state`, lo que podía
@@ -2095,9 +2122,12 @@ def _home_tecnico(df):
     tecnico_actual = tecnico_sel
     esp_sel = obtener_especialidad_tecnico(tecnico_actual)
     df = recargar_datos()
-    mask_tec = pd.Series([False] * len(df), index=df.index)
+    mask_tec = pd.Series(False, index=df.index)
     if "Tecnico_Asignado" in df.columns:
-        mask_tec |= df["Tecnico_Asignado"] == tecnico_actual
+        clave_tecnico = normalizar_nombre_tecnico(tecnico_actual)
+        mask_tec = df["Tecnico_Asignado"].apply(
+            normalizar_nombre_tecnico
+        ).eq(clave_tecnico)
     # IMPORTANTE: el técnico SOLO debe ver actividades que realmente
     # estén asignadas a su nombre. Si no tiene ninguna asignada,
     # no se muestran todas las órdenes de la base.
@@ -2443,7 +2473,8 @@ def pantalla_ordenes():
 
 # ==================== PANTALLA: MIS ORDENES (TÉCNICO) ====================
 def pantalla_mis_ordenes():
-    df = recargar_datos()
+    # Recargar desde Supabase al entrar para que aparezcan las asignaciones nuevas.
+    df = recargar_datos(forzar=True)
     header_tablet("Mis Ordenes Asignadas")
     boton_volver_inicio("mis_ordenes")
 
@@ -2462,17 +2493,26 @@ def pantalla_mis_ordenes():
     with col_f2:
         busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
 
-    mask_tec = pd.Series([False] * len(df), index=df.index)
+    mask_tec = pd.Series(False, index=df.index)
     if "Tecnico_Asignado" in df.columns:
-        mask_tec |= df["Tecnico_Asignado"] == tecnico_sel
-    df_mias = df[mask_tec].copy() if mask_tec.any() else pd.DataFrame()
+        clave_tecnico = normalizar_nombre_tecnico(tecnico_sel)
+        mask_tec = df["Tecnico_Asignado"].apply(
+            normalizar_nombre_tecnico
+        ).eq(clave_tecnico)
+    df_mias = df.loc[mask_tec].copy()
     if filtro_estado != "Todos" and "Estado" in df_mias.columns:
-        df_mias = df_mias[df_mias["Estado"] == filtro_estado]
+        df_mias = df_mias[
+            df_mias["Estado"].fillna("").astype(str).str.strip().str.casefold()
+            == filtro_estado.casefold()
+        ]
     df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo"])
 
-    mask_tec_all = pd.Series([False] * len(df), index=df.index)
+    mask_tec_all = pd.Series(False, index=df.index)
     if "Tecnico_Asignado" in df.columns:
-        mask_tec_all |= df["Tecnico_Asignado"] == tecnico_sel
+        clave_tecnico = normalizar_nombre_tecnico(tecnico_sel)
+        mask_tec_all = df["Tecnico_Asignado"].apply(
+            normalizar_nombre_tecnico
+        ).eq(clave_tecnico)
     if mask_tec_all.any():
         df_todas = df[mask_tec_all]
         total_asignadas = len(df_todas)
