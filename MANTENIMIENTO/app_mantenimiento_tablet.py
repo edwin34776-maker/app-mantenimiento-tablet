@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -56,60 +57,6 @@ def limpiar(valor, default=""):
         pass
     s = str(valor).strip()
     return default if s.lower() in ("nan", "none", "nat", "null") else s
-
-def normalizar_nombre_tecnico(valor):
-    """Normaliza el nombre para comparar asignaciones sin errores de espacios o mayúsculas."""
-    return " ".join(limpiar(valor, "").split()).casefold()
-
-
-def normalizar_clave_nodo(valor):
-    """Normaliza el nodo y descarta valores que significan que no hay nodo."""
-    valor = limpiar(valor, "")
-    if valor.casefold() in {"-", "n/a", "na", "no aplica", "sin nodo", "sin maquina", "sin máquina", "nan"}:
-        return ""
-    return " ".join(valor.split()).casefold()
-
-
-def obtener_mascara_actividades_tecnico(df, tecnico):
-    """Muestra órdenes asignadas al técnico y, si no tiene asignaciones directas,
-    permite ver actividades sin asignar de su especialidad. Nunca muestra órdenes
-    asignadas expresamente a otro técnico.
-    """
-    mascara = pd.Series(False, index=df.index, dtype=bool)
-    if df is None or df.empty or "Tecnico_Asignado" not in df.columns:
-        return mascara
-
-    clave = normalizar_nombre_tecnico(tecnico)
-    asignados = df["Tecnico_Asignado"].apply(normalizar_nombre_tecnico)
-    directas = asignados.eq(clave) if clave else mascara.copy()
-    mascara |= directas
-
-    # Las actividades sin técnico del mismo nodo se pueden mostrar junto al técnico.
-    if "Nodo" in df.columns and directas.any():
-        nodos_tecnico = {
-            normalizar_clave_nodo(v)
-            for v in df.loc[directas, "Nodo"].tolist()
-            if normalizar_clave_nodo(v)
-        }
-        if nodos_tecnico:
-            sin_tecnico = asignados.eq("")
-            nodos_fila = df["Nodo"].apply(normalizar_clave_nodo)
-            mascara |= sin_tecnico & nodos_fila.isin(nodos_tecnico)
-
-    # Corrección para la situación observada: técnico sin asignaciones guardadas
-    # y filas de Supabase con tecnico_asignado NULL. Mostrar las pendientes sin
-    # asignar de la especialidad del técnico, para que puedan verse y asignarse.
-    if not directas.any() and "Especialidad" in df.columns:
-        try:
-            especialidad = limpiar(obtener_especialidad_tecnico(tecnico), "")
-        except Exception:
-            especialidad = ""
-        if especialidad:
-            esp_filas = df["Especialidad"].apply(lambda x: limpiar(x, "").casefold())
-            sin_tecnico = asignados.eq("")
-            mascara |= sin_tecnico & esp_filas.eq(especialidad.casefold())
-
-    return mascara
 
 def normalizar_id_ot(valor, default=""):
     """Muestra el OT como entero, sin ".0" ni ceros agregados delante."""
@@ -1309,10 +1256,12 @@ def abreviar_tecnico(nombre):
     return nombre
 
 def contar_ordenes_por_tecnico(df, tecnico):
-    if df.empty or "Tecnico_Asignado" not in df.columns:
+    if df.empty:
         return 0
-    clave = normalizar_nombre_tecnico(tecnico)
-    return int(df["Tecnico_Asignado"].apply(normalizar_nombre_tecnico).eq(clave).sum())
+    count = 0
+    if "Tecnico_Asignado" in df.columns:
+        count += len(df[df["Tecnico_Asignado"] == tecnico])
+    return count
 
 def obtener_tecnicos_con_carga(df, especialidad="Todas"):
     tecnicos = [{"nombre": t, "especialidad": obtener_especialidad_tecnico(t),
@@ -1330,14 +1279,6 @@ def cargar_excel_mantenimiento():
         return pd.DataFrame()
 
 def recargar_datos(forzar=False):
-    # Si se solicita una recarga forzada, invalidar también la caché de Supabase.
-    # Así el técnico recibe las asignaciones recientes, no una copia antigua de su sesión.
-    if forzar:
-        try:
-            _cargar_ordenes_cache.clear()
-        except Exception:
-            pass
-
     if forzar or "df_mantenimientos" not in st.session_state:
         df = cargar_ordenes_supabase()
         if not df.empty or "df_mantenimientos" not in st.session_state:
@@ -2129,23 +2070,7 @@ def _reasignar_actividad(internal_id, key_widget):
 
 def _home_tecnico(df):
     tecnicos_info = obtener_tecnicos_con_carga(df, "Todas")
-    nombres_configurados = [t["nombre"] for t in tecnicos_info]
-
-    # Incluir también cualquier nombre que ya esté asignado en Supabase,
-    # aunque todavía no figure en las listas fijas de técnicos.
-    if "Tecnico_Asignado" in df.columns:
-        nombres_guardados = [
-            limpiar(v, "") for v in df["Tecnico_Asignado"].tolist()
-            if normalizar_nombre_tecnico(v)
-        ]
-        claves_existentes = {normalizar_nombre_tecnico(n) for n in nombres_configurados}
-        for nombre in nombres_guardados:
-            clave = normalizar_nombre_tecnico(nombre)
-            if clave and clave not in claves_existentes:
-                nombres_configurados.append(nombre)
-                claves_existentes.add(clave)
-
-    opciones = ["Seleccionar tecnico..."] + nombres_configurados
+    opciones = ["Seleccionar tecnico..."] + [t["nombre"] for t in tecnicos_info]
 
     # FIX: una sola fuente de verdad para el selector del técnico.
     # Antes se mezclaban `index=` y `st.session_state`, lo que podía
@@ -2170,26 +2095,17 @@ def _home_tecnico(df):
 
     tecnico_actual = tecnico_sel
     esp_sel = obtener_especialidad_tecnico(tecnico_actual)
-    df = recargar_datos(forzar=True)
-    mask_tec = obtener_mascara_actividades_tecnico(df, tecnico_actual)
-    # Se muestran asignaciones directas y actividades sin asignar de su especialidad.
-    # Nunca se incluyen actividades asignadas expresamente a otro técnico.
-    df_mias = df.loc[mask_tec].copy()
-
-    # En Supabase, estado puede ser NULL. Para la aplicación eso significa
-    # actividad pendiente, no actividad completada. Normalizar antes de contar.
-    if "Estado" in df_mias.columns:
-        df_mias["Estado"] = df_mias["Estado"].apply(
-            lambda v: limpiar(v, "Pendiente") or "Pendiente"
-        )
-        df_mias["Estado"] = df_mias["Estado"].replace(
-            {"NULL": "Pendiente", "null": "Pendiente", "NaN": "Pendiente", "nan": "Pendiente"}
-        )
-    else:
-        df_mias["Estado"] = "Pendiente"
+    df = recargar_datos()
+    mask_tec = pd.Series([False] * len(df), index=df.index)
+    if "Tecnico_Asignado" in df.columns:
+        mask_tec |= df["Tecnico_Asignado"] == tecnico_actual
+    # IMPORTANTE: el técnico SOLO debe ver actividades que realmente
+    # estén asignadas a su nombre. Si no tiene ninguna asignada,
+    # no se muestran todas las órdenes de la base.
+    df_mias = df[mask_tec].copy()
 
     total_asignadas = len(df_mias)
-    conteos = {est: int(df_mias["Estado"].astype(str).str.strip().str.casefold().eq(est.casefold()).sum())
+    conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
                for est in ["Pendiente", "Ejecutado", "Verificado"]}
 
     st.markdown(f"""
@@ -2207,11 +2123,7 @@ def _home_tecnico(df):
     st.subheader(f"Mostrando {len(df_mias)} de {total_asignadas} ordenes")
     st.caption("Las actividades que no alcances a terminar se pueden pasar fácilmente a otro técnico de tu misma especialidad.")
 
-    df_pendientes = df_mias[
-        df_mias["Estado"].astype(str).str.strip().str.casefold().isin(
-            ["pendiente", "", "none", "nan", "null"]
-        )
-    ].copy()
+    df_pendientes = df_mias[df_mias["Estado"].isin(["Pendiente", "", None, "NaN"])].copy()
     if df_pendientes.empty and not df_mias.empty:
         st.success("🎉 ¡Todas las actividades están completadas! No quedan tareas pendientes.")
         st.balloons()
@@ -2532,8 +2444,7 @@ def pantalla_ordenes():
 
 # ==================== PANTALLA: MIS ORDENES (TÉCNICO) ====================
 def pantalla_mis_ordenes():
-    # Recargar desde Supabase al entrar para que aparezcan las asignaciones nuevas.
-    df = recargar_datos(forzar=True)
+    df = recargar_datos()
     header_tablet("Mis Ordenes Asignadas")
     boton_volver_inicio("mis_ordenes")
 
@@ -2550,18 +2461,19 @@ def pantalla_mis_ordenes():
         filtro_estado = st.selectbox("Filtrar por estado", ["Todos", "Pendiente", "Ejecutado", "Verificado"],
                                      index=0, key=gen_key("filtro_estado_tec"))
     with col_f2:
-        busq_tec = st.text_input("Buscar...", placeholder="ID OT, equipo o nodo", key=gen_key("busq_tec"))
+        busq_tec = st.text_input("Buscar...", placeholder="ID OT o equipo", key=gen_key("busq_tec"))
 
-    mask_tec = obtener_mascara_actividades_tecnico(df, tecnico_sel)
-    df_mias = df.loc[mask_tec].copy()
+    mask_tec = pd.Series([False] * len(df), index=df.index)
+    if "Tecnico_Asignado" in df.columns:
+        mask_tec |= df["Tecnico_Asignado"] == tecnico_sel
+    df_mias = df[mask_tec].copy() if mask_tec.any() else pd.DataFrame()
     if filtro_estado != "Todos" and "Estado" in df_mias.columns:
-        df_mias = df_mias[
-            df_mias["Estado"].fillna("").astype(str).str.strip().str.casefold()
-            == filtro_estado.casefold()
-        ]
-    df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo", "Nodo", "Ubicacion", "Actividades"])
+        df_mias = df_mias[df_mias["Estado"] == filtro_estado]
+    df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo"])
 
-    mask_tec_all = obtener_mascara_actividades_tecnico(df, tecnico_sel)
+    mask_tec_all = pd.Series([False] * len(df), index=df.index)
+    if "Tecnico_Asignado" in df.columns:
+        mask_tec_all |= df["Tecnico_Asignado"] == tecnico_sel
     if mask_tec_all.any():
         df_todas = df[mask_tec_all]
         total_asignadas = len(df_todas)
@@ -2588,131 +2500,118 @@ def pantalla_mis_ordenes():
     # Las actividades conservan su ID interno real para que los
     # botones "Ver detalle" y "Ejecutar" sigan funcionando correctamente.
     # ================================================================
-    # Agrupar por máquina cuando exista; si la actividad no tiene máquina,
-    # usar el NODO para que el técnico igualmente vea sus actividades.
-    # Si tampoco hay nodo, la actividad queda visible bajo "Sin máquina ni nodo".
-    grupos_equipo = []
-    vistos_grupos = set()
-    if "_Grupo_Tecnico" not in df_mias.columns:
-        def _clave_grupo_tecnico(row):
-            maquina = limpiar(row.get("Equipo"), "")
-            if maquina.casefold() in {"-", "n/a", "na", "no aplica", "sin máquina", "sin maquina", "sin equipo"}:
-                maquina = ""
-            nodo = limpiar(row.get("Nodo"), "")
-            if maquina:
-                return "MAQUINA::" + maquina.casefold()
-            clave_nodo = normalizar_clave_nodo(nodo)
-            if clave_nodo:
-                return "NODO::" + clave_nodo
-            return "SIN_MAQUINA_NODO"
-        df_mias = df_mias.copy()
-        df_mias["_Grupo_Tecnico"] = df_mias.apply(_clave_grupo_tecnico, axis=1)
+    if "Equipo" in df_mias.columns:
+        grupos_equipo = []
+        vistos_equipos = set()
 
-    for _, row in df_mias.iterrows():
-        clave_grupo = row["_Grupo_Tecnico"]
-        if clave_grupo in vistos_grupos:
-            continue
-        vistos_grupos.add(clave_grupo)
-        grupo_df = df_mias[df_mias["_Grupo_Tecnico"] == clave_grupo].copy()
-        primera = grupo_df.iloc[0]
-        maquina = limpiar(primera.get("Equipo"), "")
-        if maquina.casefold() in {"-", "n/a", "na", "no aplica", "sin máquina", "sin maquina", "sin equipo"}:
-            maquina = ""
-        nodo = limpiar(primera.get("Nodo"), "")
-        if maquina:
-            etiqueta_grupo = maquina
-        elif normalizar_clave_nodo(nodo):
-            etiqueta_grupo = f"Nodo: {nodo}"
-        else:
-            etiqueta_grupo = "Sin máquina ni nodo"
-        grupos_equipo.append((etiqueta_grupo, grupo_df))
+        for _, row in df_mias.iterrows():
+            equipo = limpiar(row.get("Equipo"), "Sin equipo")
+            clave_equipo = equipo.strip().casefold()
+            if clave_equipo not in vistos_equipos:
+                vistos_equipos.add(clave_equipo)
+                grupos_equipo.append((equipo, df_mias[df_mias["Equipo"].apply(lambda x: limpiar(x, "Sin equipo").strip().casefold()) == clave_equipo]))
 
-    for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
-        etiqueta_grupo = equipo
-        primera_fila = df_equipo.iloc[0]
+        for num_equipo, (equipo, df_equipo) in enumerate(grupos_equipo):
+            primera_fila = df_equipo.iloc[0]
 
-        # Mostrar UNA sola OT por equipo.
-        # Buscamos la primera OT no vacía del grupo para evitar que
-        # aparezca "SIN ID" cuando la primera actividad no tenga OT.
-        ot_visible = "SIN ID"
-        if "ID OT" in df_equipo.columns:
-            for ot_valor in df_equipo["ID OT"].tolist():
-                # En la vista del técnico, mostrar el OT limpio: 425059.0 -> 425059
-                # y sin agregar ceros delante del número.
-                ot_tmp = normalizar_id_ot(ot_valor, "").strip()
-                if ot_tmp:
-                    ot_visible = ot_tmp
-                    break
+            # Mostrar UNA sola OT por equipo.
+            # Buscamos la primera OT no vacía del grupo para evitar que
+            # aparezca "SIN ID" cuando la primera actividad no tenga OT.
+            ot_visible = "SIN ID"
+            if "ID OT" in df_equipo.columns:
+                for ot_valor in df_equipo["ID OT"].tolist():
+                    # En la vista del técnico, mostrar el OT limpio: 425059.0 -> 425059
+                    # y sin agregar ceros delante del número.
+                    ot_tmp = normalizar_id_ot(ot_valor, "").strip()
+                    if ot_tmp:
+                        ot_visible = ot_tmp
+                        break
 
-        ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
-        especialidad = limpiar(primera_fila.get("Especialidad"), "")
+            ubicacion = limpiar(primera_fila.get("Ubicacion"), "")
+            especialidad = limpiar(primera_fila.get("Especialidad"), "")
 
-        # Una sola OT visible en el encabezado del equipo.
-        st.markdown(f"""
-        <div style="
-            background: linear-gradient(90deg, #10A9E8, #35B7EA);
-            color:white;
-            border-radius:12px 12px 0 0;
-            padding:12px 16px;
-            margin-top:12px;
-            box-shadow:0 2px 6px rgba(0,0,0,.15);
-        ">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                <div>
-                    <div style="font-size:15px; font-weight:800;">
-                        🔧 {escapar(etiqueta_grupo)}
-                    </div>
-                    <div style="margin-top:6px; margin-bottom:5px;">
-                        <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
-                            📋 OT {escapar(ot_visible)}
-                        </span>
-                    </div>
-                    <div style="font-size:11px; opacity:.95;">
-                        {(' · ' + escapar(especialidad)) if especialidad else ''}
-                        {(' · ' + escapar(ubicacion)) if ubicacion else ''}
+            # Una sola OT visible en el encabezado del equipo.
+            st.markdown(f"""
+            <div style="
+                background: linear-gradient(90deg, #10A9E8, #35B7EA);
+                color:white;
+                border-radius:12px 12px 0 0;
+                padding:12px 16px;
+                margin-top:12px;
+                box-shadow:0 2px 6px rgba(0,0,0,.15);
+            ">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div>
+                        <div style="font-size:15px; font-weight:800;">
+                            🔧 {escapar(equipo)}
+                        </div>
+                        <div style="margin-top:6px; margin-bottom:5px;">
+                            <span style="display:inline-block; background:#0F172A; color:#FFFFFF; padding:5px 12px; border-radius:7px; font-size:14px; font-weight:900;">
+                                📋 OT {escapar(ot_visible)}
+                            </span>
+                        </div>
+                        <div style="font-size:11px; opacity:.95;">
+                            {(' · ' + escapar(especialidad)) if especialidad else ''}
+                            {(' · ' + escapar(ubicacion)) if ubicacion else ''}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-        <div style="height:4px; background:#0F172A; border-radius:0 0 8px 8px; margin-bottom:4px;"></div>
-        """, unsafe_allow_html=True)
+            <div style="height:4px; background:#0F172A; border-radius:0 0 8px 8px; margin-bottom:4px;"></div>
+            """, unsafe_allow_html=True)
 
-        # Todas las actividades del equipo siguen disponibles.
-        for _, row in df_equipo.iterrows():
-            internal_id = limpiar(row.get("ID"), "")
-            if not internal_id:
-                continue
+            # Todas las actividades del equipo siguen disponibles.
+            for _, row in df_equipo.iterrows():
+                internal_id = limpiar(row.get("ID"), "")
+                if not internal_id:
+                    continue
 
-            descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
-            estado = estado_efectivo(row)
-            estado_cls = obtener_estado_visual(estado)
+                descripcion = limpiar(row.get("Actividades"), "Sin descripcion")
+                estado = estado_efectivo(row)
+                estado_cls = obtener_estado_visual(estado)
 
-            col_info, col_acc = st.columns([5, 1.6], gap="small")
-            with col_info:
-                st.markdown(f"""
-                <div style="
-                    background:#FFFFFF;
-                    border:1px solid #E2E8F0;
-                    border-radius:7px;
-                    padding:8px 10px;
-                    margin-bottom:4px;
-                ">
-                    <div style="font-size:12px; color:#0F172A; font-weight:600;">{escapar(descripcion)}</div>
-                    <div style="font-size:10px; color:#64748B; margin-top:3px;">
-                        {escapar(limpiar(row.get("Procedimiento"), ""))}
-                        · <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
+                col_info, col_acc = st.columns([5, 1.6], gap="small")
+                with col_info:
+                    st.markdown(f"""
+                    <div style="
+                        background:#FFFFFF;
+                        border:1px solid #E2E8F0;
+                        border-radius:7px;
+                        padding:8px 10px;
+                        margin-bottom:4px;
+                    ">
+                        <div style="font-size:12px; color:#0F172A; font-weight:600;">{escapar(descripcion)}</div>
+                        <div style="font-size:10px; color:#64748B; margin-top:3px;">
+                            {escapar(limpiar(row.get("Procedimiento"), ""))}
+                            · <span class="estado-badge {estado_cls}">{escapar(estado)}</span>
+                        </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
-            with col_acc:
+                    """, unsafe_allow_html=True)
+                with col_acc:
+                    if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
+                        st.session_state.orden_seleccionada = internal_id
+                        st.session_state.pagina = "detalle_tecnico"
+                        st.rerun()
+                    if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+                        st.session_state.orden_seleccionada = internal_id
+                        st.session_state.pagina = "ejecutar"
+                        st.rerun()
+    else:
+        # Respaldo si por alguna razón no existe la columna Equipo.
+        for _, row in df_mias.iterrows():
+            internal_id = render_fila_orden(row, truncar_tecnico=True)
+            col1, col2 = st.columns(2)
+            with col1:
                 if st.button("Ver detalle", key=gen_key("btn_ver_tec", internal_id), use_container_width=True):
                     st.session_state.orden_seleccionada = internal_id
                     st.session_state.pagina = "detalle_tecnico"
                     st.rerun()
-                if estado == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
+            with col2:
+                if estado_efectivo(row) == "Pendiente" and st.button("Ejecutar", key=gen_key("btn_ejec", internal_id), use_container_width=True, type="primary"):
                     st.session_state.orden_seleccionada = internal_id
                     st.session_state.pagina = "ejecutar"
                     st.rerun()
+
 
 # ==================== PANTALLA: EJECUTAR ====================
 def pantalla_ejecutar():
