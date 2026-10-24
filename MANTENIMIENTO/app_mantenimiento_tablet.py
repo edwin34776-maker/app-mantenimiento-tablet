@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -61,6 +60,56 @@ def limpiar(valor, default=""):
 def normalizar_nombre_tecnico(valor):
     """Normaliza el nombre para comparar asignaciones sin errores de espacios o mayúsculas."""
     return " ".join(limpiar(valor, "").split()).casefold()
+
+
+def normalizar_clave_nodo(valor):
+    """Normaliza el nodo y descarta valores que significan que no hay nodo."""
+    valor = limpiar(valor, "")
+    if valor.casefold() in {"-", "n/a", "na", "no aplica", "sin nodo", "sin maquina", "sin máquina", "nan"}:
+        return ""
+    return " ".join(valor.split()).casefold()
+
+
+def obtener_mascara_actividades_tecnico(df, tecnico):
+    """Actividades directas del técnico y actividades sin máquina del mismo nodo.
+
+    Las filas asignadas expresamente a otro técnico nunca se incluyen.
+    Para incluir una actividad adicional por nodo, debe estar sin técnico,
+    sin máquina/ubicación y compartir un nodo con una actividad directa del técnico.
+    """
+    mascara = pd.Series(False, index=df.index, dtype=bool)
+    if df.empty or "Tecnico_Asignado" not in df.columns:
+        return mascara
+
+    clave = normalizar_nombre_tecnico(tecnico)
+    asignados = df["Tecnico_Asignado"].apply(normalizar_nombre_tecnico)
+    directas = asignados.eq(clave) if clave else mascara.copy()
+    mascara |= directas
+
+    if "Nodo" not in df.columns or not directas.any():
+        return mascara
+
+    nodos_tecnico = {
+        normalizar_clave_nodo(v)
+        for v in df.loc[directas, "Nodo"].tolist()
+        if normalizar_clave_nodo(v)
+    }
+    if not nodos_tecnico:
+        return mascara
+
+    nodos_fila = df["Nodo"].apply(normalizar_clave_nodo)
+    sin_tecnico = asignados.isin(["", "nan", "none", "null", "sin asignar"])
+
+    # En esta aplicación la máquina se identifica con Ubicacion.
+    # Si Ubicacion está vacía, el nodo es la referencia para mostrarla.
+    if "Ubicacion" in df.columns:
+        ubicacion = df["Ubicacion"].apply(lambda v: limpiar(v, ""))
+        sin_maquina = ubicacion.eq("")
+    else:
+        sin_maquina = pd.Series(True, index=df.index)
+
+    mascara |= sin_tecnico & sin_maquina & nodos_fila.isin(nodos_tecnico)
+    return mascara
 
 def normalizar_id_ot(valor, default=""):
     """Muestra el OT como entero, sin ".0" ni ceros agregados delante."""
@@ -2122,16 +2171,11 @@ def _home_tecnico(df):
     tecnico_actual = tecnico_sel
     esp_sel = obtener_especialidad_tecnico(tecnico_actual)
     df = recargar_datos()
-    mask_tec = pd.Series(False, index=df.index)
-    if "Tecnico_Asignado" in df.columns:
-        clave_tecnico = normalizar_nombre_tecnico(tecnico_actual)
-        mask_tec = df["Tecnico_Asignado"].apply(
-            normalizar_nombre_tecnico
-        ).eq(clave_tecnico)
-    # IMPORTANTE: el técnico SOLO debe ver actividades que realmente
-    # estén asignadas a su nombre. Si no tiene ninguna asignada,
-    # no se muestran todas las órdenes de la base.
-    df_mias = df[mask_tec].copy()
+    mask_tec = obtener_mascara_actividades_tecnico(df, tecnico_actual)
+    # Se muestran sus asignaciones directas y las actividades sin técnico
+    # que pertenecen al mismo nodo que ya tiene asignado. Nunca se muestran
+    # actividades asignadas expresamente a otro técnico.
+    df_mias = df.loc[mask_tec].copy()
 
     total_asignadas = len(df_mias)
     conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
@@ -2493,12 +2537,7 @@ def pantalla_mis_ordenes():
     with col_f2:
         busq_tec = st.text_input("Buscar...", placeholder="ID OT, equipo o nodo", key=gen_key("busq_tec"))
 
-    mask_tec = pd.Series(False, index=df.index)
-    if "Tecnico_Asignado" in df.columns:
-        clave_tecnico = normalizar_nombre_tecnico(tecnico_sel)
-        mask_tec = df["Tecnico_Asignado"].apply(
-            normalizar_nombre_tecnico
-        ).eq(clave_tecnico)
+    mask_tec = obtener_mascara_actividades_tecnico(df, tecnico_sel)
     df_mias = df.loc[mask_tec].copy()
     if filtro_estado != "Todos" and "Estado" in df_mias.columns:
         df_mias = df_mias[
@@ -2507,12 +2546,7 @@ def pantalla_mis_ordenes():
         ]
     df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo", "Nodo", "Ubicacion", "Actividades"])
 
-    mask_tec_all = pd.Series(False, index=df.index)
-    if "Tecnico_Asignado" in df.columns:
-        clave_tecnico = normalizar_nombre_tecnico(tecnico_sel)
-        mask_tec_all = df["Tecnico_Asignado"].apply(
-            normalizar_nombre_tecnico
-        ).eq(clave_tecnico)
+    mask_tec_all = obtener_mascara_actividades_tecnico(df, tecnico_sel)
     if mask_tec_all.any():
         df_todas = df[mask_tec_all]
         total_asignadas = len(df_todas)
@@ -2547,11 +2581,14 @@ def pantalla_mis_ordenes():
     if "_Grupo_Tecnico" not in df_mias.columns:
         def _clave_grupo_tecnico(row):
             maquina = limpiar(row.get("Equipo"), "")
+            if maquina.casefold() in {"-", "n/a", "na", "no aplica", "sin máquina", "sin maquina", "sin equipo"}:
+                maquina = ""
             nodo = limpiar(row.get("Nodo"), "")
             if maquina:
                 return "MAQUINA::" + maquina.casefold()
-            if nodo:
-                return "NODO::" + nodo.casefold()
+            clave_nodo = normalizar_clave_nodo(nodo)
+            if clave_nodo:
+                return "NODO::" + clave_nodo
             return "SIN_MAQUINA_NODO"
         df_mias = df_mias.copy()
         df_mias["_Grupo_Tecnico"] = df_mias.apply(_clave_grupo_tecnico, axis=1)
@@ -2564,10 +2601,12 @@ def pantalla_mis_ordenes():
         grupo_df = df_mias[df_mias["_Grupo_Tecnico"] == clave_grupo].copy()
         primera = grupo_df.iloc[0]
         maquina = limpiar(primera.get("Equipo"), "")
+        if maquina.casefold() in {"-", "n/a", "na", "no aplica", "sin máquina", "sin maquina", "sin equipo"}:
+            maquina = ""
         nodo = limpiar(primera.get("Nodo"), "")
         if maquina:
             etiqueta_grupo = maquina
-        elif nodo:
+        elif normalizar_clave_nodo(nodo):
             etiqueta_grupo = f"Nodo: {nodo}"
         else:
             etiqueta_grupo = "Sin máquina ni nodo"
@@ -2920,7 +2959,8 @@ def auto_guardar_fila(internal_id, key_widget, campo="Tecnico_Asignado"):
 
 # ==================== PANTALLA: ASIGNACIÓN RÁPIDA ====================
 def pantalla_asignacion():
-    df = recargar_datos()
+    # Recargar para ver cambios recientes de asignación desde Supabase.
+    df = recargar_datos(forzar=True)
     header_tablet("Asignacion de Tecnicos")
     boton_volver_inicio("asignacion")
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
@@ -2943,15 +2983,25 @@ def pantalla_asignacion():
     df_grafica = df_asig_base.copy()
     df_asig = df_asig_base.copy()
 
-    if st.session_state.filtro_maquina != "Todas" and "Ubicacion" in df_asig.columns:
-        df_asig = df_asig[df_asig["Ubicacion"] == st.session_state.filtro_maquina]
-        df_grafica = df_grafica[df_grafica["Ubicacion"] == st.session_state.filtro_maquina]
+    # Permitir ver las actividades que no tienen máquina/ubicación y usar su nodo.
+    filtro_maquina_actual = st.session_state.filtro_maquina
+    if filtro_maquina_actual == "Sin máquina (por nodo)":
+        ubicacion = df_asig.get("Ubicacion", pd.Series("", index=df_asig.index)).apply(lambda v: limpiar(v, ""))
+        nodo = df_asig.get("Nodo", pd.Series("", index=df_asig.index)).apply(lambda v: limpiar(v, ""))
+        mascara_sin_maquina = ubicacion.eq("") & nodo.ne("")
+        df_asig = df_asig.loc[mascara_sin_maquina].copy()
+        ubicacion_g = df_grafica.get("Ubicacion", pd.Series("", index=df_grafica.index)).apply(lambda v: limpiar(v, ""))
+        nodo_g = df_grafica.get("Nodo", pd.Series("", index=df_grafica.index)).apply(lambda v: limpiar(v, ""))
+        df_grafica = df_grafica.loc[ubicacion_g.eq("") & nodo_g.ne("")].copy()
+    elif filtro_maquina_actual != "Todas" and "Ubicacion" in df_asig.columns:
+        df_asig = df_asig[df_asig["Ubicacion"].apply(lambda v: limpiar(v, "")) == filtro_maquina_actual]
+        df_grafica = df_grafica[df_grafica["Ubicacion"].apply(lambda v: limpiar(v, "")) == filtro_maquina_actual]
 
-    # Una actividad se considera asignada únicamente por su técnico principal.
+    # Una actividad se considera asignada si el campo tiene un nombre real.
     if not df_asig.empty:
         if "Tecnico_Asignado" in df_asig.columns:
-            tecnico_val = df_asig["Tecnico_Asignado"].fillna("").astype(str).str.strip()
-            tiene_tecnico = tecnico_val != ""
+            tecnico_val = df_asig["Tecnico_Asignado"].apply(normalizar_nombre_tecnico)
+            tiene_tecnico = ~tecnico_val.isin(["", "nan", "none", "null", "sin asignar"])
         else:
             tiene_tecnico = pd.Series(False, index=df_asig.index)
 
@@ -2979,7 +3029,13 @@ def pantalla_asignacion():
 
         st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
         st.markdown("<div style='font-size:11px; font-weight:700; color:#64748B; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;'>📍 Máquina</div>", unsafe_allow_html=True)
-        for maq in obtener_maquinas_disponibles(df_asig_base):
+        opciones_maquinas = obtener_maquinas_disponibles(df_asig_base)
+        if "Ubicacion" in df_asig_base.columns and "Nodo" in df_asig_base.columns:
+            ubicaciones = df_asig_base["Ubicacion"].apply(lambda v: limpiar(v, ""))
+            nodos = df_asig_base["Nodo"].apply(lambda v: limpiar(v, ""))
+            if (ubicaciones.eq("") & nodos.ne("")).any():
+                opciones_maquinas.append("Sin máquina (por nodo)")
+        for maq in opciones_maquinas:
             activo = st.session_state.filtro_maquina == maq
             if st.button(maq, key=gen_key("btn_maq", maq), type="primary" if activo else "secondary", use_container_width=True):
                 st.session_state.filtro_maquina = maq
@@ -2991,9 +3047,10 @@ def pantalla_asignacion():
     with col_der:
         st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
         maq_sel = st.session_state.filtro_maquina
+        titulo_maquina = "Actividades sin máquina — agrupadas por nodo" if maq_sel == "Sin máquina (por nodo)" else (maq_sel if maq_sel != "Todas" else "Todas las máquinas")
         st.markdown(f"""
         <div style="margin-bottom: 12px;">
-            <div style="font-size: 16px; font-weight: 700; color: #0F172A;">{maq_sel if maq_sel != "Todas" else "Todas las máquinas"}</div>
+            <div style="font-size: 16px; font-weight: 700; color: #0F172A;">{escapar(titulo_maquina)}</div>
             <div style="font-size: 13px; color: #64748B;">{len(df_asig)} actividades encontradas</div>
         </div>""", unsafe_allow_html=True)
 
@@ -3414,7 +3471,10 @@ def pantalla_asignacion():
             tec_asig = limpiar(row.get("Tecnico_Asignado"), "")
             tec_asig2 = limpiar(row.get("Tecnico_Asignado"), "")
             nodo = limpiar(row.get("Nodo"), "")
-            nodo_badge = f"<span class='nodo-badge-mini'>{nodo}</span>" if nodo else ""
+            ubicacion_fila = limpiar(row.get("Ubicacion"), "")
+            nodo_texto = f" · Nodo: {nodo}" if nodo else ""
+            maquina_texto = ubicacion_fila if ubicacion_fila else (f"Sin máquina{nodo_texto}" if nodo else "Sin máquina ni nodo")
+            nodo_badge = f"<span class='nodo-badge-mini'>{escapar(maquina_texto)}</span>" if (nodo or ubicacion_fila) else ""
             estado_cls = {"Ejecutado": "eq-estado-ej", "Verificado": "eq-estado-vf"}.get(estado, "eq-estado-pd")
             tecnicos_str = tec_asig
             if tec_asig2 and tec_asig2 != tec_asig:
