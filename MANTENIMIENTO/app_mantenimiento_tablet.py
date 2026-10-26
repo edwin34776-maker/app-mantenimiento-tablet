@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -291,28 +292,6 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         ws_res["K7"].font = Font(color=verde, bold=True, size=22)
         ws_res["K7"].alignment = Alignment(horizontal="center", vertical="center")
 
-        # Tabla resumen.
-        ws_res["B12"] = "Indicador"
-        ws_res["C12"] = "Valor"
-        ws_res["B13"] = "Total de actividades"
-        ws_res["C13"] = total
-        ws_res["B14"] = "Ejecutadas"
-        ws_res["C14"] = ejecutadas
-        ws_res["B15"] = "Pendientes"
-        ws_res["C15"] = pendientes
-        ws_res["B16"] = "Verificadas"
-        ws_res["C16"] = verificadas
-        ws_res["B17"] = "% avance"
-        ws_res["C17"] = pct_avance
-        for cell in ws_res[12][1:3]:
-            cell.fill = PatternFill("solid", fgColor=azul)
-            cell.font = Font(color=blanco, bold=True)
-            cell.alignment = Alignment(horizontal="center")
-        for row in ws_res.iter_rows(min_row=13, max_row=17, min_col=2, max_col=3):
-            for cell in row:
-                cell.border = Border(bottom=borde)
-        ws_res["C17"].number_format = '0.0"%"'
-
         # ---------------- ASIGNACIÓN POR ESPECIALIDAD Y TÉCNICO ----------------
         # Las actividades asignadas son las que tienen técnico asignado.
         # Ejecutada/Verificada se considera realizada para el avance.
@@ -350,7 +329,8 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
             pct_esp = round(realizadas_esp / asignadas_esp * 100, 1) if asignadas_esp else 0.0
             resumen_esp.append([esp, asignadas_esp, realizadas_esp, pendientes_esp, pct_esp])
 
-        fila_inicio_esp = 20
+        # Ambas tablas se muestran lado a lado, como en la imagen de referencia.
+        fila_inicio_esp = 12
         ws_res.merge_cells(start_row=fila_inicio_esp, start_column=2, end_row=fila_inicio_esp, end_column=6)
         ws_res.cell(fila_inicio_esp, 2).value = "👷 Actividades asignadas y ejecutadas por especialidad"
         ws_res.cell(fila_inicio_esp, 2).fill = PatternFill("solid", fgColor=azul)
@@ -375,15 +355,16 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                     cell.number_format = '0.0"%"'
 
         # Tabla 2: detalle de actividades por técnico.
-        fila_inicio_tec = fila_inicio_esp + max(len(resumen_esp), 2) + 4
-        ws_res.merge_cells(start_row=fila_inicio_tec, start_column=2, end_row=fila_inicio_tec, end_column=8)
-        ws_res.cell(fila_inicio_tec, 2).value = "🧑‍🔧 Actividades asignadas por técnico"
-        ws_res.cell(fila_inicio_tec, 2).fill = PatternFill("solid", fgColor=azul)
-        ws_res.cell(fila_inicio_tec, 2).font = Font(color=blanco, bold=True, size=12)
-        ws_res.cell(fila_inicio_tec, 2).alignment = Alignment(horizontal="left", vertical="center")
+        fila_inicio_tec = 12
+        col_inicio_tec = 8  # Columna H: tabla a la derecha de especialidades
+        ws_res.merge_cells(start_row=fila_inicio_tec, start_column=col_inicio_tec, end_row=fila_inicio_tec, end_column=14)
+        ws_res.cell(fila_inicio_tec, col_inicio_tec).value = "🧑‍🔧 Actividades asignadas por técnico"
+        ws_res.cell(fila_inicio_tec, col_inicio_tec).fill = PatternFill("solid", fgColor=azul)
+        ws_res.cell(fila_inicio_tec, col_inicio_tec).font = Font(color=blanco, bold=True, size=12)
+        ws_res.cell(fila_inicio_tec, col_inicio_tec).alignment = Alignment(horizontal="left", vertical="center")
 
         encabezados_tec = ["Especialidad", "Técnico", "Asignadas", "Ejecutadas", "Pendientes", "% avance", "Estado"]
-        for j, encabezado in enumerate(encabezados_tec, start=2):
+        for j, encabezado in enumerate(encabezados_tec, start=col_inicio_tec):
             cell = ws_res.cell(fila_inicio_tec + 1, j)
             cell.value = encabezado
             cell.fill = PatternFill("solid", fgColor=azul_oscuro)
@@ -403,14 +384,14 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
 
         detalle_tecnicos.sort(key=lambda x: (str(x[0]), -int(x[2]), str(x[1]).lower()))
         for i, fila in enumerate(detalle_tecnicos, start=fila_inicio_tec + 2):
-            for j, valor in enumerate(fila, start=2):
+            for j, valor in enumerate(fila, start=col_inicio_tec):
                 cell = ws_res.cell(i, j)
                 cell.value = valor
                 cell.border = Border(bottom=borde)
                 cell.alignment = Alignment(horizontal="center" if j in [4, 5, 6, 7] else "left", vertical="center")
-                if j == 7:
+                if j == 13:
                     cell.number_format = '0.0"%"'
-                if j == 8:
+                if j == 14:
                     val = str(valor).lower()
                     if val == "completo":
                         cell.fill = PatternFill("solid", fgColor=verde)
@@ -424,13 +405,19 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                     cell.alignment = Alignment(horizontal="center", vertical="center")
 
         # Ajuste de columnas del Resumen para las nuevas tablas.
-        ws_res.column_dimensions["B"].width = 22
-        ws_res.column_dimensions["C"].width = 24
-        ws_res.column_dimensions["D"].width = 14
-        ws_res.column_dimensions["E"].width = 14
+        ws_res.column_dimensions["B"].width = 18
+        ws_res.column_dimensions["C"].width = 15
+        ws_res.column_dimensions["D"].width = 15
+        ws_res.column_dimensions["E"].width = 15
         ws_res.column_dimensions["F"].width = 14
-        ws_res.column_dimensions["G"].width = 14
-        ws_res.column_dimensions["H"].width = 18
+        ws_res.column_dimensions["G"].width = 3
+        ws_res.column_dimensions["H"].width = 15
+        ws_res.column_dimensions["I"].width = 25
+        ws_res.column_dimensions["J"].width = 12
+        ws_res.column_dimensions["K"].width = 12
+        ws_res.column_dimensions["L"].width = 12
+        ws_res.column_dimensions["M"].width = 12
+        ws_res.column_dimensions["N"].width = 15
 
         # ---------------- PREVENTIVAS ----------------
         ws.sheet_view.showGridLines = False
