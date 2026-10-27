@@ -357,13 +357,16 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         # Tabla 2: detalle de actividades por técnico.
         fila_inicio_tec = 12
         col_inicio_tec = 8  # Columna H: tabla a la derecha de especialidades
-        ws_res.merge_cells(start_row=fila_inicio_tec, start_column=col_inicio_tec, end_row=fila_inicio_tec, end_column=14)
-        ws_res.cell(fila_inicio_tec, col_inicio_tec).value = "🧑‍🔧 Actividades asignadas por técnico"
+        ws_res.merge_cells(start_row=fila_inicio_tec, start_column=col_inicio_tec, end_row=fila_inicio_tec, end_column=15)
+        ws_res.cell(fila_inicio_tec, col_inicio_tec).value = "🧑‍🔧 Actividades asignadas por técnico y motivos"
         ws_res.cell(fila_inicio_tec, col_inicio_tec).fill = PatternFill("solid", fgColor=azul)
         ws_res.cell(fila_inicio_tec, col_inicio_tec).font = Font(color=blanco, bold=True, size=12)
         ws_res.cell(fila_inicio_tec, col_inicio_tec).alignment = Alignment(horizontal="left", vertical="center")
 
-        encabezados_tec = ["Especialidad", "Técnico", "Asignadas", "Ejecutadas", "Pendientes", "% avance", "Estado"]
+        encabezados_tec = [
+            "Especialidad", "Técnico", "Asignadas", "Ejecutadas",
+            "Pendientes", "% avance", "Estado", "Motivo / actividad no completada"
+        ]
         for j, encabezado in enumerate(encabezados_tec, start=col_inicio_tec):
             cell = ws_res.cell(fila_inicio_tec + 1, j)
             cell.value = encabezado
@@ -380,7 +383,23 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                 pendientes_tec = asignadas_tec - realizadas_tec
                 pct_tec = round(realizadas_tec / asignadas_tec * 100, 1) if asignadas_tec else 0.0
                 estado_tec = "Completo" if pct_tec >= 100 else "En proceso" if pct_tec > 0 else "Pendiente"
-                detalle_tecnicos.append([esp or "SIN ESPECIALIDAD", tecnico, asignadas_tec, realizadas_tec, pendientes_tec, pct_tec, estado_tec])
+
+                # Listar cada actividad no ejecutada/verificada y su comentario real.
+                no_completadas = g[~g["Realizada"]].copy()
+                motivos = []
+                for _, actividad_row in no_completadas.iterrows():
+                    actividad_txt = limpiar(actividad_row.get("Actividades", ""), "Actividad sin descripción")
+                    comentario_txt = limpiar(actividad_row.get("Comentarios", ""), "")
+                    if comentario_txt:
+                        motivos.append(f"• {actividad_txt}: {comentario_txt}")
+                    else:
+                        motivos.append(f"• {actividad_txt}: Sin comentario registrado")
+                motivo_resumen = "\\n".join(motivos) if motivos else "—"
+
+                detalle_tecnicos.append([
+                    esp or "SIN ESPECIALIDAD", tecnico, asignadas_tec,
+                    realizadas_tec, pendientes_tec, pct_tec, estado_tec, motivo_resumen
+                ])
 
         detalle_tecnicos.sort(key=lambda x: (str(x[0]), -int(x[2]), str(x[1]).lower()))
         for i, fila in enumerate(detalle_tecnicos, start=fila_inicio_tec + 2):
@@ -388,7 +407,13 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                 cell = ws_res.cell(i, j)
                 cell.value = valor
                 cell.border = Border(bottom=borde)
-                cell.alignment = Alignment(horizontal="center" if j in [4, 5, 6, 7] else "left", vertical="center")
+                cell.alignment = Alignment(
+                    horizontal="center" if j in [10, 11, 12, 13] else "left",
+                    vertical="top" if j == 15 else "center",
+                    wrap_text=True
+                )
+                if j == 15:
+                    cell.font = Font(color="7F1D1D" if valor != "—" else "64748B", size=9)
                 if j == 13:
                     cell.number_format = '0.0"%"'
                 if j == 14:
@@ -404,6 +429,11 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                         cell.font = Font(color=blanco, bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center")
 
+        # Altura suficiente para leer los motivos dentro de la columna O.
+        for fila_excel, fila_datos in enumerate(detalle_tecnicos, start=fila_inicio_tec + 2):
+            lineas = max(1, str(fila_datos[7]).count("\\n") + 1)
+            ws_res.row_dimensions[fila_excel].height = min(120, max(30, 18 * lineas))
+
         # Ajuste de columnas del Resumen para las nuevas tablas.
         ws_res.column_dimensions["B"].width = 18
         ws_res.column_dimensions["C"].width = 15
@@ -418,6 +448,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
         ws_res.column_dimensions["L"].width = 12
         ws_res.column_dimensions["M"].width = 12
         ws_res.column_dimensions["N"].width = 15
+        ws_res.column_dimensions["O"].width = 58
 
         # ---------------- PREVENTIVAS ----------------
         ws.sheet_view.showGridLines = False
