@@ -1,3 +1,4 @@
+
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -373,6 +374,36 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
             cell.font = Font(color=blanco, bold=True)
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
+        # Detectar comentarios que expliquen una causa de no ejecución.
+        # Solo afecta el Resumen; Preventivas conserva todos los comentarios originales.
+        def comentario_es_motivo_no_realizacion(comentario):
+            texto = limpiar(comentario, "").strip()
+            if not texto:
+                return False
+            texto_norm = " ".join(str(texto).lower().replace("á", "a").replace("é", "e")
+                                  .replace("í", "i").replace("ó", "o").replace("ú", "u").split())
+            genericos = [
+                "sin novedad", "todo bien", "realizado correctamente", "se realizo correctamente",
+                "actividad realizada", "ok", "listo", "hecho", "sin comentarios", "ninguna novedad",
+                "se ejecuto", "ejecutado", "trabajo realizado", "normal"
+            ]
+            if any(texto_norm == frase or texto_norm.startswith(frase + ".") for frase in genericos):
+                return False
+            indicadores = [
+                "no se pudo", "no se puede", "no fue posible", "no se realizo", "no realizado",
+                "no se ejecuto", "pendiente por", "pendiente debido", "queda pendiente por",
+                "debido a", "por falta", "falta de", "falta ", "no hay", "sin repuesto",
+                "sin material", "esperando", "a la espera", "requiere parada", "requiere parar",
+                "parada de maquina", "maquina en produccion", "equipo en produccion", "en produccion",
+                "fuera de servicio", "averiado", "dañado", "danado", "falla", "fallo", "bloqueado",
+                "sin acceso", "no autorizado", "falta de tiempo", "falta de personal", "no disponible",
+                "no disponibilidad", "se necesita", "se requiere", "programar parada", "riesgo de",
+                "por seguridad", "no se permite", "no permiten", "no se detuvo", "no detuvieron",
+                "no alcanza", "no alcanzo", "reprogramar", "reprogramado", "aplazado", "demorado",
+                "espera de", "pendiente para", "hasta que", "cuando se detenga", "cuando pare"
+            ]
+            return any(indicador in texto_norm for indicador in indicadores)
+
         detalle_tecnicos = []
         df_asig = df_stats[df_stats["Asignada"]].copy()
         if not df_asig.empty:
@@ -383,17 +414,17 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
                 pct_tec = round(realizadas_tec / asignadas_tec * 100, 1) if asignadas_tec else 0.0
                 estado_tec = "Completo" if pct_tec >= 100 else "En proceso" if pct_tec > 0 else "Pendiente"
 
-                # Listar cada actividad no ejecutada/verificada y su comentario real.
+                # Mostrar solo los comentarios que expliquen por qué no se completó la actividad.
                 no_completadas = g[~g["Realizada"]].copy()
                 motivos = []
                 for _, actividad_row in no_completadas.iterrows():
                     actividad_txt = limpiar(actividad_row.get("Actividades", ""), "Actividad sin descripción")
                     comentario_txt = limpiar(actividad_row.get("Comentarios", ""), "")
-                    if comentario_txt:
+                    if comentario_es_motivo_no_realizacion(comentario_txt):
                         motivos.append(f"• {actividad_txt}: {comentario_txt}")
-                    else:
-                        motivos.append(f"• {actividad_txt}: Sin comentario registrado")
-                motivo_resumen = "\\n".join(motivos) if motivos else "—"
+                    elif not comentario_txt:
+                        motivos.append(f"• {actividad_txt}: Sin motivo registrado")
+                motivo_resumen = "\n".join(motivos) if motivos else ("Sin motivo de no realización identificado" if pendientes_tec else "—")
 
                 detalle_tecnicos.append([
                     esp or "SIN ESPECIALIDAD", tecnico, asignadas_tec,
@@ -430,7 +461,7 @@ def enviar_correo_preventivo(df, destinatarios, asunto, area_mecanica="INY4 MEC"
 
         # Altura suficiente para leer los motivos dentro de la columna O.
         for fila_excel, fila_datos in enumerate(detalle_tecnicos, start=fila_inicio_tec + 2):
-            lineas = max(1, str(fila_datos[7]).count("\\n") + 1)
+            lineas = max(1, str(fila_datos[7]).count("\n") + 1)
             ws_res.row_dimensions[fila_excel].height = min(120, max(30, 18 * lineas))
 
         # Ajuste de columnas del Resumen para las nuevas tablas.
