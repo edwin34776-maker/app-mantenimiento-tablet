@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Auto-refresh para dashboard en tiempo real
 try:
@@ -1918,20 +1917,28 @@ def pantalla_home():
     df = recargar_datos(forzar=(perfil in ("supervisor", "planeador")))
     header_tablet("App Tablet Mtto", "Supervisor / Ingeniero" if perfil == "supervisor" else ("Planeador" if perfil == "planeador" else "&#128295; Técnico"))
 
-    if perfil == "supervisor" and not df.empty:
+    # "No aplica" se conserva en Supabase, pero no cuenta como trabajo pendiente
+    # ni como actividad asignable en los indicadores de inicio.
+    if not df.empty and "Estado" in df.columns:
+        _estado_inicio = df["Estado"].fillna("").astype(str).str.strip().str.casefold()
+        df_inicio = df[~_estado_inicio.isin(["no aplica", "no_aplica", "no-aplica"])].copy()
+    else:
+        df_inicio = df.copy()
+
+    if perfil == "supervisor" and not df_inicio.empty:
         # ========== GAUGES DE ASIGNACIÓN Y VERIFICACIÓN ==========
-        total_act = len(df)
+        total_act = len(df_inicio)
         asignadas = 0
         if total_act > 0 and "Tecnico_Asignado" in df.columns:
-            asignadas = len(df[df["Tecnico_Asignado"].notna() & (df["Tecnico_Asignado"] != "")])
+            asignadas = len(df_inicio[df_inicio["Tecnico_Asignado"].notna() & (df_inicio["Tecnico_Asignado"] != "")])
         pendientes_asig = total_act - asignadas
         pct_asig = round(asignadas / total_act * 100, 1) if total_act else 0
 
         verificadas = 0
         ejecutadas = 0
-        if "Estado" in df.columns:
-            verificadas = len(df[df["Estado"] == "Verificado"])
-            ejecutadas = len(df[df["Estado"] == "Ejecutado"])
+        if "Estado" in df_inicio.columns:
+            verificadas = len(df_inicio[df_inicio["Estado"] == "Verificado"])
+            ejecutadas = len(df_inicio[df_inicio["Estado"] == "Ejecutado"])
         total_verif = verificadas + ejecutadas
         pct_verif = round(verificadas / total_verif * 100, 1) if total_verif else 0
 
@@ -1943,7 +1950,7 @@ def pantalla_home():
 
     # La gráfica ocupa el espacio superior derecho que antes usaba
     # el indicador de verificación. Se alinea con el progreso de asignación.
-    if perfil == "supervisor" and not df.empty:
+    if perfil == "supervisor" and not df_inicio.empty:
         with col_g2:
             # ========== GRÁFICA ÚNICA: EJECUTADAS Y PENDIENTES POR TÉCNICO ==========
             # Cada técnico lleva la especialidad asociada (ELE/MEC) junto a su nombre.
@@ -1954,7 +1961,7 @@ def pantalla_home():
             if df.empty:
                 st.info("No hay actividades disponibles para construir la gráfica.")
             else:
-                df_graf = df.copy()
+                df_graf = df_inicio.copy()
                 for columna, defecto in [("Especialidad", "SIN ESPECIALIDAD"), ("Tecnico_Asignado", "Sin asignar"), ("Estado", "Pendiente")]:
                     if columna not in df_graf.columns:
                         df_graf[columna] = defecto
@@ -2176,6 +2183,11 @@ def _home_tecnico(df):
     # estén asignadas a su nombre. Si no tiene ninguna asignada,
     # no se muestran todas las órdenes de la base.
     df_mias = df[mask_tec].copy()
+
+    # No mostrar ni contar como pendiente una actividad marcada "No aplica".
+    if not df_mias.empty and "Estado" in df_mias.columns:
+        _estado_tecnico = df_mias["Estado"].fillna("").astype(str).str.strip().str.casefold()
+        df_mias = df_mias[~_estado_tecnico.isin(["no aplica", "no_aplica", "no-aplica"])].copy()
 
     total_asignadas = len(df_mias)
     conteos = {est: len(df_mias[df_mias["Estado"] == est]) if "Estado" in df_mias.columns else 0
@@ -2540,6 +2552,9 @@ def pantalla_mis_ordenes():
     if "Tecnico_Asignado" in df.columns:
         mask_tec |= df["Tecnico_Asignado"] == tecnico_sel
     df_mias = df[mask_tec].copy() if mask_tec.any() else pd.DataFrame()
+    if not df_mias.empty and "Estado" in df_mias.columns:
+        _estado_lista = df_mias["Estado"].fillna("").astype(str).str.strip().str.casefold()
+        df_mias = df_mias[~_estado_lista.isin(["no aplica", "no_aplica", "no-aplica"])].copy()
     if filtro_estado != "Todos" and "Estado" in df_mias.columns:
         df_mias = df_mias[df_mias["Estado"] == filtro_estado]
     df_mias = buscar_en_df(df_mias, busq_tec, ["ID OT", "Equipo"])
@@ -2548,7 +2563,10 @@ def pantalla_mis_ordenes():
     if "Tecnico_Asignado" in df.columns:
         mask_tec_all |= df["Tecnico_Asignado"] == tecnico_sel
     if mask_tec_all.any():
-        df_todas = df[mask_tec_all]
+        df_todas = df[mask_tec_all].copy()
+        if not df_todas.empty and "Estado" in df_todas.columns:
+            _estado_todas = df_todas["Estado"].fillna("").astype(str).str.strip().str.casefold()
+            df_todas = df_todas[~_estado_todas.isin(["no aplica", "no_aplica", "no-aplica"])].copy()
         total_asignadas = len(df_todas)
         pendientes = len(df_todas[df_todas["Estado"] == "Pendiente"])
         ejecutadas = len(df_todas[df_todas["Estado"] == "Ejecutado"])
