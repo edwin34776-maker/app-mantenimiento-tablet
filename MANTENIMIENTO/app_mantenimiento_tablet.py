@@ -1,10 +1,7 @@
+
 import streamlit as st
-# Auto-refresh para dashboard en tiempo real
-try:
-    from streamlit_autorefresh import st_autorefresh
-    _HAS_AUTOREFRESH = True
-except ImportError:
-    _HAS_AUTOREFRESH = False
+# Actualización automática con la función nativa de Streamlit.
+# No requiere streamlit-autorefresh ni cargar componentes externos.
 import pandas as pd
 from datetime import datetime
 from supabase import create_client
@@ -1301,7 +1298,7 @@ TECNICOS_MEC = [
      "LUIS FERNANDO DELGADO CARMONA", "SAENZ SAENZ CARLOS EFREN",
     "PABLO ENRRIQUE TORRES BARON", "FELIPE LATORRE DIAZ", "MOLINA GONZALEZ MICHAEL ANDRES",
     "MURILLO MURILLO WILLIAM OBER", "MOLANO ALFONSO LUIS", "PINILLA ARIAS JHONATAN FERNANDO",
-    "VARGAS VARGAS JHON ALEJANDER", "DILAN MEDINA",
+    "VARGAS VARGAS JHON ALEJANDER", "MERIÑO GIL JOSE MANUEL", "DILAN MEDINA",
     "RODRIGUEZ CAMACHO LUIS ALVEIRO", "MENDIVIELSO CANTOR JUAN CARLOS", "ARIAS  PERDOMO JUAN ESTEBAN",
     "VELASQUEZ OSPINA CRISTIAN JAIR", "HECTOR ALBEIRO CRISTANCHO CORREDOR"
 ]
@@ -1646,14 +1643,11 @@ def color_porcentaje(pct):
         b = int(11 + (94 - 11) * ((pct - 50) / 50))
     return f"#{r:02X}{g:02X}{b:02X}"
 
+@st.fragment(run_every="15s")
 def pantalla_login():
     """Pantalla de inicio con dashboard y una sola tarjeta para los tres perfiles."""
-    # Actualiza únicamente esta pantalla automáticamente cada 15 segundos.
-    # No realiza una recarga completa del navegador ni afecta las demás pantallas.
-    if _HAS_AUTOREFRESH:
-        st_autorefresh(interval=15000, key="dashboard_login_auto_refresh")
-        # Evita que el dashboard conserve datos antiguos durante el refresco.
-        _cargar_ordenes_cache.clear()
+    # Al actualizar el fragmento, se fuerza una lectura reciente del dashboard.
+    _cargar_ordenes_cache.clear()
 
     header_tablet("App Tablet Mtto Preventivo")
 
@@ -1908,12 +1902,11 @@ def _home_envio_correo(df):
             else:
                 st.error(msg)
 
+@st.fragment(run_every="15s")
 def pantalla_home():
     perfil = st.session_state.perfil
-    # Actualizar automáticamente el panel administrativo cada 15 segundos.
-    # La consulta forzada vuelve a leer Supabase para que la gráfica no use datos antiguos.
-    if perfil in ("supervisor", "planeador") and _HAS_AUTOREFRESH:
-        st_autorefresh(interval=15000, key="home_graficas_auto_refresh")
+    # El fragmento actualiza esta pantalla cada 15 segundos.
+    # Supervisor y planeador fuerzan la lectura reciente desde Supabase.
     df = recargar_datos(forzar=(perfil in ("supervisor", "planeador")))
     header_tablet("App Tablet Mtto", "Supervisor / Ingeniero" if perfil == "supervisor" else ("Planeador" if perfil == "planeador" else "&#128295; Técnico"))
 
