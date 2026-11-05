@@ -1,4 +1,3 @@
-
 import streamlit as st
 # Actualización automática con la función nativa de Streamlit.
 # No requiere streamlit-autorefresh ni cargar componentes externos.
@@ -1814,7 +1813,20 @@ def pantalla_login():
         )
 
         # Supervisor y Planeador necesitan contraseña; Técnico entra directamente.
+        # Si se cambia a Técnico (o a otro perfil), se elimina cualquier solicitud
+        # de contraseña que haya quedado pendiente de una selección anterior.
         pendiente = st.session_state.get("perfil_pendiente_acceso")
+        perfil_actual_acceso = (
+            "supervisor" if perfil_elegido == "Supervisor / Ingeniero"
+            else "planeador" if perfil_elegido == "Planeador"
+            else None
+        )
+
+        if perfil_actual_acceso is None or (pendiente and pendiente != perfil_actual_acceso):
+            st.session_state.perfil_pendiente_acceso = None
+            st.session_state.pop(gen_key("clave_perfil_unico"), None)
+            pendiente = None
+
         if pendiente:
             etiqueta = "Supervisor / Ingeniero" if pendiente == "supervisor" else "Planeador"
             st.markdown(f"**🔐 Contraseña de {etiqueta}**")
@@ -1856,6 +1868,7 @@ def pantalla_login():
                     st.session_state.admin_autenticado = False
                     st.session_state.planeador_autenticado = False
                     st.session_state.perfil_pendiente_acceso = None
+                    st.session_state.pop(gen_key("clave_perfil_unico"), None)
                     st.session_state.pagina = "home"
                     st.rerun()
                 else:
